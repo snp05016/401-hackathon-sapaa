@@ -1,3 +1,4 @@
+import { registerGmailHandlers } from "../gmail";
 import { ipcMain } from "electron";
 import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
@@ -11,6 +12,7 @@ import { IPC_CHANNELS } from "./channels";
 import { updateApplicationDeadline } from "../db/deadlines";
 
 export function registerIpcHandlers(db: GhostboardDb): void {
+  registerGmailHandlers(db);
   ipcMain.handle(IPC_CHANNELS.updateDeadline, (_event, applicationId: unknown, deadline: unknown) => {
     return updateApplicationDeadline(db, applicationId, deadline);
   });

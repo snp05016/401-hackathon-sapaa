@@ -41,3 +41,20 @@ export const applicationsRelations = relations(applications, ({ many }) => ({ ev
 export const applicationEventsRelations = relations(applicationEvents, ({ one }) => ({
   application: one(applications, { fields: [applicationEvents.applicationId], references: [applications.id] }),
 }));
+
+export const gmailSuggestions = sqliteTable("gmail_suggestions", {
+  id: text("id").primaryKey(),
+  account: text("account").notNull(),
+  messageId: text("message_id").notNull(),
+  suggestion: text("suggestion", { mode: "json" }).$type<import("@ghostboard/shared").GmailSuggestion>().notNull(),
+  decision: text("decision", { enum: ["pending", "applied", "dismissed"] }).notNull().default("pending"),
+});
+
+export const gmailSync = sqliteTable("gmail_sync", {
+  account: text("account").primaryKey(),
+  historyId: text("history_id"),
+  nextHistoryId: text("next_history_id"),
+  pendingIds: text("pending_ids", { mode: "json" }).$type<string[]>().notNull(),
+  pageToken: text("page_token"),
+  lastCheckedAt: text("last_checked_at"),
+});

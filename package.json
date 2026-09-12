@@ -10,6 +10,7 @@
     "dev": "npm run dev --workspace=apps/desktop",
     "dev:extension": "npm run dev --workspace=apps/extension",
     "build": "npm run build --workspaces --if-present",
+    "test": "tsx --test packages/scraping/src/*.test.ts packages/matching/src/*.test.ts packages/tracking/src/*.test.ts apps/desktop/electron/db/*.test.ts apps/desktop/electron/gmail/*.test.ts packages/tracking/src/statusProviders/*.test.ts",
     "test": "tsx --test packages/scraping/src/*.test.ts packages/matching/src/*.test.ts packages/tracking/src/*.test.ts packages/extension-messaging/src/*.test.ts apps/desktop/electron/db/*.test.ts",
     "db:generate": "npm run db:generate --workspace=@ghostboard/database",
     "db:seed": "tsx fixtures/seed-data.ts",
