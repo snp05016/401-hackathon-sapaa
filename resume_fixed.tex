@@ -1,0 +1,189 @@
+\documentclass[11pt,letterpaper]{article}
+
+% ------------------------------------------------------------
+% PACKAGES
+% ------------------------------------------------------------
+
+\usepackage[margin=0.5in]{geometry}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage[hidelinks]{hyperref}
+\usepackage{tabularx}
+\usepackage{xcolor}
+
+% ------------------------------------------------------------
+% GENERAL FORMATTING
+% ------------------------------------------------------------
+
+\pagestyle{empty}
+\parindent=0pt
+\setlength{\parskip}{0pt}
+
+% Compact bullet lists
+\setlist[itemize]{
+    leftmargin=1.5em,
+    itemsep=1pt,
+    topsep=1pt,
+    parsep=0pt,
+    partopsep=0pt
+}
+
+% ------------------------------------------------------------
+% SECTION FORMATTING
+% ------------------------------------------------------------
+
+\titleformat{\section}
+    {\large\bfseries}
+    {}
+    {0em}
+    {}
+    [\titlerule]
+
+\titlespacing{\section}
+    {0pt}
+    {6pt}
+    {4pt}
+
+% ------------------------------------------------------------
+% CUSTOM COMMANDS
+% ------------------------------------------------------------
+
+% Header
+\newcommand{\resumeHeading}[4]{
+    \begin{center}
+        {\Large \textbf{#1}} \\[3pt]
+        #2 \;|\; #3 \;|\; #4
+    \end{center}
+    \vspace{-6pt}
+}
+
+% Resume entry
+\newcommand{\resumeEntry}[4]{
+    \textbf{#1} \hfill #2 \\
+    \textit{#3} \hfill \textit{#4}
+}
+
+% ------------------------------------------------------------
+% DOCUMENT
+% ------------------------------------------------------------
+
+\begin{document}
+
+% ============================================================
+% HEADER
+% ============================================================
+
+\resumeHeading
+    {Alex Johnson}
+    {Toronto, ON}
+    {\href{mailto:alex.johnson@email.com}{alex.johnson@email.com}}
+    {\href{https://linkedin.com/in/alexjohnson}{linkedin.com/in/alexjohnson}
+    \;|\;
+    \href{https://github.com/alexjohnson}{github.com/alexjohnson}}
+
+% ============================================================
+% EDUCATION
+% ============================================================
+
+\section{Education}
+
+\resumeEntry
+    {University of Example}
+    {Toronto, ON}
+    {Bachelor of Science in Computer Science}
+    {Sep. 2022 -- Apr. 2026}
+
+\begin{itemize}
+    \item GPA: 3.7/4.0
+    \item Relevant Coursework: Data Structures and Algorithms, Software Engineering, Database Systems, Operating Systems
+\end{itemize}
+
+% ============================================================
+% EXPERIENCE
+% ============================================================
+
+\section{Experience}
+
+\resumeEntry
+    {TechWorks Inc.}
+    {Toronto, ON}
+    {Software Developer Intern}
+    {May 2025 -- Aug. 2025}
+
+\begin{itemize}
+    \item Developed REST APIs using Python and Flask to support internal applications used by 200+ employees.
+    \item Designed and optimized SQL queries, reducing average database response time by 30\%.
+    \item Built automated unit tests that increased backend test coverage from 65\% to 88\%.
+    \item Collaborated with a team of 6 developers using Git, code reviews, and Agile development practices.
+\end{itemize}
+
+\resumeEntry
+    {Digital Solutions Co.}
+    {Toronto, ON}
+    {Junior Software Developer}
+    {May 2024 -- Aug. 2024}
+
+\begin{itemize}
+    \item Implemented backend features for a customer management platform using Java and PostgreSQL.
+    \item Created reusable services that reduced duplicated application logic across multiple modules.
+    \item Investigated and resolved production bugs by analyzing logs, database records, and application behavior.
+\end{itemize}
+
+% ============================================================
+% PROJECTS
+% ============================================================
+
+\section{Projects}
+
+\resumeEntry
+    {Dungeon Quest}
+    {\href{https://github.com/alexjohnson/dungeon-quest}{GitHub}}
+    {Unity / C\# / Multiplayer Game}
+    {Jan. 2025 -- Present}
+
+\begin{itemize}
+    \item Developed a cooperative multiplayer roguelike game in Unity using C\# and a Python backend.
+    \item Implemented player synchronization, room creation, character selection, and real-time game-state updates.
+    \item Designed a modular card system allowing new cards, abilities, and enemies to be added without modifying core gameplay systems.
+\end{itemize}
+
+\resumeEntry
+    {TaskFlow}
+    {\href{https://github.com/alexjohnson/taskflow}{GitHub}}
+    {React / Node.js / PostgreSQL}
+    {Sep. 2024 -- Dec. 2024}
+
+\begin{itemize}
+    \item Built a full-stack task management application supporting user authentication, project creation, and team collaboration.
+    \item Designed RESTful API endpoints and PostgreSQL schemas for users, projects, tasks, and permissions.
+\end{itemize}
+
+% ============================================================
+% TECHNICAL SKILLS
+% ============================================================
+
+\section{Technical Skills}
+
+\textbf{Languages:} C++, C\#, Java, Python, JavaScript, SQL \\[2pt]
+\textbf{Frameworks:} Unity, .NET, Flask, React, Node.js \\[2pt]
+\textbf{Tools:} Git, Docker, PostgreSQL, MySQL, Linux, CMake \\[2pt]
+\textbf{Concepts:} Object-Oriented Programming, Data Structures, Algorithms, REST APIs, Multiplayer Networking
+
+% ============================================================
+% ACTIVITIES
+% ============================================================
+
+\section{Activities}
+
+\resumeEntry
+    {Computer Science Club}
+    {Toronto, ON}
+    {Software Development Team Member}
+    {Sep. 2023 -- Present}
+
+\begin{itemize}
+    \item Worked with student developers to build software projects and organize technical workshops.
+    \item Mentored first-year students on Git, programming fundamentals, and introductory software development.
+\end{itemize}
+
+\end{document}
