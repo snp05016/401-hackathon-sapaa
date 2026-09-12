@@ -4,6 +4,8 @@ import { ipc } from "../lib/ipc";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
 
+const VETERAN_OPTIONS = ["Yes", "No", "Prefer not to say"];
+
 export function Profile() {
   const [fields, setFields] = useState<ProfileField[]>([]);
   const [saved, setSaved] = useState(false);
@@ -22,6 +24,61 @@ export function Profile() {
     setSaved(false);
   }
 
+  function renderField(field: ProfileField) {
+    if (field.key === "veteranStatus") {
+      return (
+        <div className="flex flex-wrap gap-3 pt-1">
+          {VETERAN_OPTIONS.map((option) => {
+            const checked = field.value === option;
+            return (
+              <label key={option} className="flex items-center gap-2 text-[12px] text-ink-2">
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => updateValue(field.key, option)}
+                />
+                {option}
+              </label>
+            );
+          })}
+        </div>
+      );
+    }
+
+    return (
+      <Input
+        id={`profile-${field.key}`}
+        variant="rule"
+        value={field.value}
+        onChange={(e) => updateValue(field.key, e.target.value)}
+      />
+    );
+  }
+
+  function fallbackFieldOrder(fields: ProfileField[]) {
+    const desiredOrder = [
+      "firstName",
+      "lastName",
+      "email",
+      "phone",
+      "address",
+      "country",
+      "linkedin",
+      "github",
+      "veteranStatus",
+      "gender",
+    ];
+
+    return [...fields].sort((a, b) => {
+      const aIndex = desiredOrder.indexOf(a.key);
+      const bIndex = desiredOrder.indexOf(b.key);
+      if (aIndex === -1 && bIndex === -1) return 0;
+      if (aIndex === -1) return 1;
+      if (bIndex === -1) return -1;
+      return aIndex - bIndex;
+    });
+  }
+
   async function handleSave() {
     await ipc().saveProfile(fields);
     setSaved(true);
@@ -37,7 +94,7 @@ export function Profile() {
       </header>
 
       <div className="mt-11 max-w-[440px]">
-        {fields.map((field, i) => (
+        {fallbackFieldOrder(fields).map((field, i) => (
           <div
             key={field.key}
             className="animate-reveal mb-7"
@@ -46,12 +103,7 @@ export function Profile() {
             <label htmlFor={`profile-${field.key}`} className="mb-2 block text-[12px] text-ink-2">
               {field.label}
             </label>
-            <Input
-              id={`profile-${field.key}`}
-              variant="rule"
-              value={field.value}
-              onChange={(e) => updateValue(field.key, e.target.value)}
-            />
+            {renderField(field)}
           </div>
         ))}
         <div className="mt-10 flex items-center gap-4">

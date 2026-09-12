@@ -4,6 +4,7 @@ import {
   BRIDGE_EXTENSION_MESSAGES_PATH,
   isExtensionAuthenticationMessage,
 } from "@ghostboard/shared";
+import type { Profile } from "@ghostboard/shared";
 import type { BridgeSettings } from "../shared/messages";
 
 export type JsonMessage = null | boolean | number | string | JsonMessage[] | { [key: string]: JsonMessage };
@@ -130,6 +131,17 @@ export async function checkBridgeHealth(): Promise<boolean> {
     return res.ok;
   } catch {
     return false;
+  }
+}
+
+export async function getProfileFromBridge(): Promise<Profile | null> {
+  try {
+    const res = await bridgeFetch("/profile");
+    if (!res.ok) return null;
+    const payload = (await res.json()) as { profile?: Profile | null };
+    return payload.profile ?? null;
+  } catch {
+    return null;
   }
 }
 
