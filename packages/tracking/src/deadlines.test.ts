@@ -10,7 +10,7 @@ function application(deadline: string | null | undefined, status: Application["s
     id: `${status}-${deadline}`, company: "Test company", title: "Developer", location: null,
     jobUrl: "https://example.com/jobs/1", jobDescription: "", status,
     dateFound: "2026-09-01", dateApplied: null, lastActivityAt: "2026-09-01",
-    followUpOn: false,
+    followUpOn: false, followUpDismissedAt: null,
     nextAction: null, nextActionDate: null, resumeId: null, source: "manual",
     createdAt: "2026-09-01", updatedAt: "2026-09-01", deadline,
   };

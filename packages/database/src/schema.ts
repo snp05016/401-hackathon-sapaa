@@ -16,6 +16,7 @@ export const applications = sqliteTable("applications", {
   deadline: text("deadline"),
   lastActivityAt: text("last_activity_at").notNull(),
   followUpOn: integer("follow_up_on", { mode: "boolean" }).notNull().default(false),
+  followUpDismissedAt: text("follow_up_dismissed_at"),
   nextAction: text("next_action"),
   nextActionDate: text("next_action_date"),
   resumeId: text("resume_id"),

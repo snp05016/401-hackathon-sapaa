@@ -15,6 +15,8 @@ export interface Application {
   lastActivityAt: string;
   /** True when the application is due for a follow-up based on status and elapsed time. */
   followUpOn: boolean;
+  /** ISO timestamp when the user marked the follow-up done; suppresses auto re-flagging until the follow-up anchor changes. */
+  followUpDismissedAt: string | null;
   nextAction: string | null;
   nextActionDate: string | null;
   resumeId: string | null;

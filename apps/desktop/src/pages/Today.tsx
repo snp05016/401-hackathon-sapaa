@@ -1,17 +1,11 @@
 import { useEffect, useState } from "react";
 import { Check, Copy, X } from "lucide-react";
-import type { FollowUpKind, FollowUpSuggestion } from "@ghostboard/shared";
-import { summarizeToday } from "@ghostboard/tracking";
+import type { FollowUpSuggestion } from "@ghostboard/shared";
+import { FOLLOW_UP_KIND_LABELS, summarizeToday } from "@ghostboard/tracking";
 import { useApplications } from "../lib/useApplications";
 import { ipc } from "../lib/ipc";
 import { renderMessageTemplate, capitalize } from "../lib/utils";
 import { Button } from "../components/ui/button";
-
-const FOLLOW_UP_KIND_LABELS: Record<FollowUpKind, string> = {
-  application: "Following up on application",
-  interview: "Following up on interview",
-  thank_you: "Thank the recruiter for the interview",
-};
 
 function Figure({ count, label, accent, delay }: { count: number; label: string; accent: string; delay: number }) {
   return (

@@ -9,6 +9,12 @@ const TWO_WEEKS_MS = 14 * 86_400_000;
 const SEVENTY_TWO_HOURS_MS = 72 * 3_600_000;
 const ONE_WEEK_MS = 7 * 86_400_000;
 
+export const FOLLOW_UP_KIND_LABELS: Record<FollowUpKind, string> = {
+  application: "Following up on application",
+  interview: "Following up on interview",
+  thank_you: "Thank the recruiter for the interview",
+};
+
 export const FOLLOW_UP_MESSAGES: Record<FollowUpKind, FollowUpMessage> = {
   application: {
     id: "follow-up-application",
@@ -66,13 +72,28 @@ export function evaluateFollowUpKind(application: Application, now: Date = new D
   return null;
 }
 
+/** Anchor timestamp that defines whether a dismissal still covers the current follow-up. */
+function dismissalAnchor(application: Application, kind: FollowUpKind): string | null {
+  return kind === "application" ? application.dateApplied : application.lastActivityAt;
+}
+
+/**
+ * True when the user already dismissed this follow-up and the application's
+ * relevant anchor (apply date or last activity) has not changed since.
+ */
+export function isFollowUpDismissed(application: Application, kind: FollowUpKind): boolean {
+  if (!application.followUpDismissedAt) return false;
+  const anchor = dismissalAnchor(application, kind);
+  return anchor !== null && application.followUpDismissedAt >= anchor;
+}
+
 export function buildFollowUpSuggestions(
   applications: Application[],
   now: Date = new Date()
 ): FollowUpSuggestion[] {
   return applications.flatMap((application) => {
     const kind = evaluateFollowUpKind(application, now);
-    if (!kind) return [];
+    if (!kind || isFollowUpDismissed(application, kind)) return [];
     return [
       {
         applicationId: application.id,

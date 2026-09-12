@@ -3,6 +3,7 @@ import { AppShell } from "./components/layout/AppShell";
 import { SplashScreen } from "./components/layout/SplashScreen";
 import type { NavPage } from "./components/layout/Sidebar";
 import { Today } from "./pages/Today";
+import { Todo } from "./pages/Todo";
 import { Applications } from "./pages/Applications";
 import { Discover } from "./pages/Discover";
 import { Resumes } from "./pages/Resumes";
@@ -11,6 +12,7 @@ import { Tracking } from "./pages/Tracking";
 
 const PAGES: Record<NavPage, () => JSX.Element> = {
   today: Today,
+  todo: Todo,
   applications: Applications,
   discover: Discover,
   resumes: Resumes,

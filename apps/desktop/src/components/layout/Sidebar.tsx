@@ -1,12 +1,13 @@
-import { LayoutDashboard, KanbanSquare, Compass, FileText, User, LineChart } from "lucide-react";
+import { LayoutDashboard, KanbanSquare, ListTodo, Compass, FileText, User, LineChart } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { GhostMark } from "../ui/GhostMark";
 import { ThemeSwitcher } from "./ThemeSwitcher";
 
-export type NavPage = "today" | "applications" | "discover" | "resumes" | "profile" | "tracking";
+export type NavPage = "today" | "todo" | "applications" | "discover" | "resumes" | "profile" | "tracking";
 
 const NAV_ITEMS: Array<{ id: NavPage; label: string; icon: typeof LayoutDashboard }> = [
   { id: "today", label: "Today", icon: LayoutDashboard },
+  { id: "todo", label: "To Do", icon: ListTodo },
   { id: "applications", label: "Applications", icon: KanbanSquare },
   { id: "discover", label: "Discover", icon: Compass },
   { id: "resumes", label: "Resumes", icon: FileText },

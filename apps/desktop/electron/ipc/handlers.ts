@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
 import { applications, applicationEvents, type GhostboardDb } from "@ghostboard/database";
 import { buildFollowUpSuggestions } from "@ghostboard/tracking";
-import type { FollowUpSuggestion, ProfileField } from "@ghostboard/shared";
+import type { Application, FollowUpSuggestion, ProfileField } from "@ghostboard/shared";
 import { STAGE_LABELS, type ApplicationEvent } from "@ghostboard/shared";
 import type { MoveApplicationRequest, MoveApplicationResult } from "../preload";
 import { readProfile, writeProfile } from "../db/index";
@@ -72,6 +72,18 @@ export function registerIpcHandlers(db: GhostboardDb): void {
       });
     }
   );
+
+  ipcMain.handle(IPC_CHANNELS.dismissFollowUp, async (_event, applicationId: unknown): Promise<Application> => {
+    if (typeof applicationId !== "string") throw new Error("application id is required");
+    const now = new Date().toISOString();
+    await db
+      .update(applications)
+      .set({ followUpOn: false, followUpDismissedAt: now, updatedAt: now })
+      .where(eq(applications.id, applicationId));
+    const [updated] = await db.select().from(applications).where(eq(applications.id, applicationId));
+    if (!updated) throw new Error("application not found");
+    return updated;
+  });
 
   ipcMain.handle(IPC_CHANNELS.getProfile, () => {
     return readProfile();

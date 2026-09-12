@@ -1,11 +1,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Application } from "@ghostboard/shared";
-import { buildFollowUpSuggestions, evaluateFollowUpKind } from "./followUps";
+import { buildFollowUpSuggestions, evaluateFollowUpKind, isFollowUpDismissed } from "./followUps";
 
 const now = new Date("2026-09-12T12:00:00.000Z");
 
-function application(status: Application["status"], dateApplied: string | null, lastActivityAt: string): Application {
+function application(
+  status: Application["status"],
+  dateApplied: string | null,
+  lastActivityAt: string,
+  followUpDismissedAt: string | null = null
+): Application {
   return {
     id: status,
     company: "Test company",
@@ -18,6 +23,7 @@ function application(status: Application["status"], dateApplied: string | null, 
     dateApplied,
     lastActivityAt,
     followUpOn: false,
+    followUpDismissedAt,
     nextAction: null,
     nextActionDate: null,
     resumeId: null,
@@ -77,4 +83,20 @@ test("buildFollowUpSuggestions attaches a templated message per suggestion", () 
     ]
   );
   assert.ok(suggestions.every(({ message }) => message.id && message.title && message.body && message.description));
+});
+
+test("a dismissal suppresses a follow-up until the anchor date moves", () => {
+  const dismissed = application("applied", daysAgo(20), daysAgo(20), daysAgo(5));
+  assert.equal(isFollowUpDismissed(dismissed, "application"), true);
+  assert.equal(buildFollowUpSuggestions([dismissed], now).length, 0);
+
+  const reApplied = application("applied", daysAgo(1), daysAgo(1), daysAgo(5));
+  assert.equal(isFollowUpDismissed(reApplied, "application"), false);
+
+  const staleInterview = application("interviewing", daysAgo(30), daysAgo(10), daysAgo(2));
+  assert.equal(isFollowUpDismissed(staleInterview, "interview"), true);
+  assert.equal(buildFollowUpSuggestions([staleInterview], now).length, 0);
+
+  const freshInterview = application("interviewing", daysAgo(30), hoursAgo(48), hoursAgo(72));
+  assert.equal(isFollowUpDismissed(freshInterview, "interview"), false);
 });
