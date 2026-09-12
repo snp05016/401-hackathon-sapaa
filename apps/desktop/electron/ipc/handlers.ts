@@ -3,7 +3,8 @@ import { ipcMain } from "electron";
 import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
 import { applications, applicationEvents, type GhostboardDb } from "@ghostboard/database";
-import type { ProfileField } from "@ghostboard/shared";
+import { buildFollowUpSuggestions } from "@ghostboard/tracking";
+import type { Application, FollowUpSuggestion, ProfileField } from "@ghostboard/shared";
 import { STAGE_LABELS, type ApplicationEvent } from "@ghostboard/shared";
 import type { MoveApplicationRequest, MoveApplicationResult } from "../preload";
 import { readProfile, writeProfile } from "../db/index";
@@ -18,6 +19,20 @@ export function registerIpcHandlers(db: GhostboardDb): void {
   });
   ipcMain.handle(IPC_CHANNELS.listApplications, async () => {
     return db.select().from(applications);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.evaluateFollowUps, async (): Promise<FollowUpSuggestion[]> => {
+    const rows = await db.select().from(applications);
+    const suggestions = buildFollowUpSuggestions(rows);
+    const flaggedIds = new Set(suggestions.map((suggestion) => suggestion.applicationId));
+    await Promise.all(
+      rows.map((row) => {
+        const followUpOn = flaggedIds.has(row.id);
+        if (followUpOn === row.followUpOn) return null;
+        return db.update(applications).set({ followUpOn, updatedAt: new Date().toISOString() }).where(eq(applications.id, row.id));
+      })
+    );
+    return suggestions;
   });
 
   ipcMain.handle(
@@ -60,6 +75,18 @@ export function registerIpcHandlers(db: GhostboardDb): void {
     }
   );
 
+
+  ipcMain.handle(IPC_CHANNELS.dismissFollowUp, async (_event, applicationId: unknown): Promise<Application> => {
+    if (typeof applicationId !== "string") throw new Error("application id is required");
+    const now = new Date().toISOString();
+    await db
+      .update(applications)
+      .set({ followUpOn: false, followUpDismissedAt: now, updatedAt: now })
+      .where(eq(applications.id, applicationId));
+    const [updated] = await db.select().from(applications).where(eq(applications.id, applicationId));
+    if (!updated) throw new Error("application not found");
+    return updated;
+  });
   ipcMain.handle(IPC_CHANNELS.deleteApplication, async (_event, applicationId: unknown) => {
     if (typeof applicationId !== "string" || !applicationId) throw new Error("invalid application id");
     await db.transaction(async (tx) => {

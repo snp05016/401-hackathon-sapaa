@@ -10,6 +10,7 @@ function application(deadline: string | null | undefined, status: Application["s
     id: `${status}-${deadline}`, company: "Test company", title: "Developer", location: null,
     jobUrl: "https://example.com/jobs/1", jobDescription: "", status,
     dateFound: "2026-09-01", dateApplied: null, lastActivityAt: "2026-09-01",
+    followUpOn: false, followUpDismissedAt: null,
     nextAction: null, nextActionDate: null, resumeId: null, source: "manual",
     createdAt: "2026-09-01", updatedAt: "2026-09-01", deadline,
   };
@@ -67,9 +68,9 @@ test("Today counts only unsubmitted Found jobs in non-overlapping deadline windo
     application("2026-09-13", "ghosted"),
   ];
   assert.deepEqual(summarizeToday(jobs, now), {
-    total: 12, applied: 1, interviewing: 1, dueToday: 1, upcoming: 2, overdue: 1, noDeadline: 2,
+    total: 12, applied: 1, interviewing: 1, dueToday: 1, upcoming: 2, overdue: 1, noDeadline: 2, followUpOn: 0,
   });
   assert.deepEqual(summarizeToday([], now), {
-    total: 0, applied: 0, interviewing: 0, dueToday: 0, upcoming: 0, overdue: 0, noDeadline: 0,
+    total: 0, applied: 0, interviewing: 0, dueToday: 0, upcoming: 0, overdue: 0, noDeadline: 0, followUpOn: 0,
   });
 });

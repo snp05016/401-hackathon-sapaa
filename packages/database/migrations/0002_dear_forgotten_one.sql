@@ -1,0 +1,1 @@
+ALTER TABLE `applications` ADD `follow_up_on` integer DEFAULT false NOT NULL;
