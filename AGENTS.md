@@ -63,9 +63,14 @@
 
 ## Custom AI Agent Workflow
 
-Project-scoped custom agents are defined in `.codex/agents/`. The detailed
-teammate guide, invocation examples, model guidance, and workflow templates are
-in `.codex/README.md`.
+The vendor-neutral role definitions are plain Markdown files in `.agents/`. The
+detailed teammate guide, invocation examples, model guidance, and task template
+are also in that directory. Platform-specific directories must remain thin
+adapters that point to `.agents/`; they are not the source of truth.
+
+Every AI assistant, regardless of vendor or model, must read the corresponding
+`.agents/<role>.md` file completely before acting in that role. Codex registration
+files are provided in `.codex/agents/`, but using Codex is not required.
 
 These agents are workflow roles, not one-to-one representations of the seven
 human teammates:
@@ -143,4 +148,3 @@ the task, use `scoper` or ask the human rather than making `builder` guess.
 - Agents must not commit, push, open or modify pull requests, alter branch
   protection, merge, or delete branches unless the user explicitly requests that
   external action.
-
