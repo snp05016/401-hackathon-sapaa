@@ -1,9 +1,9 @@
-import { LayoutDashboard, KanbanSquare, Compass, FileText, User, LineChart } from "lucide-react";
+import { LayoutDashboard, KanbanSquare, Compass, FileText, User, LineChart, Mail } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { GhostMark } from "../ui/GhostMark";
 import { ThemeSwitcher } from "./ThemeSwitcher";
 
-export type NavPage = "today" | "applications" | "discover" | "resumes" | "profile" | "tracking";
+export type NavPage = "today" | "applications" | "discover" | "resumes" | "profile" | "tracking" | "recruiterInbox";
 
 const NAV_ITEMS: Array<{ id: NavPage; label: string; icon: typeof LayoutDashboard }> = [
   { id: "today", label: "Today", icon: LayoutDashboard },
@@ -12,6 +12,7 @@ const NAV_ITEMS: Array<{ id: NavPage; label: string; icon: typeof LayoutDashboar
   { id: "resumes", label: "Resumes", icon: FileText },
   { id: "profile", label: "Profile", icon: User },
   { id: "tracking", label: "Tracking", icon: LineChart },
+  { id: "recruiterInbox", label: "Recruiter inbox", icon: Mail },
 ];
 
 export function Sidebar({ page, onNavigate }: { page: NavPage; onNavigate: (page: NavPage) => void }) {

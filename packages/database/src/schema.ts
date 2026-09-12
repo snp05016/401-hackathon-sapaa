@@ -52,9 +52,9 @@ export const gmailSuggestions = sqliteTable("gmail_suggestions", {
 
 export const gmailSync = sqliteTable("gmail_sync", {
   account: text("account").primaryKey(),
-  checkedThrough: text("checked_through"),
-  windowStart: text("window_start"),
-  windowEnd: text("window_end"),
+  historyId: text("history_id"),
+  nextHistoryId: text("next_history_id"),
+  pendingIds: text("pending_ids", { mode: "json" }).$type<string[]>().notNull(),
   pageToken: text("page_token"),
   lastCheckedAt: text("last_checked_at"),
 });

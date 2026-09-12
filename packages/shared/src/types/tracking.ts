@@ -34,7 +34,7 @@ export interface GmailSuggestion {
   receivedAt: string;
   subject: string;
   sender: string;
-  newStatus: "interviewing" | "rejected";
+  newStatus: "interviewing" | "rejected" | null;
   confidence: number;
   evidence: string;
   candidates: GmailCandidate[];
@@ -49,5 +49,6 @@ export interface GmailState {
   hasMore: boolean;
   busy: boolean;
   error: string | null;
+  notice: string | null;
   suggestions: GmailSuggestion[];
 }

@@ -1,0 +1,289 @@
+import { createHash } from "node:crypto";
+import { and, eq } from "drizzle-orm";
+import { applications, applicationEvents, gmailSuggestions, gmailSync, type GhostboardDb } from "@ghostboard/database";
+import { createEmailStatusProvider } from "@ghostboard/tracking";
+import type { LLMProvider } from "@ghostboard/ai";
+import type { GmailState, GmailSuggestion } from "@ghostboard/shared";
+import { authorizeGmail, googleJson, GmailRequestError, refreshGmailTokens, type GmailCredentials, type GmailTokens } from "./oauth";
+import type { GmailConnection, GmailStore } from "./store";
+
+interface GmailDependencies {
+  store: GmailStore;
+  chooseCredentials: () => Promise<GmailCredentials | null>;
+  openExternal: (url: string) => Promise<void>;
+  fetch?: typeof fetch;
+  authorize?: (credentials: GmailCredentials, signal: AbortSignal) => Promise<GmailTokens>;
+  provider?: Pick<LLMProvider, "complete">;
+  now?: () => Date;
+}
+interface GmailProfile { emailAddress: string; historyId: string }
+interface GmailHistory {
+  historyId: string;
+  nextPageToken?: string;
+  history?: Array<{ messagesAdded?: Array<{ message: { id: string; labelIds?: string[] } }> }>;
+}
+
+function messageIds(value: unknown): string[] {
+  if (!Array.isArray(value) || value.length > 1000 || value.some((id) => typeof id !== "string" || !/^[a-zA-Z0-9_-]{1,200}$/.test(id))) {
+    throw new Error("Gmail returned an invalid or oversized message batch.");
+  }
+  return [...new Set(value as string[])];
+}
+function historyId(value: unknown): string {
+  if (typeof value !== "string" || !/^\d{1,30}$/.test(value)) throw new Error("Gmail returned an invalid sync cursor.");
+  return value;
+}
+
+export function createGmailService(db: GhostboardDb, dependencies: GmailDependencies) {
+  const fetcher = dependencies.fetch ?? fetch;
+  const now = dependencies.now ?? (() => new Date());
+  let connection: GmailConnection | null | undefined;
+  let busy = false;
+  let error: string | null = null;
+  let notice: string | null = null;
+  let controller: AbortController | null = null;
+  let stopped = false;
+
+  async function load() {
+    if (connection === undefined) connection = await dependencies.store.load();
+    return connection;
+  }
+  async function save(value: GmailConnection) {
+    await dependencies.store.save(value);
+    connection = value;
+  }
+  async function accessToken(force = false): Promise<string> {
+    const current = await load();
+    if (!current?.tokens) throw new Error("Connect Gmail before checking messages.");
+    if (force || current.tokens.expiresAt <= Date.now() + 60_000) {
+      try {
+        const tokens = await refreshGmailTokens(current.credentials, current.tokens, controller?.signal, fetcher);
+        await save({ ...current, tokens });
+      } catch (cause) {
+        if (cause instanceof GmailRequestError && cause.status === 401) await save({ ...current, tokens: null, automaticChecks: false });
+        throw cause;
+      }
+    }
+    return connection!.tokens!.accessToken;
+  }
+  async function request<T>(url: string | URL): Promise<T> {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const token = await accessToken(attempt > 0);
+      try { return await googleJson<T>(url, { headers: { authorization: `Bearer ${token}` }, signal: controller?.signal }, fetcher); }
+      catch (cause) { if (!(cause instanceof GmailRequestError) || cause.status !== 401 || attempt > 0) throw cause; }
+    }
+    throw new Error("Reconnect Gmail to continue.");
+  }
+  async function getState(): Promise<GmailState> {
+    let current: GmailConnection | null = null;
+    try { current = await load(); } catch (cause) { error = cause instanceof Error ? cause.message : "Could not load Gmail settings."; }
+    const account = current?.account ?? null;
+    const [sync] = account ? await db.select().from(gmailSync).where(eq(gmailSync.account, account)) : [];
+    const stored = account ? await db.select().from(gmailSuggestions).where(and(eq(gmailSuggestions.account, account), eq(gmailSuggestions.decision, "pending"))) : [];
+    const jobs = new Map((await db.select().from(applications)).map((job) => [job.id, job]));
+    const suggestions = stored.map(({ suggestion }) => ({
+      ...suggestion,
+      candidates: suggestion.candidates.flatMap((candidate) => {
+        const job = jobs.get(candidate.applicationId);
+        return job ? [{ applicationId: job.id, company: job.company, title: job.title, status: job.status, updatedAt: job.updatedAt }] : [];
+      }),
+    })).sort((left, right) => right.receivedAt.localeCompare(left.receivedAt));
+    return {
+      configured: !!current?.credentials, connected: !!current?.tokens, account,
+      automaticChecks: current?.automaticChecks ?? false, lastCheckedAt: sync?.lastCheckedAt ?? null,
+      hasMore: !!sync?.pageToken || !!sync?.pendingIds.length, busy, error, notice, suggestions,
+    };
+  }
+  async function run(operation: () => Promise<void>): Promise<GmailState> {
+    if (busy || stopped) return getState();
+    busy = true;
+    error = null;
+    notice = null;
+    controller = new AbortController();
+    try { await operation(); }
+    catch (cause) {
+      error = controller.signal.aborted ? "Gmail operation cancelled."
+        : cause instanceof Error ? cause.message : "Gmail could not complete this action. Try again.";
+    } finally { busy = false; controller = null; }
+    return getState();
+  }
+
+  async function check() {
+    const current = await load();
+    if (!current?.tokens || !current.account) throw new Error("Connect Gmail before checking messages.");
+    const jobs = await db.select().from(applications);
+    if (!jobs.length) { notice = "Save an application first so incoming emails can be matched to it."; return; }
+    const account = current.account;
+    const [savedSync] = await db.select().from(gmailSync).where(eq(gmailSync.account, account));
+    let cursor = savedSync?.historyId ?? null;
+    let nextCursor = savedSync?.nextHistoryId ?? null;
+    let pageToken = savedSync?.pageToken ?? null;
+    let pending = savedSync?.pendingIds ?? [];
+    if (!pending.length && cursor) {
+      const url = new URL("https://gmail.googleapis.com/gmail/v1/users/me/history");
+      url.search = new URLSearchParams({ startHistoryId: cursor, historyTypes: "messageAdded", maxResults: "50", ...(pageToken ? { pageToken } : {}) }).toString();
+      try {
+        const history = await request<GmailHistory>(url);
+        nextCursor = historyId(history.historyId);
+        if (history.nextPageToken !== undefined && (typeof history.nextPageToken !== "string" || history.nextPageToken.length > 4000)) throw new Error("Gmail returned an invalid page cursor.");
+        pageToken = history.nextPageToken ?? null;
+        if (history.history !== undefined && !Array.isArray(history.history)) throw new Error("Gmail returned invalid history.");
+        pending = messageIds((history.history ?? []).flatMap((item) => (item.messagesAdded ?? [])
+          .filter(({ message }) => !message.labelIds?.some((label) => ["SENT", "DRAFT", "SPAM", "TRASH"].includes(label)))
+          .map(({ message }) => message.id)));
+      } catch (cause) {
+        if (!(cause instanceof GmailRequestError) || cause.status !== 404) throw cause;
+        cursor = null;
+        pageToken = null;
+        notice = "Gmail's history expired. Checked up to 50 recent inbox messages to resume syncing; older messages may need manual review.";
+      }
+    }
+    if (!cursor && !pending.length) {
+      const profile = await request<GmailProfile>("https://gmail.googleapis.com/gmail/v1/users/me/profile");
+      nextCursor = historyId(profile.historyId);
+      const initialUrl = new URL("https://gmail.googleapis.com/gmail/v1/users/me/messages");
+      initialUrl.search = new URLSearchParams({ q: "in:inbox newer_than:90d -category:promotions -category:social", maxResults: "50", includeSpamTrash: "false" }).toString();
+      const listed = await request<{ messages?: Array<{ id: string }> }>(initialUrl);
+      pending = messageIds((listed.messages ?? []).map((message) => message.id));
+      notice ??= "Checked up to 50 recent inbox messages. Future checks follow new mail; attachments are not read.";
+    }
+    const batch = pending.slice(0, 50);
+    const provider = createEmailStatusProvider({
+      getAccessToken: () => accessToken(), messageIds: batch, lookbackDays: 90, now,
+      provider: dependencies.provider,
+      fetch: async (input) => {
+        try {
+          const value = await request<unknown>(String(input));
+          return new Response(JSON.stringify(value), { status: 200, headers: { "content-type": "application/json" } });
+        } catch (cause) {
+          if (cause instanceof GmailRequestError && cause.status === 404) {
+            // A message deleted between history and retrieval has no usable evidence.
+            return new Response(JSON.stringify({ id: "deleted", labelIds: ["TRASH"] }), { status: 200 });
+          }
+          throw cause;
+        }
+      },
+    });
+    const updates = await provider.checkForUpdates(jobs);
+    pending = pending.slice(batch.length);
+    const finished = !pending.length && !pageToken;
+    const checkedAt = now().toISOString();
+    await db.transaction(async (transaction) => {
+      for (const update of updates) {
+        const id = createHash("sha256").update(`${account}\0${update.messageId}`).digest("hex");
+        const suggestion: GmailSuggestion = {
+          id, messageId: update.messageId, threadId: update.threadId, receivedAt: update.receivedAt,
+          subject: update.subject, sender: update.sender, newStatus: update.newStatus,
+          confidence: update.confidence, evidence: update.evidence ?? "", candidates: update.candidates,
+        };
+        await transaction.insert(gmailSuggestions).values({ id, account, messageId: update.messageId, suggestion, decision: "pending" }).onConflictDoNothing();
+      }
+      const sync = {
+        account, historyId: finished ? nextCursor : cursor, nextHistoryId: finished ? null : nextCursor,
+        pendingIds: pending, pageToken, lastCheckedAt: checkedAt,
+      };
+      await transaction.insert(gmailSync).values(sync).onConflictDoUpdate({ target: gmailSync.account, set: sync });
+    });
+  }
+
+  return {
+    getState,
+    importCredentials: () => run(async () => {
+      if (connection?.tokens) throw new Error("Disconnect Gmail before replacing the Google credentials.");
+      const credentials = await dependencies.chooseCredentials();
+      if (!credentials) return;
+      await save({ credentials, tokens: null, account: null, automaticChecks: false });
+      notice = "Credentials imported. Click Connect Gmail to sign in.";
+    }),
+    connect: () => run(async () => {
+      let current = await load();
+      if (!current) {
+        const credentials = await dependencies.chooseCredentials();
+        if (!credentials) return;
+        current = { credentials, tokens: null, account: null, automaticChecks: false };
+        // Verify encrypted storage before opening the browser.
+        await save(current);
+      }
+      const tokens = dependencies.authorize
+        ? await dependencies.authorize(current.credentials, controller!.signal)
+        : await authorizeGmail(current.credentials, dependencies.openExternal, controller!.signal, fetcher);
+      const profile = await googleJson<GmailProfile>("https://gmail.googleapis.com/gmail/v1/users/me/profile", {
+        headers: { authorization: `Bearer ${tokens.accessToken}` }, signal: controller!.signal,
+      }, fetcher);
+      if (typeof profile.emailAddress !== "string" || !/^[^\s@]+@[^\s@]+$/.test(profile.emailAddress)) throw new Error("Google did not identify the connected Gmail account.");
+      await save({ ...current, tokens, account: profile.emailAddress.toLowerCase(), automaticChecks: false });
+      notice = "Gmail connected. Click Check Gmail when you are ready to classify recent messages.";
+    }),
+    check: () => run(check),
+    setAutomaticChecks: (enabled: unknown) => run(async () => {
+      if (typeof enabled !== "boolean") throw new Error("Choose whether automatic checks are enabled.");
+      const current = await load();
+      if (!current?.tokens) throw new Error("Connect Gmail first.");
+      await save({ ...current, automaticChecks: enabled });
+    }),
+    disconnect: () => run(async () => {
+      const current = await load();
+      const token = current?.tokens?.refreshToken;
+      // Local access is removed even if Google's revocation service is unavailable.
+      await dependencies.store.clear();
+      connection = null;
+      if (current?.account) {
+        await db.delete(gmailSuggestions).where(and(eq(gmailSuggestions.account, current.account), eq(gmailSuggestions.decision, "pending")));
+        await db.delete(gmailSync).where(eq(gmailSync.account, current.account));
+      }
+      if (token) {
+        try {
+          const response = await fetcher("https://oauth2.googleapis.com/revoke", {
+            method: "POST", body: new URLSearchParams({ token }), signal: AbortSignal.timeout(10_000), redirect: "error",
+          });
+          if (!response.ok && response.status !== 400) throw new Error();
+        } catch { notice = "Disconnected locally. Google could not confirm revocation; you can also remove this app in your Google Account connections."; }
+      }
+    }),
+    dismiss: (id: unknown) => run(async () => {
+      const current = await load();
+      if (typeof id !== "string" || !current?.account) throw new Error("Choose a Gmail suggestion to dismiss.");
+      await db.update(gmailSuggestions).set({ decision: "dismissed" }).where(and(eq(gmailSuggestions.id, id), eq(gmailSuggestions.account, current.account), eq(gmailSuggestions.decision, "pending")));
+    }),
+    apply: (id: unknown, applicationId: unknown, expectedUpdatedAt: unknown) => run(async () => {
+      const current = await load();
+      if (!current?.account || typeof id !== "string" || typeof applicationId !== "string" || typeof expectedUpdatedAt !== "string") throw new Error("Choose a matched application before applying an update.");
+      const account = current.account;
+      await db.transaction(async (transaction) => {
+        const [record] = await transaction.select().from(gmailSuggestions).where(and(eq(gmailSuggestions.id, id), eq(gmailSuggestions.account, account)));
+        if (!record) throw new Error("This Gmail suggestion was not found.");
+        if (record.decision !== "pending") return;
+        const suggestion = record.suggestion;
+        if (!suggestion.newStatus) throw new Error("This recruiter message does not propose a stage change.");
+        if (!suggestion.candidates.some((candidate) => candidate.applicationId === applicationId)) throw new Error("Choose one of the matching applications.");
+        const [application] = await transaction.select().from(applications).where(eq(applications.id, applicationId));
+        if (!application) throw new Error("The matched application no longer exists.");
+        if (application.updatedAt !== expectedUpdatedAt) throw new Error("This application changed. Review its current stage and try again.");
+        if (["offer", "rejected"].includes(application.status) || application.status === suggestion.newStatus) throw new Error("This application is already in that stage or is closed. Dismiss this suggestion if it no longer applies.");
+        const events = await transaction.select().from(applicationEvents).where(eq(applicationEvents.applicationId, applicationId));
+        if (events.some((event) => event.type === "stage_changed" && Date.parse(String(event.metadata?.gmailReceivedAt ?? event.occurredAt)) > Date.parse(suggestion.receivedAt))) {
+          throw new Error("A newer status update exists for this application. Dismiss this older email suggestion.");
+        }
+        const reviewedAt = now().toISOString();
+        const metadata = { source: "gmail", messageId: suggestion.messageId, threadId: suggestion.threadId, gmailReceivedAt: suggestion.receivedAt, reviewedAt };
+        await transaction.insert(applicationEvents).values([
+          { id: `gmail:${id}:email`, applicationId, type: "email_received", title: suggestion.subject, description: suggestion.evidence, occurredAt: suggestion.receivedAt, metadata },
+          { id: `gmail:${id}:stage`, applicationId, type: "stage_changed", title: `Moved to ${suggestion.newStatus}`, description: "Confirmed Gmail suggestion", occurredAt: reviewedAt, metadata: { ...metadata, fromStage: application.status, toStage: suggestion.newStatus } },
+        ]);
+        await transaction.update(applications).set({
+          status: suggestion.newStatus, updatedAt: reviewedAt,
+          lastActivityAt: Date.parse(application.lastActivityAt) > Date.parse(suggestion.receivedAt) ? application.lastActivityAt : suggestion.receivedAt,
+        }).where(eq(applications.id, applicationId));
+        await transaction.update(gmailSuggestions).set({ decision: "applied" }).where(eq(gmailSuggestions.id, id));
+      });
+      notice = "Application status updated and the email recorded in its activity history.";
+    }),
+    cancel: () => { controller?.abort(); },
+    poll: async () => {
+      if (busy || stopped) return;
+      try { if ((await load())?.automaticChecks) await run(check); }
+      catch { error = "Could not run the automatic Gmail check. Open Tracking to reconnect or try again."; }
+    },
+    stop: () => { stopped = true; controller?.abort(); },
+  };
+}

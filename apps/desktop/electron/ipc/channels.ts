@@ -1,4 +1,13 @@
 export const IPC_CHANNELS = {
+  gmailState: "gmail:state",
+  gmailImport: "gmail:import",
+  gmailConnect: "gmail:connect",
+  gmailCheck: "gmail:check",
+  gmailAutomatic: "gmail:automatic",
+  gmailDisconnect: "gmail:disconnect",
+  gmailDismiss: "gmail:dismiss",
+  gmailApply: "gmail:apply",
+  gmailCancel: "gmail:cancel",
   listApplications: "applications:list",
   updateDeadline: "applications:update-deadline",
   moveApplication: "applications:move",
