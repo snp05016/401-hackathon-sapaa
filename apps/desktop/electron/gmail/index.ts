@@ -1,4 +1,4 @@
-import { app, dialog, ipcMain, safeStorage, shell, type IpcMainInvokeEvent } from "electron";
+  import { app, dialog, ipcMain, safeStorage, shell, type IpcMainInvokeEvent } from "electron";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

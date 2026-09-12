@@ -34,10 +34,12 @@ export interface GmailSuggestion {
   receivedAt: string;
   subject: string;
   sender: string;
-  newStatus: "interviewing" | "rejected" | null;
+  newStatus: "applied" | "interviewing" | "offer" | "rejected" | null;
   confidence: number;
   evidence: string;
   candidates: GmailCandidate[];
+  decision?: "pending" | "applied";
+  action?: "created" | "moved" | "noticed";
 }
 
 export interface GmailState {

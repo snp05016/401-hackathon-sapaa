@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { applications, applicationEvents, gmailSuggestions, gmailSync, type GhostboardDb } from "@ghostboard/database";
 import { createEmailStatusProvider } from "@ghostboard/tracking";
 import type { LLMProvider } from "@ghostboard/ai";
-import type { GmailState, GmailSuggestion } from "@ghostboard/shared";
+import type { Application, GmailCandidate, GmailState, GmailSuggestion } from "@ghostboard/shared";
 import { authorizeGmail, googleJson, GmailRequestError, refreshGmailTokens, type GmailCredentials, type GmailTokens } from "./oauth";
 import type { GmailConnection, GmailStore } from "./store";
 
@@ -21,6 +21,23 @@ interface GmailHistory {
   historyId: string;
   nextPageToken?: string;
   history?: Array<{ messagesAdded?: Array<{ message: { id: string; labelIds?: string[] } }> }>;
+}
+const AUTOMATIC_UPDATE_CONFIDENCE = 0.85;
+
+type GmailPipelineStatus = NonNullable<GmailSuggestion["newStatus"]>;
+
+function normalized(value: string): string {
+  return value.toLocaleLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function canMoveForward(current: Application["status"], next: GmailPipelineStatus): boolean {
+  if (current === next || current === "offer" || current === "rejected") return false;
+  if (next === "rejected") return true;
+  const rank: Record<"found" | "applied" | "interviewing" | "offer", number> = {
+    found: 0, applied: 1, interviewing: 2, offer: 3,
+  };
+  const currentRank = current === "ghosted" ? 1 : rank[current];
+  return rank[next] > currentRank;
 }
 
 function messageIds(value: unknown): string[] {
@@ -79,19 +96,23 @@ export function createGmailService(db: GhostboardDb, dependencies: GmailDependen
     try { current = await load(); } catch (cause) { error = cause instanceof Error ? cause.message : "Could not load Gmail settings."; }
     const account = current?.account ?? null;
     const [sync] = account ? await db.select().from(gmailSync).where(eq(gmailSync.account, account)) : [];
-    const stored = account ? await db.select().from(gmailSuggestions).where(and(eq(gmailSuggestions.account, account), eq(gmailSuggestions.decision, "pending"))) : [];
+    const stored = account ? (await db.select().from(gmailSuggestions).where(eq(gmailSuggestions.account, account)))
+      .filter((record) => record.decision !== "dismissed") : [];
     const jobs = new Map((await db.select().from(applications)).map((job) => [job.id, job]));
-    const suggestions = stored.map(({ suggestion }) => ({
+    const suggestions = stored.map(({ suggestion, decision }) => ({
       ...suggestion,
+      decision: decision === "pending" ? "pending" as const : "applied" as const,
       candidates: suggestion.candidates.flatMap((candidate) => {
         const job = jobs.get(candidate.applicationId);
         return job ? [{ applicationId: job.id, company: job.company, title: job.title, status: job.status, updatedAt: job.updatedAt }] : [];
       }),
-    })).sort((left, right) => right.receivedAt.localeCompare(left.receivedAt));
+    })).sort((left, right) => right.receivedAt.localeCompare(left.receivedAt)).slice(0, 20);
     return {
       configured: !!current?.credentials, connected: !!current?.tokens, account,
       automaticChecks: current?.automaticChecks ?? false, lastCheckedAt: sync?.lastCheckedAt ?? null,
-      hasMore: !!sync?.pageToken || !!sync?.pendingIds.length, busy, error, notice, suggestions,
+      hasMore: !!sync?.pageToken || !!sync?.pendingIds.length
+        || stored.some((record) => record.decision !== "dismissed" && !record.suggestion.action),
+      busy, error, notice, suggestions,
     };
   }
   async function run(operation: () => Promise<void>): Promise<GmailState> {
@@ -112,9 +133,11 @@ export function createGmailService(db: GhostboardDb, dependencies: GmailDependen
     const current = await load();
     if (!current?.tokens || !current.account) throw new Error("Connect Gmail before checking messages.");
     const jobs = await db.select().from(applications);
-    if (!jobs.length) { notice = "Save an application first so incoming emails can be matched to it."; return; }
     const account = current.account;
     const [savedSync] = await db.select().from(gmailSync).where(eq(gmailSync.account, account));
+    const legacyRecords = (await db.select().from(gmailSuggestions).where(eq(gmailSuggestions.account, account)))
+      .filter((record) => record.decision !== "dismissed" && !record.suggestion.action);
+    const legacyMessageIds = legacyRecords.map((record) => record.messageId);
     let cursor = savedSync?.historyId ?? null;
     let nextCursor = savedSync?.nextHistoryId ?? null;
     let pageToken = savedSync?.pageToken ?? null;
@@ -129,7 +152,11 @@ export function createGmailService(db: GhostboardDb, dependencies: GmailDependen
         pageToken = history.nextPageToken ?? null;
         if (history.history !== undefined && !Array.isArray(history.history)) throw new Error("Gmail returned invalid history.");
         pending = messageIds((history.history ?? []).flatMap((item) => (item.messagesAdded ?? [])
-          .filter(({ message }) => !message.labelIds?.some((label) => ["SENT", "DRAFT", "SPAM", "TRASH"].includes(label)))
+          .filter(({ message }) => {
+            const labels = message.labelIds ?? [];
+            return !labels.some((label) => ["DRAFT", "SPAM", "TRASH"].includes(label))
+              && !(labels.includes("SENT") && !labels.includes("INBOX"));
+          })
           .map(({ message }) => message.id)));
       } catch (cause) {
         if (!(cause instanceof GmailRequestError) || cause.status !== 404) throw cause;
@@ -147,7 +174,7 @@ export function createGmailService(db: GhostboardDb, dependencies: GmailDependen
       pending = messageIds((listed.messages ?? []).map((message) => message.id));
       notice ??= "Checked up to 50 recent inbox messages. Future checks follow new mail; attachments are not read.";
     }
-    const batch = pending.slice(0, 50);
+    const batch = [...new Set([...legacyMessageIds, ...pending])].slice(0, 5);
     const provider = createEmailStatusProvider({
       getAccessToken: () => accessToken(), messageIds: batch, lookbackDays: 90, now,
       provider: dependencies.provider,
@@ -165,18 +192,104 @@ export function createGmailService(db: GhostboardDb, dependencies: GmailDependen
       },
     });
     const updates = await provider.checkForUpdates(jobs);
-    pending = pending.slice(batch.length);
+    const processedIds = new Set(batch);
+    pending = pending.filter((messageId) => !processedIds.has(messageId));
+    const remainingLegacy = legacyMessageIds.filter((messageId) => !processedIds.has(messageId));
     const finished = !pending.length && !pageToken;
     const checkedAt = now().toISOString();
+    let moved = 0;
+    let created = 0;
+    let noticed = 0;
     await db.transaction(async (transaction) => {
       for (const update of updates) {
         const id = createHash("sha256").update(`${account}\0${update.messageId}`).digest("hex");
-        const suggestion: GmailSuggestion = {
+        let candidates = update.candidates;
+        if (!candidates.length && update.company && update.title) {
+          const matches = jobs.filter((job) => normalized(job.company) === normalized(update.company!) && normalized(job.title) === normalized(update.title!));
+          if (matches.length === 1) {
+            const job = matches[0];
+            candidates = [{ applicationId: job.id, company: job.company, title: job.title, status: job.status, updatedAt: job.updatedAt }];
+          }
+        }
+        let suggestion: GmailSuggestion = {
           id, messageId: update.messageId, threadId: update.threadId, receivedAt: update.receivedAt,
           subject: update.subject, sender: update.sender, newStatus: update.newStatus,
-          confidence: update.confidence, evidence: update.evidence ?? "", candidates: update.candidates,
+          confidence: update.confidence, evidence: update.evidence ?? "", candidates, action: "noticed",
         };
-        await transaction.insert(gmailSuggestions).values({ id, account, messageId: update.messageId, suggestion, decision: "pending" }).onConflictDoNothing();
+        const [existing] = await transaction.select().from(gmailSuggestions).where(eq(gmailSuggestions.id, id));
+        if (existing?.suggestion.action || existing?.decision === "dismissed") continue;
+        const candidate = candidates.length === 1 ? candidates[0] : null;
+        let [application] = candidate
+          ? await transaction.select().from(applications).where(eq(applications.id, candidate.applicationId))
+          : [];
+        const confident = !!update.newStatus && update.confidence >= AUTOMATIC_UPDATE_CONFIDENCE;
+        const reviewedAt = now().toISOString();
+
+        if (!application && confident && update.company && update.title) {
+          const applicationId = `gmail-${id}`;
+          application = {
+            id: applicationId,
+            company: update.company,
+            title: update.title,
+            location: null,
+            jobUrl: `https://mail.google.com/mail/u/0/#inbox/${encodeURIComponent(update.threadId)}`,
+            jobDescription: "",
+            status: update.newStatus!,
+            dateFound: update.receivedAt,
+            dateApplied: update.receivedAt,
+            deadline: null,
+            lastActivityAt: update.receivedAt,
+            nextAction: null,
+            nextActionDate: null,
+            resumeId: null,
+            source: "gmail",
+            createdAt: reviewedAt,
+            updatedAt: reviewedAt,
+          };
+          const createdCandidate: GmailCandidate = {
+            applicationId, company: application.company, title: application.title,
+            status: application.status, updatedAt: application.updatedAt,
+          };
+          suggestion = { ...suggestion, candidates: [createdCandidate], action: "created" };
+          const metadata = { source: "gmail", messageId: update.messageId, threadId: update.threadId, gmailReceivedAt: update.receivedAt, automatic: true };
+          await transaction.insert(applications).values(application).onConflictDoNothing();
+          await transaction.insert(applicationEvents).values([
+            { id: `gmail:${id}:created`, applicationId, type: "created", title: `Added from Gmail in ${update.newStatus}`, description: update.evidence, occurredAt: reviewedAt, metadata },
+            { id: `gmail:${id}:email`, applicationId, type: "email_received", title: update.subject, description: update.evidence, occurredAt: update.receivedAt, metadata },
+          ]).onConflictDoNothing();
+          jobs.push(application);
+          created++;
+        } else if (application && candidate && confident && canMoveForward(application.status, update.newStatus!)) {
+          suggestion = { ...suggestion, action: "moved" };
+          const metadata = { source: "gmail", messageId: update.messageId, threadId: update.threadId, gmailReceivedAt: update.receivedAt, reviewedAt, automatic: true };
+          await transaction.insert(applicationEvents).values([
+            { id: `gmail:${id}:email`, applicationId: application.id, type: "email_received", title: update.subject, description: update.evidence, occurredAt: update.receivedAt, metadata },
+            { id: `gmail:${id}:stage`, applicationId: application.id, type: "stage_changed", title: `Moved to ${update.newStatus}`, description: "Applied automatically from a high-confidence Gmail match", occurredAt: reviewedAt, metadata: { ...metadata, fromStage: application.status, toStage: update.newStatus } },
+          ]).onConflictDoNothing();
+          await transaction.update(applications).set({
+            status: update.newStatus!, updatedAt: reviewedAt,
+            dateApplied: application.dateApplied ?? update.receivedAt,
+            lastActivityAt: Date.parse(application.lastActivityAt) > Date.parse(update.receivedAt) ? application.lastActivityAt : update.receivedAt,
+          }).where(eq(applications.id, application.id));
+          const index = jobs.findIndex((job) => job.id === application!.id);
+          if (index >= 0) jobs[index] = { ...application, status: update.newStatus!, updatedAt: reviewedAt };
+          moved++;
+        } else {
+          noticed++;
+        }
+        if (existing) {
+          await transaction.update(gmailSuggestions).set({ suggestion, decision: "applied" }).where(eq(gmailSuggestions.id, id));
+        } else {
+          await transaction.insert(gmailSuggestions).values({ id, account, messageId: update.messageId, suggestion, decision: "applied" });
+        }
+      }
+      const returnedMessageIds = new Set(updates.map((update) => update.messageId));
+      for (const record of legacyRecords) {
+        if (!processedIds.has(record.messageId) || returnedMessageIds.has(record.messageId)) continue;
+        await transaction.update(gmailSuggestions).set({
+          suggestion: { ...record.suggestion, action: "noticed" }, decision: "applied",
+        }).where(eq(gmailSuggestions.id, record.id));
+        noticed++;
       }
       const sync = {
         account, historyId: finished ? nextCursor : cursor, nextHistoryId: finished ? null : nextCursor,
@@ -184,6 +297,11 @@ export function createGmailService(db: GhostboardDb, dependencies: GmailDependen
       };
       await transaction.insert(gmailSync).values(sync).onConflictDoUpdate({ target: gmailSync.account, set: sync });
     });
+    if (remainingLegacy.length) notice = `Rechecked ${batch.length} earlier recruiter messages. Click Check next batch to finish ${remainingLegacy.length} more.`;
+    else if (moved || created || noticed) {
+      const parts = [moved && `moved ${moved} job${moved === 1 ? "" : "s"}`, created && `added ${created} job${created === 1 ? "" : "s"}`, noticed && `${noticed} heads-up${noticed === 1 ? "" : "s"}`].filter(Boolean);
+      notice = `Gmail ${parts.join(", ")}.`;
+    }
   }
 
   return {
@@ -228,7 +346,7 @@ export function createGmailService(db: GhostboardDb, dependencies: GmailDependen
       await dependencies.store.clear();
       connection = null;
       if (current?.account) {
-        await db.delete(gmailSuggestions).where(and(eq(gmailSuggestions.account, current.account), eq(gmailSuggestions.decision, "pending")));
+        await db.delete(gmailSuggestions).where(eq(gmailSuggestions.account, current.account));
         await db.delete(gmailSync).where(eq(gmailSync.account, current.account));
       }
       if (token) {

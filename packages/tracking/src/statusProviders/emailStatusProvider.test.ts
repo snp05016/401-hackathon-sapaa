@@ -12,8 +12,10 @@ function encoded(value: string) {
 }
 interface Classification {
   recruiting: boolean;
-  status: "interviewing" | "rejected" | null;
+  status: "applied" | "interviewing" | "offer" | "rejected" | null;
   applicationIds: string[];
+  company?: string | null;
+  title?: string | null;
   confidence: number;
   evidence: string;
 }
@@ -60,12 +62,12 @@ test("model semantics replace phrase parsing and uncertain messages are ignored"
   assert.equal(uncertain.updates.length, 0);
 });
 
-test("invalid model application IDs and invalid transitions cannot become applicable suggestions", async () => {
+test("invalid model application IDs are removed and transition policy is left to the application service", async () => {
   const invented = await detect({ recruiting: true, status: "rejected", applicationIds: ["invented"], confidence: 1, evidence: "Rejected" });
   assert.equal(invented.updates[0]?.applicationId, "");
   assert.equal(invented.updates[0]?.candidates.length, 0);
   const terminal = await detect({ recruiting: true, status: "interviewing", applicationIds: ["one"], confidence: 1, evidence: "Interview" }, { applications: [{ ...application(), status: "offer" }] });
-  assert.equal(terminal.updates[0]?.candidates.length, 0);
+  assert.equal(terminal.updates[0]?.candidates.length, 1);
 });
 
 test("supports ambiguous matches and strips executable HTML before classification", async () => {
@@ -79,12 +81,16 @@ test("supports ambiguous matches and strips executable HTML before classificatio
   assert.doesNotMatch(result.prompt, /ignore-me|private-style/);
 });
 
-test("ignores blocked labels, old mail, malformed model output, and empty application sets", async () => {
+test("ignores blocked labels, old mail, and malformed model output, while supporting an empty board", async () => {
   assert.equal((await detect({ recruiting: true, status: "rejected", applicationIds: ["one"], confidence: 1, evidence: "Decision" }, { labels: ["CATEGORY_PROMOTIONS"] })).updates.length, 0);
+  assert.equal((await detect({ recruiting: true, status: "interviewing", applicationIds: ["one"], confidence: 1, evidence: "Interview" }, { labels: ["SENT"] })).updates.length, 0);
+  assert.equal((await detect({ recruiting: true, status: "interviewing", applicationIds: ["one"], confidence: 1, evidence: "Interview" }, { labels: ["SENT", "INBOX"] })).updates.length, 1);
   assert.equal((await detect({ recruiting: true, status: "rejected", applicationIds: ["one"], confidence: 1, evidence: "Decision" }, { date: "2026-01-01" })).updates.length, 0);
   await assert.rejects(detect({ recruiting: true, status: "rejected", applicationIds: ["one"], confidence: 1, evidence: "Decision" }, { modelText: "not json" }), /invalid response/);
-  const provider = createEmailStatusProvider({ getAccessToken: () => "token", fetch: async () => { throw new Error("must not fetch"); }, provider: { complete: async () => { throw new Error("must not classify"); } } });
-  assert.deepEqual(await provider.checkForUpdates([]), []);
+  const untracked = await detect({ recruiting: true, status: "applied", applicationIds: [], company: "Acme", title: "Software Developer", confidence: 0.95, evidence: "Application received" }, { applications: [] });
+  assert.equal(untracked.updates[0]?.applicationId, "");
+  assert.equal(untracked.updates[0]?.company, "Acme");
+  assert.equal(untracked.updates[0]?.title, "Software Developer");
 });
 
 test("Gmail errors do not leak email response content", async () => {
