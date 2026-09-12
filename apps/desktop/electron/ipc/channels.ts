@@ -11,6 +11,7 @@ export const IPC_CHANNELS = {
   listApplications: "applications:list",
   updateDeadline: "applications:update-deadline",
   moveApplication: "applications:move",
+  deleteApplication: "applications:delete",
   getProfile: "profile:get",
   saveProfile: "profile:save",
   bridgeInfo: "bridge:info",
