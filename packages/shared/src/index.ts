@@ -1,6 +1,7 @@
 export * from "./types/job";
 export * from "./types/application";
 export * from "./types/profile";
+export * from "./types/resume";
 export * from "./types/form";
 export * from "./types/matching";
 export * from "./types/tracking";

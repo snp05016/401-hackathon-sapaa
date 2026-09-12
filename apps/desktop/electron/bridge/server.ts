@@ -1,7 +1,7 @@
 import http from "node:http";
 import type { GhostboardDb } from "@ghostboard/database";
 import type { BridgeErrorResponse, HealthResponse } from "@ghostboard/shared";
-import { handleGetProfile, handleCreateJob, handleIngestJob, handleUpsertApplication, handlePageContext } from "./routes";
+import { handleGetProfile, handleCreateJob, handleIngestJob, handleUpsertApplication, handlePageContext, handleGetKanban, handleGetResumeTemplate } from "./routes";
 
 const BRIDGE_VERSION = "0.1.0";
 const LOOPBACK_ADDRESSES = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
@@ -63,6 +63,18 @@ export function createBridgeServer(db: GhostboardDb, token: string, port: number
       try {
         if (req.method === "GET" && url.pathname === "/profile") {
           sendJson(res, 200, handleGetProfile(), origin);
+          return;
+        }
+
+        // Read-only data any local application holding the bridge token can request —
+        // not extension-specific, unlike the routes above/below that ingest page context.
+        if (req.method === "GET" && url.pathname === "/external/kanban") {
+          sendJson(res, 200, await handleGetKanban(db), origin);
+          return;
+        }
+
+        if (req.method === "GET" && url.pathname === "/external/resume-template") {
+          sendJson(res, 200, handleGetResumeTemplate(), origin);
           return;
         }
 

@@ -13,11 +13,31 @@ import type {
   JobPosting,
   IngestJobRequest,
   IngestJobResponse,
+  ExternalKanbanResponse,
+  ExternalResumeTemplateResponse,
+  ApplicationStage,
 } from "@ghostboard/shared";
-import { readProfile } from "../db/index";
+import { APPLICATION_STAGES, STAGE_LABELS } from "@ghostboard/shared";
+import { readProfile, readMasterResume } from "../db/index";
 
 export function handleGetProfile(): ProfileResponse {
   return { profile: readProfile() };
+}
+
+/** Read-only: groups the current applications the same way the desktop Kanban board does. */
+export async function handleGetKanban(db: GhostboardDb): Promise<ExternalKanbanResponse> {
+  const allApplications = await db.select().from(applications);
+  const columns = APPLICATION_STAGES.map((stage: ApplicationStage) => ({
+    stage,
+    label: STAGE_LABELS[stage],
+    applications: allApplications.filter((application) => application.status === stage),
+  }));
+  return { columns };
+}
+
+/** Read-only: no route accepts writes to the master resume; it is only ever set by the desktop app itself. */
+export function handleGetResumeTemplate(): ExternalResumeTemplateResponse {
+  return { resume: readMasterResume() };
 }
 
 export async function handleCreateJob(db: GhostboardDb, body: CreateJobRequest): Promise<CreateJobResponse> {
