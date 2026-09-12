@@ -17,5 +17,7 @@ export const IPC_CHANNELS = {
   deleteApplication: "applications:delete",
   getProfile: "profile:get",
   saveProfile: "profile:save",
+  getMasterResume: "resume:get-master",
+  saveMasterResume: "resume:save-master",
   bridgeInfo: "bridge:info",
 } as const;

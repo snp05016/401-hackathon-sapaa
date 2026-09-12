@@ -4,6 +4,7 @@ import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createDb, runMigrations, type GhostboardDb } from "@ghostboard/database";
 import type { Profile, ProfileField, MasterResume } from "@ghostboard/shared";
+import { parseResumeReference } from "@ghostboard/resume";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -97,13 +98,34 @@ function masterResumePath(): string {
   return path.join(app.getPath("userData"), "master-resume.json");
 }
 
-/** Read-only: nothing currently persists a master resume from the UI, so this seeds an empty placeholder on first read. */
 export function readMasterResume(): MasterResume {
   const file = masterResumePath();
   if (!fs.existsSync(file)) {
-    const seeded: MasterResume = { id: "local", latex: "", updatedAt: new Date().toISOString() };
+    const seeded: MasterResume = { id: "local", latex: "", reference: parseResumeReference(""), updatedAt: new Date().toISOString() };
     fs.writeFileSync(file, JSON.stringify(seeded, null, 2));
     return seeded;
   }
-  return JSON.parse(fs.readFileSync(file, "utf-8")) as MasterResume;
+  const parsed = JSON.parse(fs.readFileSync(file, "utf-8")) as MasterResume;
+  const latex = typeof parsed.latex === "string" ? parsed.latex : "";
+  const resume: MasterResume = {
+    id: "local",
+    latex,
+    reference: parseResumeReference(latex),
+    updatedAt: parsed.updatedAt ?? new Date().toISOString(),
+  };
+  if (JSON.stringify(parsed) !== JSON.stringify(resume)) {
+    fs.writeFileSync(file, JSON.stringify(resume, null, 2));
+  }
+  return resume;
+}
+
+export function writeMasterResume(latex: string): MasterResume {
+  const resume: MasterResume = {
+    id: "local",
+    latex,
+    reference: parseResumeReference(latex),
+    updatedAt: new Date().toISOString(),
+  };
+  fs.writeFileSync(masterResumePath(), JSON.stringify(resume, null, 2));
+  return resume;
 }

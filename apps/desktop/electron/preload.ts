@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { Application, ApplicationStage, ApplicationEvent, FollowUpSuggestion, GmailState } from "@ghostboard/shared";
-import type { ProfileField, Profile } from "@ghostboard/shared";
+import type { MasterResume, ProfileField, Profile } from "@ghostboard/shared";
 import { IPC_CHANNELS } from "./ipc/channels";
 
 export interface MoveApplicationRequest {
@@ -33,6 +33,8 @@ export interface GhostboardApi {
   deleteApplication(applicationId: string): Promise<void>;
   getProfile(): Promise<Profile>;
   saveProfile(fields: ProfileField[]): Promise<Profile>;
+  getMasterResume(): Promise<MasterResume>;
+  saveMasterResume(latex: string): Promise<MasterResume>;
   getBridgeInfo(): Promise<{ port: number; token: string } | null>;
 }
 
@@ -55,6 +57,8 @@ const api: GhostboardApi = {
   deleteApplication: (applicationId) => ipcRenderer.invoke(IPC_CHANNELS.deleteApplication, applicationId),
   getProfile: () => ipcRenderer.invoke(IPC_CHANNELS.getProfile),
   saveProfile: (fields) => ipcRenderer.invoke(IPC_CHANNELS.saveProfile, fields),
+  getMasterResume: () => ipcRenderer.invoke(IPC_CHANNELS.getMasterResume),
+  saveMasterResume: (latex) => ipcRenderer.invoke(IPC_CHANNELS.saveMasterResume, latex),
   getBridgeInfo: () => ipcRenderer.invoke(IPC_CHANNELS.bridgeInfo),
 };
 
