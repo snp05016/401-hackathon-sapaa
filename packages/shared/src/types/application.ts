@@ -10,6 +10,8 @@ export interface Application {
   status: ApplicationStage;
   dateFound: string;
   dateApplied: string | null;
+  /** Application deadline as a local calendar date (YYYY-MM-DD), if known. */
+  deadline?: string | null;
   lastActivityAt: string;
   nextAction: string | null;
   nextActionDate: string | null;

@@ -7,8 +7,8 @@ export function daysSince(iso: string, now: Date = new Date()): number {
 }
 
 export function formatDate(iso: string): string {
-  if string.isNullOrEmpty(iso)) {
-    return '';
+  if (!iso) {
+    return "";
   }
   const date = new Date(iso);
   return date.toLocaleDateString(undefined, {

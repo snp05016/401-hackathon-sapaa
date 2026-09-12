@@ -13,6 +13,7 @@ export const applications = sqliteTable("applications", {
     .default("found"),
   dateFound: text("date_found").notNull(),
   dateApplied: text("date_applied"),
+  deadline: text("deadline"),
   lastActivityAt: text("last_activity_at").notNull(),
   nextAction: text("next_action"),
   nextActionDate: text("next_action_date"),
