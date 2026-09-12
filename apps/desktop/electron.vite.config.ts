@@ -8,6 +8,7 @@ const WORKSPACE_PACKAGES = [
   "@ghostboard/shared",
   "@ghostboard/database",
   "@ghostboard/matching",
+  "@ghostboard/scraping",
   "@ghostboard/autofill",
   "@ghostboard/resume",
   "@ghostboard/tracking",

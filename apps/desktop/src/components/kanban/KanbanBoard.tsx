@@ -44,7 +44,7 @@ export function KanbanBoard({ initialApplications }: { initialApplications: Appl
 
     moveApplication(activeApp.id, fromStage, toStage).catch(() => {
       setApplications(previous);
-      setBanner("Persistence isn't wired up yet — this move didn't save. (See TEAM_TODO.md: moveApplication)");
+      setBanner("This move didn't save — the application was returned to its previous stage.");
     });
   }
 
