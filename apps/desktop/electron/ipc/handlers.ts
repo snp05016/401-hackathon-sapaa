@@ -8,8 +8,12 @@ import type { MoveApplicationRequest, MoveApplicationResult } from "../preload";
 import { readProfile, writeProfile } from "../db/index";
 import { readBridgeFile } from "../bridge/token";
 import { IPC_CHANNELS } from "./channels";
+import { updateApplicationDeadline } from "../db/deadlines";
 
 export function registerIpcHandlers(db: GhostboardDb): void {
+  ipcMain.handle(IPC_CHANNELS.updateDeadline, (_event, applicationId: unknown, deadline: unknown) => {
+    return updateApplicationDeadline(db, applicationId, deadline);
+  });
   ipcMain.handle(IPC_CHANNELS.listApplications, async () => {
     return db.select().from(applications);
   });

@@ -16,6 +16,7 @@ export interface MoveApplicationResult {
 
 export interface GhostboardApi {
   listApplications(): Promise<Application[]>;
+  updateDeadline(applicationId: string, deadline: string | null): Promise<Application>;
   moveApplication(request: MoveApplicationRequest): Promise<MoveApplicationResult>;
   getProfile(): Promise<Profile>;
   saveProfile(fields: ProfileField[]): Promise<Profile>;
@@ -24,6 +25,7 @@ export interface GhostboardApi {
 
 const api: GhostboardApi = {
   listApplications: () => ipcRenderer.invoke(IPC_CHANNELS.listApplications),
+  updateDeadline: (applicationId, deadline) => ipcRenderer.invoke(IPC_CHANNELS.updateDeadline, applicationId, deadline),
   moveApplication: (request) => ipcRenderer.invoke(IPC_CHANNELS.moveApplication, request),
   getProfile: () => ipcRenderer.invoke(IPC_CHANNELS.getProfile),
   saveProfile: (fields) => ipcRenderer.invoke(IPC_CHANNELS.saveProfile, fields),
