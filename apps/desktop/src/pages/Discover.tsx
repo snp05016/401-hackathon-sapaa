@@ -24,16 +24,26 @@ export function Discover() {
   const results = calculateJobSimilarity(placeholder, []);
 
   return (
-    <div>
-      <h1 className="mb-4 text-2xl font-semibold">Discover</h1>
+    <div className="max-w-[860px]">
+      <h1 className="animate-reveal border-b border-hairline pb-3 font-display text-[52px] leading-[0.9] tracking-[-0.015em] text-ink">
+        Discover
+      </h1>
       {results.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-slate-500">
-          Job similarity isn't implemented yet — see <code>packages/matching/src/similarity.ts</code>.
+        <div className="animate-reveal mt-12 max-w-[620px]" style={{ animationDelay: "120ms" }}>
+          <p className="font-display text-[30px] leading-snug text-ink">
+            Nothing to match against yet.
+          </p>
+          <p className="mt-4 text-[13px] leading-relaxed text-ink-2">
+            Similarity scoring lives in <code className="border-b border-hairline pb-px text-ink">packages/matching/src/similarity.ts</code>. Once it returns
+            results, close matches for your saved jobs appear here.
+          </p>
         </div>
       ) : (
-        <ul>
+        <ul className="mt-9 divide-y divide-hairline border-y border-hairline">
           {results.map((r) => (
-            <li key={r.similarJobId}>{r.similarJobId}</li>
+            <li key={r.similarJobId} className="py-4 text-[13px] text-ink">
+              {r.similarJobId}
+            </li>
           ))}
         </ul>
       )}

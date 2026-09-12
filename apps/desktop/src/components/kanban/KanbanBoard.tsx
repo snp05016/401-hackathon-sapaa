@@ -55,17 +55,17 @@ export function KanbanBoard({ initialApplications }: { initialApplications: Appl
   return (
     <div>
       {banner && (
-        <div className="mb-3 flex items-center justify-between rounded-md bg-amber-100 px-3 py-2 text-sm text-amber-800">
+        <div className="mb-5 flex items-center justify-between gap-6 border-l-2 border-oxblood bg-paper-raised py-2.5 pl-4 pr-3 text-[12px] text-ink">
           <span>{banner}</span>
-          <button onClick={() => setBanner(null)} className="font-semibold">
+          <button onClick={() => setBanner(null)} className="shrink-0 text-ink-2 underline underline-offset-4 transition-colors hover:text-oxblood">
             Dismiss
           </button>
         </div>
       )}
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-        <div className="flex gap-3 overflow-x-auto pb-4">
-          {APPLICATION_STAGES.map((stage) => (
-            <KanbanColumn key={stage} stage={stage} applications={byStage[stage]} />
+        <div className="flex gap-4 overflow-x-auto pb-5">
+          {APPLICATION_STAGES.map((stage, index) => (
+            <KanbanColumn key={stage} stage={stage} applications={byStage[stage]} index={index} />
           ))}
         </div>
       </DndContext>

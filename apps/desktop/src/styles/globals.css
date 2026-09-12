@@ -1,3 +1,99 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Three grounds, one language. Stage meaning never moves between themes —
+   oxblood is always closed, brass always in progress, verdigris always good
+   news — each is only re-tuned for contrast against its ground. */
+:root,
+:root[data-theme="paper"] {
+  --paper: 233 231 224;
+  --paper-raised: 244 243 239;
+  --paper-rail: 223 220 212;
+  --ink: 23 23 19;
+  --ink-2: 87 86 78;
+  --ink-3: 140 138 128;
+  --oxblood: 110 31 38;
+  --verdigris: 63 107 79;
+  --brass: 126 86 21;
+  --hairline: rgba(23, 23, 19, 0.14);
+  --card-shadow: rgba(23, 23, 19, 0.12);
+  --wash: 255 255 255;
+  --wash-a: 0.8;
+  --grain-a: 0.2;
+}
+
+:root[data-theme="noir"] {
+  --paper: 18 18 14;
+  --paper-raised: 26 26 21;
+  --paper-rail: 15 15 12;
+  --ink: 233 230 220;
+  --ink-2: 154 150 138;
+  --ink-3: 110 107 98;
+  --oxblood: 193 90 98;
+  --verdigris: 122 168 137;
+  --brass: 201 151 74;
+  --hairline: rgba(233, 230, 220, 0.15);
+  --card-shadow: rgba(0, 0, 0, 0.5);
+  --wash: 205 198 182;
+  --wash-a: 0.05;
+  --grain-a: 0.26;
+}
+
+:root[data-theme="bone"] {
+  --paper: 243 241 235;
+  --paper-raised: 250 249 245;
+  --paper-rail: 235 232 224;
+  --ink: 26 25 20;
+  --ink-2: 86 84 76;
+  --ink-3: 140 137 128;
+  --oxblood: 110 31 38;
+  --verdigris: 47 90 66;
+  --brass: 126 86 21;
+  --hairline: rgba(26, 25, 20, 0.13);
+  --card-shadow: rgba(26, 25, 20, 0.1);
+  --wash: 255 255 255;
+  --wash-a: 0.9;
+  --grain-a: 0.16;
+}
+
+/* Paper ground: raking light from the top-left, an oxblood bloom at the
+   opposite corner, and a grain plate so large fills never read as flat. */
+.editorial {
+  background-color: rgb(var(--paper));
+  background-image: radial-gradient(115% 75% at 6% -12%, rgb(var(--wash) / var(--wash-a)), transparent 58%),
+    radial-gradient(85% 55% at 104% 108%, rgb(var(--oxblood) / 0.08), transparent 62%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.22'/%3E%3C/svg%3E");
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+.editorial ::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+.editorial ::-webkit-scrollbar-track {
+  background: transparent;
+}
+.editorial ::-webkit-scrollbar-thumb {
+  background: rgb(var(--ink) / 0.18);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 999px;
+}
+.editorial ::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--oxblood) / 0.45);
+  background-clip: content-box;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-reveal,
+  .animate-draw-rule,
+  .animate-letter-rise,
+  .animate-mark-in,
+  .animate-curtain {
+    animation: none !important;
+  }
+}
