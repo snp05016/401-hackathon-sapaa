@@ -1,6 +1,7 @@
 import type { JobPosting } from "../types/job";
 import type { Application, ApplicationStage } from "../types/application";
 import type { Profile } from "../types/profile";
+import type { MasterResume } from "../types/resume";
 import type { DetectedFormField } from "../types/form";
 
 export const BRIDGE_DEFAULT_PORT = 4173;
@@ -133,3 +134,23 @@ export interface PageContextRequest {
 export interface PageContextResponse {
   received: true;
 }
+
+/**
+ * Read-only data exposed to any local application holding the bridge token —
+ * not extension-specific. Grouping applications by stage mirrors the desktop
+ * Kanban board so external tools don't need to reimplement stage ordering.
+ */
+export interface KanbanColumn {
+  stage: ApplicationStage;
+  label: string;
+  applications: Application[];
+}
+
+export interface ExternalKanbanResponse {
+  columns: KanbanColumn[];
+}
+
+export interface ExternalResumeTemplateResponse {
+  resume: MasterResume;
+}
+
