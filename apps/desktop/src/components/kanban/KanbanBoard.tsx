@@ -42,10 +42,14 @@ export function KanbanBoard({ initialApplications }: { initialApplications: Appl
     // Real optimistic local move — dnd-kit driven, works immediately in the UI.
     setApplications((apps) => apps.map((a) => (a.id === activeApp.id ? { ...a, status: toStage } : a)));
 
-    moveApplication(activeApp.id, fromStage, toStage).catch(() => {
-      setApplications(previous);
-      setBanner("This move didn't save — the application was returned to its previous stage.");
-    });
+    moveApplication(activeApp.id, fromStage, toStage)
+      .then((savedApplication) => {
+        setApplications((apps) => apps.map((app) => (app.id === savedApplication.id ? savedApplication : app)));
+      })
+      .catch(() => {
+        setApplications(previous);
+        setBanner("This move didn't save — the application was returned to its previous stage.");
+      });
   }
 
   return (

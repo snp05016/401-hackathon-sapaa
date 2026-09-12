@@ -39,7 +39,7 @@ export function KanbanCard({ application, stage }: { application: Application; s
         <p className="mt-0.5 text-[12px] leading-snug text-ink-2">{application.title}</p>
         <div className="mt-3 flex items-baseline justify-between gap-2 border-t border-hairline pt-2 text-[11px] text-ink-3">
           <span className="tnum">{daysSince(application.lastActivityAt)}d quiet</span>
-          {dateApplied && <span className="tnum">{dateApplied}</span>}
+          {dateApplied && <span className="tnum">applied on {dateApplied}</span>}
         </div>
       </article>
     </div>

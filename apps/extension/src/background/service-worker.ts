@@ -19,7 +19,10 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
       snapshot: message.snapshot,
     }).then((result) => {
       if (result.posting) detectedJobByTab.set(tabId, { job: result.posting, confidence: result.confidence });
-      else if (result.outcome === "not_job") detectedJobByTab.delete(tabId);
+      // The local content-script detector decides whether a job is present;
+      // a stale or uncertain server ingest result must not delete that
+      // decision, because the two run concurrently with no happens-before
+      // guarantee.
     }).catch(() => {
       // The local browser extraction remains available while the desktop
       // bridge is closed; reconnecting naturally refreshes on the next page.
