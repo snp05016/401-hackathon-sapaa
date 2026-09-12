@@ -12,14 +12,7 @@
   "content_scripts": [
     {
       "matches": [
-        "https://*.greenhouse.io/*",
-        "https://jobs.lever.co/*",
-        "https://jobs.eu.lever.co/*",
-        "https://*.myworkdayjobs.com/*",
-        "https://jobs.ashbyhq.com/*",
-        "https://*.linkedin.com/*",
-        "https://*.indeed.com/*",
-        "https://www.getjobber.com/*"
+         "*://*/*"
       ],
       "js": ["src/content/index.ts"],
       "run_at": "document_idle"
