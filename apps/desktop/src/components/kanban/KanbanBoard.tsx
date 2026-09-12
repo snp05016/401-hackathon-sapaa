@@ -1,13 +1,18 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { useReducedMotion } from "framer-motion";
 import type { Application, ApplicationStage } from "@ghostboard/shared";
 import { APPLICATION_STAGES } from "@ghostboard/shared";
+import { EmojiBurst, type EmojiBurstEffect } from "./EmojiBurst";
 import { KanbanColumn } from "./KanbanColumn";
 import { moveApplication } from "./moveApplication";
 
 export function KanbanBoard({ initialApplications }: { initialApplications: Application[] }) {
   const [applications, setApplications] = useState(initialApplications);
   const [banner, setBanner] = useState<string | null>(null);
+  const [emojiBursts, setEmojiBursts] = useState<EmojiBurstEffect[]>([]);
+  const nextBurstId = useRef(0);
+  const prefersReducedMotion = useReducedMotion();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const byStage = useMemo(() => {
@@ -38,6 +43,11 @@ export function KanbanBoard({ initialApplications }: { initialApplications: Appl
 
     const fromStage = activeApp.status;
     const previous = applications;
+    const droppedRect = active.rect.current.translated ?? over.rect;
+    const dropPoint = {
+      x: droppedRect.left + droppedRect.width / 2,
+      y: droppedRect.top + droppedRect.height / 2,
+    };
 
     // Real optimistic local move — dnd-kit driven, works immediately in the UI.
     setApplications((apps) => apps.map((a) => (a.id === activeApp.id ? { ...a, status: toStage } : a)));
@@ -45,6 +55,10 @@ export function KanbanBoard({ initialApplications }: { initialApplications: Appl
     moveApplication(activeApp.id, fromStage, toStage)
       .then((savedApplication) => {
         setApplications((apps) => apps.map((app) => (app.id === savedApplication.id ? savedApplication : app)));
+        if (!prefersReducedMotion) {
+          const id = nextBurstId.current++;
+          setEmojiBursts((bursts) => [...bursts, { id, stage: toStage, ...dropPoint }]);
+        }
       })
       .catch(() => {
         setApplications(previous);
@@ -69,6 +83,15 @@ export function KanbanBoard({ initialApplications }: { initialApplications: Appl
           ))}
         </div>
       </DndContext>
+      {emojiBursts.map((effect) => (
+        <EmojiBurst
+          key={effect.id}
+          effect={effect}
+          onComplete={(completedId) =>
+            setEmojiBursts((bursts) => bursts.filter((burst) => burst.id !== completedId))
+          }
+        />
+      ))}
     </div>
   );
 }

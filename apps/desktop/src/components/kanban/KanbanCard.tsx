@@ -21,6 +21,8 @@ export function KanbanCard({ application, stage }: { application: Application; s
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.45 : 1,
+    position: "relative" as const,
+    zIndex: isDragging ? 50 : "auto",
   };
 
   const dateApplied = formatDate(application.dateApplied || "");
