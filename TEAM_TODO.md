@@ -8,14 +8,12 @@ returns, so the app runs end-to-end without crashing. Grab a task, ship it.
 - **Staleness thresholds** — `packages/tracking/src/staleness.ts`,
   `evaluateApplicationStaleness()`. Currently always returns `isStale: false`.
   Add stage-aware thresholds (e.g. 14 days after `applied`, 7 days after
-  `interviewing`) and populate `suggestedAction`.
+  `interviewing`) and populate `suggestedAction`. Connect stale reminders to
+  the Today page once these thresholds are implemented.
 - **Autofill field matching heuristics** — `packages/autofill/src/matchFormField.ts`,
   `matchFormField()`. Currently always returns no match. Start with simple
   label/name string matching (e.g. "First Name" → `profileFields` with
   `key: "fullName"`) before reaching for fuzzy scoring.
-- **Real Today page counts** — `apps/desktop/src/pages/Today.tsx`. Currently
-  shows total/applied/interviewing counts only. Add "due today" / stale
-  reminders once `evaluateApplicationStaleness` is real.
 
 ## Intermediate
 
@@ -43,6 +41,17 @@ returns, so the app runs end-to-end without crashing. Grab a task, ship it.
   write values into form fields. Once `matchFormField` is real, add a
   content-script action that fills matched fields on `application_form`
   pages.
+
+## Completed: Today & Deadline Tracking
+
+- **Real Today page counts** — `apps/desktop/src/pages/Today.tsx`. Shows
+  due-today, next-7-days, overdue, and missing-deadline counts for jobs in
+  Found, alongside total/applied/interviewing counts. Refreshes on focus
+  and every minute.
+- Deadlines can be set or cleared in Tracking and persist across restarts.
+  Status colors are green for 7+ days, yellow for 2–6 days, and red for
+  today, tomorrow, or overdue. Stale reminders remain part of the
+  **Staleness thresholds** task above.
 
 ## Completed: Job Intelligence & Ingestion
 
