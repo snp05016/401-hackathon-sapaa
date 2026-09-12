@@ -1,4 +1,4 @@
-import { sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { relations } from "drizzle-orm";
 
 export const applications = sqliteTable("applications", {
@@ -15,6 +15,7 @@ export const applications = sqliteTable("applications", {
   dateApplied: text("date_applied"),
   deadline: text("deadline"),
   lastActivityAt: text("last_activity_at").notNull(),
+  followUpOn: integer("follow_up_on", { mode: "boolean" }).notNull().default(false),
   nextAction: text("next_action"),
   nextActionDate: text("next_action_date"),
   resumeId: text("resume_id"),

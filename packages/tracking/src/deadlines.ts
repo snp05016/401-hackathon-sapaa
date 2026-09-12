@@ -39,8 +39,10 @@ export function summarizeToday(applications: Application[], now: Date = new Date
     upcoming: 0,
     overdue: 0,
     noDeadline: 0,
+    followUpOn: 0
   };
   for (const application of applications) {
+    if (application.followUpOn === true) counts.followUpOn++;
     if (application.status === "applied") counts.applied++;
     if (application.status === "interviewing") counts.interviewing++;
     if (application.status !== "found") continue;

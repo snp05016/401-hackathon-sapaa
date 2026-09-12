@@ -2,7 +2,8 @@ import { ipcMain } from "electron";
 import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
 import { applications, applicationEvents, type GhostboardDb } from "@ghostboard/database";
-import type { ProfileField } from "@ghostboard/shared";
+import { buildFollowUpSuggestions } from "@ghostboard/tracking";
+import type { FollowUpSuggestion, ProfileField } from "@ghostboard/shared";
 import { STAGE_LABELS, type ApplicationEvent } from "@ghostboard/shared";
 import type { MoveApplicationRequest, MoveApplicationResult } from "../preload";
 import { readProfile, writeProfile } from "../db/index";
@@ -16,6 +17,20 @@ export function registerIpcHandlers(db: GhostboardDb): void {
   });
   ipcMain.handle(IPC_CHANNELS.listApplications, async () => {
     return db.select().from(applications);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.evaluateFollowUps, async (): Promise<FollowUpSuggestion[]> => {
+    const rows = await db.select().from(applications);
+    const suggestions = buildFollowUpSuggestions(rows);
+    const flaggedIds = new Set(suggestions.map((suggestion) => suggestion.applicationId));
+    await Promise.all(
+      rows.map((row) => {
+        const followUpOn = flaggedIds.has(row.id);
+        if (followUpOn === row.followUpOn) return null;
+        return db.update(applications).set({ followUpOn, updatedAt: new Date().toISOString() }).where(eq(applications.id, row.id));
+      })
+    );
+    return suggestions;
   });
 
   ipcMain.handle(

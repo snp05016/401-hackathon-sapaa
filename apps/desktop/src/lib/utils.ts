@@ -17,3 +17,10 @@ export function formatDate(iso: string): string {
     day: "numeric",
   });
 }
+
+export function renderMessageTemplate(template: string, vars: Record<string, string>): string {
+  return Object.entries(vars).reduce(
+    (result, [key, value]) => result.replaceAll(`[${key}]`, value),
+    template
+  );
+}

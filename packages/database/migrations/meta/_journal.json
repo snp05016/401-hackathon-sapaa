@@ -15,6 +15,13 @@
       "when": 1789227273116,
       "tag": "0001_flawless_queen_noir",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1789238850612,
+      "tag": "0002_dear_forgotten_one",
+      "breakpoints": true
     }
   ]
 }

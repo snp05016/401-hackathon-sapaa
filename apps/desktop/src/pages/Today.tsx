@@ -1,6 +1,17 @@
+import { useEffect, useState } from "react";
+import { X } from "lucide-react";
+import type { FollowUpKind, FollowUpSuggestion } from "@ghostboard/shared";
 import { summarizeToday } from "@ghostboard/tracking";
 import { useApplications } from "../lib/useApplications";
+import { ipc } from "../lib/ipc";
+import { renderMessageTemplate} from "../lib/utils";
 import { Button } from "../components/ui/button";
+
+const FOLLOW_UP_KIND_LABELS: Record<FollowUpKind, string> = {
+  application: "Following up on application",
+  interview: "Following up on interview",
+  thank_you: "Thank the recruiter for the interview",
+};
 
 function Figure({ count, label, accent, delay }: { count: number; label: string; accent: string; delay: number }) {
   return (
@@ -13,7 +24,43 @@ function Figure({ count, label, accent, delay }: { count: number; label: string;
 
 export function Today() {
   const { applications, error, now, reload } = useApplications();
+  const [followUps, setFollowUps] = useState<FollowUpSuggestion[]>([]);
+  const [modalOpen, setModalOpen] = useState(false);
   const counts = summarizeToday(applications ?? [], now);
+
+  useEffect(() => {
+    if (!applications || applications.length === 0) return;
+    let active = true;
+    async function evaluate() {
+      try {
+        const suggestions = await ipc().evaluateFollowUps();
+        if (!active) return;
+        setFollowUps(suggestions);
+        if (suggestions.length > 0) {
+          setModalOpen(true);
+          const missingFromView = suggestions.some(
+            (suggestion) => !applications.some((item) => item.id === suggestion.applicationId && item.followUpOn)
+          );
+          if (missingFromView) reload();
+        }
+      } catch {
+        // Keep the page usable when follow-up evaluation fails.
+      }
+    }
+    void evaluate();
+    return () => {
+      active = false;
+    };
+  }, [applications, reload]);
+
+  useEffect(() => {
+    if (!modalOpen) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setModalOpen(false);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [modalOpen]);
 
   return (
     <div className="max-w-[980px]">
@@ -64,9 +111,47 @@ export function Today() {
               <Figure count={counts.total} label="Total applications" accent="text-ink" delay={380} />
               <Figure count={counts.applied} label="Applied" accent="text-ink" delay={440} />
               <Figure count={counts.interviewing} label="Interviewing" accent="text-brass" delay={500} />
+              <Figure count={counts.followUpOn} label="Follow-up on" accent="text-ink" delay={560} />
             </div>
           </section>
         </>
+      )}
+
+      {modalOpen && followUps.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6" role="dialog" aria-modal="true" aria-label="Follow-up reminders">
+          <div className="absolute inset-0 bg-ink/40" onClick={() => setModalOpen(false)} />
+          <div className="relative z-10 max-h-[85vh] w-full max-w-2xl overflow-y-auto border border-hairline bg-paper-raised shadow-2xl">
+            <header className="flex items-center justify-between border-b px-3 py-1">
+              <button
+                type="button"
+                onClick={() => setModalOpen(false)}
+                aria-label="Close follow-up reminders"
+                className="text-ink-2 transition-colors hover:text-ink"
+              >
+                <X size={18} strokeWidth={1.6} />
+              </button>
+            </header>
+            <div className="space-y-8 px-7 py-6">
+              {followUps.map((item) => (
+                <section key={item.applicationId}>
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-oxblood">
+                    {FOLLOW_UP_KIND_LABELS[item.kind]}
+                  </p>
+                  <p className="mt-3 text-[13px] text-ink">
+                    {item.company} · {item.title}
+                  </p>
+                  <p className="mt-1 text-[12px] text-ink-2">{item.message.description}</p>
+                  <pre className="mt-4 whitespace-pre-wrap border border-hairline bg-paper p-4 font-sans text-[13px] leading-relaxed text-ink">
+                    {renderMessageTemplate(item.message.body, { Company: item.company.toLowerCase(), 'Job Title': item.title.toLowerCase() })}
+                  </pre>
+                </section>
+              ))}
+            </div>
+            <footer className="border-t border-hairline px-7 py-4 text-[12px] text-ink-2">
+              Dismiss these reminders to check them again later from wherever you left off.
+            </footer>
+          </div>
+        </div>
       )}
     </div>
   );

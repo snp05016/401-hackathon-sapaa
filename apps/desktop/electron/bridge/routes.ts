@@ -115,6 +115,7 @@ export async function handleUpsertApplication(
     dateFound: now,
     dateApplied: null,
     lastActivityAt: now,
+    followUpOn: false,
     nextAction: null,
     nextActionDate: null,
     resumeId: body.resumeId ?? null,
