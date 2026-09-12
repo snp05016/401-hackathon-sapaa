@@ -1,11 +1,44 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragOverEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
 import { useReducedMotion } from "framer-motion";
 import type { Application, ApplicationStage } from "@ghostboard/shared";
 import { APPLICATION_STAGES } from "@ghostboard/shared";
 import { EmojiBurst, type EmojiBurstEffect } from "./EmojiBurst";
+import { KanbanCardPreview } from "./KanbanCard";
 import { KanbanColumn } from "./KanbanColumn";
 import { moveApplication } from "./moveApplication";
+import { ipc } from "../../lib/ipc";
+
+const DELETE_DROP_ID = "kanban-delete-drop-zone";
+
+function DeleteDropZone() {
+  const { setNodeRef, isOver } = useDroppable({ id: DELETE_DROP_ID });
+
+  return (
+    <div
+      ref={setNodeRef}
+      aria-label="Delete application drop zone"
+      className={[
+        "mt-3 flex h-14 w-full items-center justify-center rounded-sm border text-[12px] font-semibold uppercase tracking-[0.16em] transition-colors duration-200",
+        isOver
+          ? "border-oxblood/70 bg-oxblood/20 text-oxblood/75"
+          : "border-oxblood/30 bg-oxblood/10 text-oxblood/55",
+      ].join(" ")}
+    >
+      Delete
+    </div>
+  );
+}
 
 function ApplicationDetails({ application, onClose }: { application: Application; onClose: () => void }) {
   useEffect(() => {
@@ -55,10 +88,18 @@ function ApplicationDetails({ application, onClose }: { application: Application
   );
 }
 
-export function KanbanBoard({ initialApplications }: { initialApplications: Application[] }) {
+export function KanbanBoard({
+  initialApplications,
+  onApplicationDeleted,
+}: {
+  initialApplications: Application[];
+  onApplicationDeleted: (applicationId: string) => void;
+}) {
   const [applications, setApplications] = useState(initialApplications);
   const [banner, setBanner] = useState<string | null>(null);
   const [emojiBursts, setEmojiBursts] = useState<EmojiBurstEffect[]>([]);
+  const [draggedApplication, setDraggedApplication] = useState<Application | null>(null);
+  const [isOverDelete, setIsOverDelete] = useState(false);
   const nextBurstId = useRef(0);
   const prefersReducedMotion = useReducedMotion();
   const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
@@ -83,12 +124,36 @@ export function KanbanBoard({ initialApplications }: { initialApplications: Appl
   }
 
   function handleDragEnd(event: DragEndEvent) {
+    setDraggedApplication(null);
+    setIsOverDelete(false);
     const { active, over } = event;
     if (!over) return;
 
     const activeApp = applications.find((a) => a.id === active.id);
+    if (!activeApp) return;
+
+    if (over.id === DELETE_DROP_ID) {
+      setBanner(null);
+      setApplications((current) => current.filter((application) => application.id !== activeApp.id));
+      ipc()
+        .deleteApplication(activeApp.id)
+        .then(() => {
+          onApplicationDeleted(activeApp.id);
+          if (selectedApplication?.id === activeApp.id) setSelectedApplication(null);
+        })
+        .catch(() => {
+          setApplications((current) =>
+            current.some((application) => application.id === activeApp.id)
+              ? current
+              : [...current, activeApp],
+          );
+          setBanner("This application couldn't be deleted and was returned to the board.");
+        });
+      return;
+    }
+
     const toStage = stageForId(String(over.id));
-    if (!activeApp || !toStage || activeApp.status === toStage) return;
+    if (!toStage || activeApp.status === toStage) return;
 
     const fromStage = activeApp.status;
     const previous = applications;
@@ -119,6 +184,17 @@ export function KanbanBoard({ initialApplications }: { initialApplications: Appl
     setSelectedApplication(application);
   }
 
+  function handleDragStart(event: DragStartEvent) {
+    setIsOverDelete(false);
+    setDraggedApplication(
+      applications.find((application) => application.id === event.active.id) ?? null,
+    );
+  }
+
+  function handleDragOver(event: DragOverEvent) {
+    setIsOverDelete(event.over?.id === DELETE_DROP_ID);
+  }
+
   return (
     <div>
       {banner && (
@@ -129,12 +205,31 @@ export function KanbanBoard({ initialApplications }: { initialApplications: Appl
           </button>
         </div>
       )}
-      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+      <DndContext
+        sensors={sensors}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragCancel={() => {
+          setDraggedApplication(null);
+          setIsOverDelete(false);
+        }}
+        onDragEnd={handleDragEnd}
+      >
         <div className="flex gap-4 overflow-x-auto pb-5 snap-x snap-mandatory sm:snap-none">
           {APPLICATION_STAGES.map((stage, index) => (
             <KanbanColumn key={stage} stage={stage} applications={byStage[stage]} index={index} onOpen={openApplication} />
           ))}
         </div>
+        <DeleteDropZone />
+        <DragOverlay dropAnimation={null} style={{ zIndex: 100 }}>
+          {draggedApplication ? (
+            <KanbanCardPreview
+              application={draggedApplication}
+              stage={draggedApplication.status}
+              isCrumbling={isOverDelete && prefersReducedMotion !== true}
+            />
+          ) : null}
+        </DragOverlay>
       </DndContext>
       {emojiBursts.map((effect) => (
         <EmojiBurst
