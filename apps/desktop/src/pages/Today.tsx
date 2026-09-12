@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { Check, Copy, X } from "lucide-react";
 import type { FollowUpKind, FollowUpSuggestion } from "@ghostboard/shared";
 import { summarizeToday } from "@ghostboard/tracking";
 import { useApplications } from "../lib/useApplications";
 import { ipc } from "../lib/ipc";
-import { renderMessageTemplate} from "../lib/utils";
+import { renderMessageTemplate, capitalize } from "../lib/utils";
 import { Button } from "../components/ui/button";
 
 const FOLLOW_UP_KIND_LABELS: Record<FollowUpKind, string> = {
@@ -26,10 +26,31 @@ export function Today() {
   const { applications, error, now, reload } = useApplications();
   const [followUps, setFollowUps] = useState<FollowUpSuggestion[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const counts = summarizeToday(applications ?? [], now);
 
   useEffect(() => {
+    if (!copiedId) return;
+    const timer = window.setTimeout(() => setCopiedId(null), 1600);
+    return () => window.clearTimeout(timer);
+  }, [copiedId]);
+
+  async function copyMessage(item: FollowUpSuggestion) {
+    const body = renderMessageTemplate(item.message.body, {
+      Company: capitalize(item.company),
+      "Job Title": item.title.toLowerCase(),
+    });
+    try {
+      await navigator.clipboard.writeText(body);
+      setCopiedId(item.applicationId);
+    } catch (error) {
+      console.error("Could not copy follow-up message", error);
+    }
+  }
+
+  useEffect(() => {
     if (!applications || applications.length === 0) return;
+    const loaded = applications;
     let active = true;
     async function evaluate() {
       try {
@@ -39,7 +60,7 @@ export function Today() {
         if (suggestions.length > 0) {
           setModalOpen(true);
           const missingFromView = suggestions.some(
-            (suggestion) => !applications.some((item) => item.id === suggestion.applicationId && item.followUpOn)
+            (suggestion) => !loaded.some((item) => item.id === suggestion.applicationId && item.followUpOn)
           );
           if (missingFromView) reload();
         }
@@ -132,20 +153,38 @@ export function Today() {
               </button>
             </header>
             <div className="space-y-8 px-7 py-6">
-              {followUps.map((item) => (
-                <section key={item.applicationId}>
-                  <p className="text-[11px] uppercase tracking-[0.14em] text-oxblood">
-                    {FOLLOW_UP_KIND_LABELS[item.kind]}
-                  </p>
-                  <p className="mt-3 text-[13px] text-ink">
-                    {item.company} · {item.title}
-                  </p>
-                  <p className="mt-1 text-[12px] text-ink-2">{item.message.description}</p>
-                  <pre className="mt-4 whitespace-pre-wrap border border-hairline bg-paper p-4 font-sans text-[13px] leading-relaxed text-ink">
-                    {renderMessageTemplate(item.message.body, { Company: item.company.toLowerCase(), 'Job Title': item.title.toLowerCase() })}
-                  </pre>
-                </section>
-              ))}
+              {followUps.map((item) => {
+                const body = renderMessageTemplate(item.message.body, {
+                  Company: capitalize(item.company),
+                  "Job Title": item.title.toLowerCase(),
+                });
+                const copied = copiedId === item.applicationId;
+                return (
+                  <section key={item.applicationId}>
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-oxblood">
+                      {FOLLOW_UP_KIND_LABELS[item.kind]}
+                    </p>
+                    <p className="mt-3 text-[13px] text-ink">
+                      {item.company} · {item.title}
+                    </p>
+                    <p className="mt-1 text-[12px] text-ink-2">{item.message.description}</p>
+                    <div className="relative mt-4">
+                      <button
+                        type="button"
+                        onClick={() => void copyMessage(item)}
+                        aria-label={copied ? "Message copied" : "Copy message"}
+                        title={copied ? "Copied" : "Copy"}
+                        className="absolute right-2 top-2 rounded border border-hairline bg-paper-raised p-1.5 text-ink-2 transition-colors hover:border-ink hover:text-ink"
+                      >
+                        {copied ? <Check size={14} strokeWidth={1.6} /> : <Copy size={14} strokeWidth={1.6} />}
+                      </button>
+                      <pre className="whitespace-pre-wrap border border-hairline bg-paper p-4 pr-12 font-sans text-[13px] leading-relaxed text-ink">
+                        {body}
+                      </pre>
+                    </div>
+                  </section>
+                );
+              })}
             </div>
             <footer className="border-t border-hairline px-7 py-4 text-[12px] text-ink-2">
               Dismiss these reminders to check them again later from wherever you left off.

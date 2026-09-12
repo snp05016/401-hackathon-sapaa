@@ -24,3 +24,8 @@ export function renderMessageTemplate(template: string, vars: Record<string, str
     template
   );
 }
+
+export function capitalize(str: string): string {
+  if (!str) return "";
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
