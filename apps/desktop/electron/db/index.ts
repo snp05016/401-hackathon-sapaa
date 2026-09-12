@@ -25,6 +25,7 @@ export async function initDb(): Promise<GhostboardDb> {
     : process.env.ELECTRON_RENDERER_URL
       ? path.join(__dirname, "../../../../dev.db")
       : path.join(userDataPath, "ghostboard.db");
+  fs.mkdirSync(userDataPath, { recursive: true });
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   const newDb = createDb(dbPath);
 
