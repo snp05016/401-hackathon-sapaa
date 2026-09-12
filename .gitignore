@@ -8,3 +8,10 @@ out
 .env
 .env.local
 .DS_Store
+
+# Local Google OAuth downloads and tokens
+gmail-credentials.json
+credentials.json
+client_secret_*.json
+token.json
+gmail-auth.enc*
