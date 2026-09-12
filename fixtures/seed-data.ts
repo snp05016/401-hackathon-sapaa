@@ -79,7 +79,7 @@ const seedApplications: Array<typeof applications.$inferInsert> = [
     jobDescription: "Kubernetes + Go.",
     status: "rejected",
     dateFound: daysAgo(30),
-    dateApplied: daysAgo(28),
+    dateApplied: daysAgo(365),
     lastActivityAt: daysAgo(15),
     nextAction: null,
     nextActionDate: null,
