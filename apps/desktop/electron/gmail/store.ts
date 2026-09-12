@@ -7,6 +7,7 @@ export interface GmailConnection {
   tokens: GmailTokens | null;
   account: string | null;
   automaticChecks: boolean;
+  recentOnly?: boolean;
 }
 
 export interface SecretStorage {
@@ -31,7 +32,7 @@ export function createGmailStore(directory: string, secrets: SecretStorage) {
         if (!value?.credentials || typeof value.credentials.clientId !== "string" || typeof value.automaticChecks !== "boolean"
           || (value.account !== null && typeof value.account !== "string")
           || (value.tokens !== null && (typeof value.tokens?.accessToken !== "string" || typeof value.tokens?.refreshToken !== "string" || !Number.isFinite(value.tokens?.expiresAt)))) throw new Error();
-        return value;
+        return { ...value, recentOnly: value.recentOnly === true };
       } catch { throw new Error("Could not decrypt Gmail settings. Import your credentials again to reconnect."); }
     },
     async save(value: GmailConnection): Promise<void> {

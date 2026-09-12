@@ -7,11 +7,14 @@ import { Button } from "../components/ui/button";
 export function Profile() {
   const [fields, setFields] = useState<ProfileField[]>([]);
   const [saved, setSaved] = useState(false);
+  const [bridge, setBridge] = useState<{ port: number; token: string } | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     ipc()
       .getProfile()
       .then((p) => setFields(p.fields));
+    ipc().getBridgeInfo().then(setBridge);
   }, []);
 
   function updateValue(key: string, value: string) {
@@ -55,6 +58,19 @@ export function Profile() {
           <Button variant="ink" onClick={handleSave}>Save profile</Button>
           {saved && <span role="status" className="text-[12px] text-verdigris">Profile saved.</span>}
         </div>
+
+        {bridge && <section className="mt-12 border-t border-hairline pt-7" aria-labelledby="extension-bridge-heading">
+          <h2 id="extension-bridge-heading" className="font-display text-[28px] text-ink">Browser extension</h2>
+          <p className="mt-2 text-[12px] leading-relaxed text-ink-2">Paste this port and token into the Ghostboard browser extension settings.</p>
+          <label className="mt-5 block text-[12px] text-ink-2" htmlFor="bridge-port">Port</label>
+          <Input id="bridge-port" variant="rule" readOnly value={String(bridge.port)} />
+          <label className="mt-5 block text-[12px] text-ink-2" htmlFor="bridge-token">Bridge token</label>
+          <Input id="bridge-token" variant="rule" readOnly value={bridge.token} onFocus={(event) => event.currentTarget.select()} />
+          <div className="mt-4 flex items-center gap-4">
+            <Button variant="outline" onClick={() => { void navigator.clipboard.writeText(bridge.token).then(() => setCopied(true)); }}>Copy token</Button>
+            {copied && <span role="status" className="text-[12px] text-verdigris">Token copied.</span>}
+          </div>
+        </section>}
       </div>
     </div>
   );

@@ -36,6 +36,18 @@ test("structured JSON-LD produces a complete canonical posting", async () => {
   assert.equal(result.posting?.jobUrl, "https://job-boards.greenhouse.io/acme/jobs/987654");
 });
 
+test("current Greenhouse pages recover company names from their page title", async () => {
+  const description = "About the role. Build customer-facing TypeScript and React applications with Python and SQL. What You'll Do: design, build, test, and improve reliable software with the engineering team. Qualifications: experience solving programming problems and collaborating on production-quality systems.";
+  const result = await ingestJob({
+    url: "https://job-boards.greenhouse.io/gallup/jobs/4395897009",
+    html: `<html><head><title>Job Application for Software Engineer Intern — Summer 2027 at Gallup</title><meta property="og:title" content="Software Engineer Intern — Summer 2027"><meta property="og:description" content="San Francisco"></head><body><main class="job-post"><h1 class="job__title">Software Engineer Intern — Summer 2027</h1><div class="job__location">San Francisco</div><a href="#apply">Apply</a><section class="job__description">${description}</section></main></body></html>`,
+  }, { cache: new MemoryJobIngestionCache() });
+  assert.equal(result.outcome, "job");
+  assert.equal(result.posting?.company, "Gallup");
+  assert.equal(result.posting?.title, "Software Engineer Intern — Summer 2027");
+  assert.equal(result.posting?.sourceJobId, "4395897009");
+});
+
 test("generic noisy HTML excludes page chrome and extracts job content", async () => {
   const result = await ingestJob({
     url: "https://northstar.example/careers/42",
@@ -109,6 +121,7 @@ test("URL validation blocks local targets and canonicalization preserves functio
 
 test("provider detection and source IDs cover major ATS and hosted boards", () => {
   const cases = [
+    ["https://boards.greenhouse.io/embed/job_app?for=acme&token=5624529004", "greenhouse", "5624529004"],
     ["https://jobs.lever.co/acme/lever-123", "lever", "lever-123"],
     ["https://acme.wd5.myworkdayjobs.com/en-US/site/job/Toronto/Engineer_R123456", "workday", "R123456"],
     ["https://jobs.ashbyhq.com/acme/ashby-123", "ashby", "ashby-123"],

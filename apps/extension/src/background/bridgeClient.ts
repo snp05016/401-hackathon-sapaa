@@ -126,7 +126,7 @@ async function bridgeFetch(path: string, init: RequestInit = {}): Promise<Respon
 
 export async function checkBridgeHealth(): Promise<boolean> {
   try {
-    const res = await bridgeFetch("/health");
+    const res = await bridgeFetch("/profile");
     return res.ok;
   } catch {
     return false;
@@ -136,6 +136,7 @@ export async function checkBridgeHealth(): Promise<boolean> {
 export async function postJson<T>(path: string, body: unknown): Promise<T> {
   const res = await bridgeFetch(path, { method: "POST", body: JSON.stringify(body) });
   if (!res.ok) {
+    if (res.status === 401) throw new Error("Bridge token does not match. Copy the current token from Ghostboard Profile, paste it into the extension, and save settings.");
     throw new Error(`Bridge request to ${path} failed: ${res.status}`);
   }
   return (await res.json()) as T;

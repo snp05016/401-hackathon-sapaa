@@ -1,4 +1,4 @@
-import { app, dialog, ipcMain, safeStorage, shell, type IpcMainInvokeEvent } from "electron";
+  import { app, dialog, ipcMain, safeStorage, shell, type IpcMainInvokeEvent } from "electron";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -42,6 +42,7 @@ export function registerGmailHandlers(db: GhostboardDb): void {
     [IPC_CHANNELS.gmailConnect, () => service.connect()],
     [IPC_CHANNELS.gmailCheck, () => service.check()],
     [IPC_CHANNELS.gmailAutomatic, (enabled) => service.setAutomaticChecks(enabled)],
+    [IPC_CHANNELS.gmailRecentOnly, (enabled) => service.setRecentOnly(enabled)],
     [IPC_CHANNELS.gmailDisconnect, () => service.disconnect()],
     [IPC_CHANNELS.gmailDismiss, (id) => service.dismiss(id)],
     [IPC_CHANNELS.gmailApply, (id, applicationId, updatedAt) => service.apply(id, applicationId, updatedAt)],

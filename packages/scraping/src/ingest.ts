@@ -1,6 +1,6 @@
 import type { IngestJobResponse, JobPageSnapshot } from "@ghostboard/shared";
 import { buildCanonicalJob, mergeDrafts } from "./canonical";
-import { draftFromHtml, draftFromJsonLd } from "./html";
+import { draftFromHtml, draftFromJsonLd, greenhouseCompanyFromPageTitle } from "./html";
 import { normalizeInline, normalizeJobUrl, stableHash } from "./normalization";
 import { detectProvider, extractSourceJobId, fetchProviderDraft } from "./providers";
 import type { JobExtractionDraft, JobIngestionCache, JobIngestionInput, JobIngestionOptions } from "./types";
@@ -64,7 +64,9 @@ function snapshotDraft(input: JobIngestionInput): JobExtractionDraft {
     sourceJobId: metadata.sourceJobId || extractSourceJobId(input.url, provider),
     url: input.url,
     title: metadata.title || metadata["og:title"] || titleParts[0] || null,
-    company: metadata.company || metadata["og:site_name"] || titleParts.at(-1) || null,
+    company: metadata.company || metadata["og:site_name"]
+      || (provider === "greenhouse" ? greenhouseCompanyFromPageTitle(pageTitle) : null)
+      || titleParts.at(-1) || null,
     location: metadata.location || null,
     salaryRange: metadata.salary || null,
     employmentType: metadata.employmentType || null,

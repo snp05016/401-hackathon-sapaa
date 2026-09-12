@@ -42,8 +42,15 @@ export function Popup() {
 
     chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
       if (!tab?.id) return;
-      chrome.runtime.sendMessage({ type: "get-detected-job", tabId: tab.id }, (response) => {
-        if (response?.job) setJob(response.job as JobPosting);
+      chrome.tabs.sendMessage(tab.id, { type: "get-current-job" }, (liveResponse) => {
+        if (liveResponse?.job) {
+          setJob(liveResponse.job as JobPosting);
+          return;
+        }
+        void chrome.runtime.lastError;
+        chrome.runtime.sendMessage({ type: "get-detected-job", tabId: tab.id }, (cachedResponse) => {
+          if (cachedResponse?.job) setJob(cachedResponse.job as JobPosting);
+        });
       });
     });
   }, []);

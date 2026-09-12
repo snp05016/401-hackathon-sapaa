@@ -1,6 +1,6 @@
 import type { IngestJobResponse } from "@ghostboard/shared";
 import { buildCanonicalJob, mergeDrafts } from "./canonical";
-import { draftFromJsonLd, extractRequirements } from "./html";
+import { draftFromJsonLd, extractRequirements, greenhouseCompanyFromPageTitle } from "./html";
 import { detectProvider, extractSourceJobId } from "./providers";
 import { normalizeInline, normalizeWhitespace } from "./normalization";
 import type { JobExtractionDraft } from "./types";
@@ -56,8 +56,11 @@ export function draftFromDocument(url: string, document: Document): { draft: Job
     sourceJobId: extractSourceJobId(url, provider),
     url,
     title: firstText(document, ["h1", '[data-automation-id="jobPostingHeader"]']) || meta(document, ["og:title", "twitter:title"]) || normalizeInline(document.title),
-    company: firstText(document, ["[itemprop='hiringOrganization']", ".company-name", '[data-automation-id="company"]']) || meta(document, ["og:site_name", "application-name"]),
-    location: firstText(document, ["[itemprop='jobLocation']", ".job-location", '[data-automation-id="locations"]', '[data-testid="job-location"]']),
+    company: firstText(document, ["[itemprop='hiringOrganization']", ".company-name", '[data-automation-id="company"]'])
+      || meta(document, ["og:site_name", "application-name"])
+      || (provider === "greenhouse" ? greenhouseCompanyFromPageTitle(document.title) : null),
+    location: firstText(document, ["[itemprop='jobLocation']", ".job-location", ".job__location", '[data-automation-id="locations"]', '[data-testid="job-location"]'])
+      || (provider === "greenhouse" ? meta(document, ["og:description"]) : null),
     salaryRange: firstText(document, ["[itemprop='baseSalary']", ".salary", '[data-testid="job-salary"]']),
     employmentType: firstText(document, ["[itemprop='employmentType']", ".employment-type"]),
     description,
