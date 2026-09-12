@@ -54,11 +54,34 @@ function seniority(text: string): Seniority {
   const levels: Array<[Seniority, RegExp]> = [
     ["intern", /\b(?:intern|internship|co[- ]?op|student)\b/],
     ["junior", /\b(?:junior|entry[- ]level|new grad|graduate)\b/],
+    ["mid", /\b(?:mid|mid[- ]level|intermediate)\b/],
     ["staff", /\b(?:staff|principal|distinguished)\b/],
     ["senior", /\b(?:senior|sr\.?|lead)\b/],
   ];
   const found = levels.filter(([, pattern]) => pattern.test(normalized)).map(([level]) => level);
-  return found.length === 1 ? found[0] : found.length === 0 ? "mid" : "unknown";
+  return found.length === 1 ? found[0] : "unknown";
+}
+
+type EmploymentType = "full-time" | "part-time" | "contract" | "temporary" | "internship" | "volunteer" | "unknown";
+
+function normalizedEmploymentType(value: string | null): EmploymentType {
+  if (!value) return "unknown";
+  const normalized = value.toLowerCase().replace(/[_/]+/g, " ").replace(/\s+/g, " ").trim();
+  const types: Array<[EmploymentType, RegExp]> = [
+    ["full-time", /\bfull[- ]?time\b/],
+    ["part-time", /\bpart[- ]?time\b/],
+    ["contract", /\b(?:contract|contractor|freelance)\b/],
+    ["temporary", /\b(?:temporary|temp|seasonal)\b/],
+    ["internship", /\b(?:internship|intern|co[- ]?op)\b/],
+    ["volunteer", /\bvolunteer\b/],
+  ];
+  const found = types.filter(([, pattern]) => pattern.test(normalized)).map(([type]) => type);
+  return found.length === 1 ? found[0] : "unknown";
+}
+
+function compatibilityScore<T extends string>(left: T, right: T, unknown: T): number {
+  if (left === unknown || right === unknown) return 0.5;
+  return left === right ? 1 : 0;
 }
 
 function locationScore(left: string | null, right: string | null): number {
@@ -70,14 +93,7 @@ function locationScore(left: string | null, right: string | null): number {
   return 0;
 }
 
-function employmentScore(left: JobPosting, right: JobPosting): number {
-  const a = seniority(`${left.title} ${left.employmentType ?? ""}`);
-  const b = seniority(`${right.title} ${right.employmentType ?? ""}`);
-  if (a === "unknown" || b === "unknown") return 0.5;
-  return a === b ? 1 : 0;
-}
-
-/** Deterministic, explainable similarity over title, skills, body, location, and role level. */
+/** Deterministic, explainable similarity over title, skills, body, location, role level, and employment type. */
 export function scoreJobSimilarity(target: JobPosting, candidate: JobPosting): JobSimilarityResult {
   const targetKeywords = keywordSet(target);
   const candidateKeywords = keywordSet(candidate);
@@ -92,13 +108,26 @@ export function scoreJobSimilarity(target: JobPosting, candidate: JobPosting): J
   const skills = weightedJaccard(targetKeywordMap, candidateKeywordMap);
   const body = weightedJaccard(termFrequency(target.jobDescription), termFrequency(candidate.jobDescription));
   const location = locationScore(target.location, candidate.location);
-  const employment = employmentScore(target, candidate);
-  const score = Number((title * 0.38 + skills * 0.34 + body * 0.18 + location * 0.05 + employment * 0.05).toFixed(3));
+  const targetSeniority = seniority(target.title);
+  const candidateSeniority = seniority(candidate.title);
+  const level = compatibilityScore(targetSeniority, candidateSeniority, "unknown");
+  const targetEmploymentType = normalizedEmploymentType(target.employmentType);
+  const candidateEmploymentType = normalizedEmploymentType(candidate.employmentType);
+  const employment = compatibilityScore(targetEmploymentType, candidateEmploymentType, "unknown");
+  const score = Number((
+    title * 0.38
+    + skills * 0.34
+    + body * 0.18
+    + location * 0.05
+    + level * 0.025
+    + employment * 0.025
+  ).toFixed(3));
 
   const reasons: string[] = [];
   if (title >= 0.5) reasons.push("Strong title overlap");
   if (sharedKeywords.length) reasons.push(`Shared: ${sharedKeywords.slice(0, 8).join(", ")}`);
-  if (employment === 1) reasons.push(`Both ${seniority(`${target.title} ${target.employmentType ?? ""}`)}-level roles`);
+  if (level === 1 && targetSeniority !== "unknown") reasons.push(`Both ${targetSeniority}-level roles`);
+  if (employment === 1 && targetEmploymentType !== "unknown") reasons.push(`Both ${targetEmploymentType} roles`);
   if (location === 1 && target.location && candidate.location) reasons.push("Compatible location");
   if (!reasons.length) reasons.push("Limited deterministic overlap");
 
