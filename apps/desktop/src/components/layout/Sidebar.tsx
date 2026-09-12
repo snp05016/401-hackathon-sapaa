@@ -20,7 +20,9 @@ const NAV_ITEMS: Array<{ id: NavPage; label: string; icon: typeof LayoutDashboar
 
 export function Sidebar({ page, onNavigate }: { page: NavPage; onNavigate: (page: NavPage) => void }) {
   const { applications } = useApplications();
-  const todoCount = (applications ?? []).filter((application) => application.followUpOn).length;
+  const todoCount = (applications ?? []).filter(
+    (application) => application.followUpOn || application.status === "found",
+  ).length;
 
   return (
     <nav className="flex h-full w-[228px] shrink-0 flex-col border-r border-hairline bg-paper-rail">
