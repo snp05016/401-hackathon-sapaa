@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { JobPosting } from "@ghostboard/shared";
-import { calculateJobSimilarity, compareResumeToJob, extractJobKeywords } from "./index";
+import { calculateJobSimilarity, compareResumeToJob, extractJobKeywords, scoreJobSimilarity } from "./index";
 
 function job(id: string, title: string, description: string, location = "Toronto", employmentType = "Full-time"): JobPosting {
   return {
@@ -58,4 +58,29 @@ test("similarity ranks a same-level platform job above an unrelated role and exp
   assert.ok(results[0].sharedKeywords.includes("TypeScript"));
   assert.ok(results[0].reasons.some((reason) => reason.startsWith("Shared:")));
   assert.ok(results[0].reasons.some((reason) => reason.includes("intern-level")));
+});
+
+test("pairwise similarity is symmetric and bounded", () => {
+  const first = job("1", "Senior Backend Engineer", "Build TypeScript APIs with PostgreSQL and Docker.", "Remote", "Full-time");
+  const second = job("2", "Senior Platform Engineer", "Build TypeScript services with PostgreSQL, Docker and Kubernetes.", "Remote", "FULL_TIME");
+  const forward = scoreJobSimilarity(first, second);
+  const reverse = scoreJobSimilarity(second, first);
+
+  assert.equal(forward.score, reverse.score);
+  assert.ok(forward.score >= 0 && forward.score <= 1);
+  assert.deepEqual([...forward.sharedKeywords].sort(), [...reverse.sharedKeywords].sort());
+  assert.equal(forward.jobId, first.id);
+  assert.equal(forward.similarJobId, second.id);
+});
+
+test("pairwise similarity compares employment type without inventing seniority", () => {
+  const target = job("1", "Software Engineer", "Build TypeScript APIs and PostgreSQL services.", "Toronto", "Full-time");
+  const sameEmployment = job("2", "Software Engineer", "Build TypeScript APIs and PostgreSQL services.", "Toronto", "FULL_TIME");
+  const differentEmployment = job("3", "Software Engineer", "Build TypeScript APIs and PostgreSQL services.", "Toronto", "Contract");
+  const sameResult = scoreJobSimilarity(target, sameEmployment);
+  const differentResult = scoreJobSimilarity(target, differentEmployment);
+
+  assert.ok(sameResult.score > differentResult.score);
+  assert.ok(sameResult.reasons.includes("Both full-time roles"));
+  assert.ok(!sameResult.reasons.some((reason) => reason.includes("mid-level")));
 });
