@@ -4,8 +4,22 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Ghostboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body>
+    <script>
+      // Set before first paint so the launch sequence never flashes the wrong ground.
+      try {
+        document.documentElement.dataset.theme = localStorage.getItem("ghostboard:theme") || "paper";
+      } catch {
+        document.documentElement.dataset.theme = "paper";
+      }
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

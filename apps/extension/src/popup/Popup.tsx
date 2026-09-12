@@ -3,8 +3,33 @@ import type { JobPosting } from "@ghostboard/shared";
 import type { CreateJobResponse } from "@ghostboard/shared";
 import { getBridgeSettings, saveBridgeSettings, postJson, checkBridgeHealth } from "../background/bridgeClient";
 
+const SAVED_JOBS_KEY = "ghostboardSavedJobs";
+
+interface SavedJobMarker {
+  fingerprint: string;
+  title: string;
+  company: string;
+  savedAt: string;
+}
+
+async function readSavedJobs(): Promise<SavedJobMarker[]> {
+  const stored = await chrome.storage.local.get(SAVED_JOBS_KEY);
+  return Array.isArray(stored[SAVED_JOBS_KEY]) ? (stored[SAVED_JOBS_KEY] as SavedJobMarker[]) : [];
+}
+
+async function markJobSaved(job: JobPosting): Promise<void> {
+  const current = await readSavedJobs();
+  const next = [
+    ...current.filter((item) => item.fingerprint !== job.fingerprint),
+    { fingerprint: job.fingerprint, title: job.title, company: job.company, savedAt: new Date().toISOString() },
+  ];
+  await chrome.storage.local.set({ [SAVED_JOBS_KEY]: next });
+}
+
 export function Popup() {
   const [job, setJob] = useState<JobPosting | null>(null);
+  const [isSaved, setIsSaved] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [port, setPort] = useState("4173");
   const [token, setToken] = useState("");
@@ -24,6 +49,22 @@ export function Popup() {
       });
     });
   }, []);
+
+  useEffect(() => {
+    if (!job) {
+      setIsSaved(false);
+      setJustSaved(false);
+      return;
+    }
+    setJustSaved(false);
+    let cancelled = false;
+    readSavedJobs().then((markers) => {
+      if (!cancelled) setIsSaved(markers.some((item) => item.fingerprint === job.fingerprint));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [job]);
 
   async function handleSaveSettings() {
     await saveBridgeSettings({ port: Number(port), token });
@@ -52,7 +93,10 @@ export function Popup() {
         salaryRange: job.salaryRange,
         scrapedAt: job.scrapedAt,
       });
-      setStatus("Saved to Ghostboard!");
+      await markJobSaved(job);
+      setIsSaved(true);
+      setJustSaved(true);
+      setStatus("Saved job");
     } catch (err) {
       setStatus(err instanceof Error ? err.message : "Failed to save");
     }
@@ -66,9 +110,15 @@ export function Popup() {
         <div className="card">
           <strong>{job.title}</strong>
           <div>{job.company}</div>
-          <button onClick={handleSaveJob} style={{ marginTop: 8 }}>
-            Save Job
-          </button>
+          {isSaved ? (
+            <div style={{ marginTop: 8, color: "#166534", fontWeight: 600 }}>
+              {justSaved ? "Saved job" : "Already saved"}
+            </div>
+          ) : (
+            <button onClick={handleSaveJob} style={{ marginTop: 8 }}>
+              Save Job
+            </button>
+          )}
         </div>
       ) : (
         <div className="empty">No job detected on this page yet.</div>

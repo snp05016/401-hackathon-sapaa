@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Sidebar, type NavPage } from "./Sidebar";
+import { cn } from "../../lib/utils";
 
 export function AppShell({
   page,
@@ -10,10 +11,19 @@ export function AppShell({
   onNavigate: (page: NavPage) => void;
   children: ReactNode;
 }) {
+  const isResumes = page === "resumes";
+
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-slate-100 text-slate-900">
+    <div className={cn("flex h-screen w-screen overflow-hidden", isResumes ? "bg-slate-100 text-slate-900" : "bg-paper text-ink")}>
       <Sidebar page={page} onNavigate={onNavigate} />
-      <main className="flex-1 overflow-y-auto p-6">{children}</main>
+      <main
+        className={cn(
+          "flex-1 overflow-y-auto",
+          isResumes ? "bg-slate-100 p-6" : "editorial font-sans px-12 py-11",
+        )}
+      >
+        {children}
+      </main>
     </div>
   );
 }

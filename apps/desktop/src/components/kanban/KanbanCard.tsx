@@ -1,10 +1,18 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { Application } from "@ghostboard/shared";
-import { Card, CardContent } from "../ui/card";
-import { daysSince } from "../../lib/utils";
+import type { Application, ApplicationStage } from "@ghostboard/shared";
+import { cn, daysSince, formatDate } from "../../lib/utils";
 
-export function KanbanCard({ application }: { application: Application }) {
+const STAGE_EDGE: Record<ApplicationStage, string> = {
+  found: "hover:border-ink-3",
+  applied: "hover:border-ink",
+  interviewing: "hover:border-brass",
+  offer: "hover:border-verdigris",
+  rejected: "hover:border-oxblood",
+  ghosted: "hover:border-ink-3",
+};
+
+export function KanbanCard({ application, stage }: { application: Application; stage: ApplicationStage }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: application.id,
   });
@@ -12,20 +20,28 @@ export function KanbanCard({ application }: { application: Application }) {
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.45 : 1,
   };
+
+  const dateApplied = formatDate(application.dateApplied || "");
 
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      <Card className="mb-2 cursor-grab active:cursor-grabbing">
-        <CardContent className="p-3">
-          <div className="text-sm font-semibold text-slate-900">{application.company}</div>
-          <div className="text-xs text-slate-600">{application.title}</div>
-          <div className="mt-2 text-xs text-slate-400">
-            {daysSince(application.lastActivityAt)}d since activity
-          </div>
-        </CardContent>
-      </Card>
+      <article
+        className={cn(
+          "mb-2 cursor-grab rounded-sm border bg-paper px-3.5 py-3 transition-all duration-200 last:mb-0",
+          "hover:-translate-y-px hover:shadow-[3px_3px_0_0_var(--card-shadow)] active:cursor-grabbing",
+          stage === "ghosted" ? "border-dashed border-hairline" : "border-hairline",
+          STAGE_EDGE[stage],
+        )}
+      >
+        <h4 className="text-[13px] font-semibold leading-tight text-ink">{application.company}</h4>
+        <p className="mt-0.5 text-[12px] leading-snug text-ink-2">{application.title}</p>
+        <div className="mt-3 flex items-baseline justify-between gap-2 border-t border-hairline pt-2 text-[11px] text-ink-3">
+          <span className="tnum">{daysSince(application.lastActivityAt)}d quiet</span>
+          {dateApplied && <span className="tnum">applied on {dateApplied}</span>}
+        </div>
+      </article>
     </div>
   );
 }

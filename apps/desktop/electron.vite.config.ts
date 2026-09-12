@@ -1,5 +1,6 @@
 import { defineConfig, externalizeDepsPlugin } from "electron-vite";
 import react from "@vitejs/plugin-react";
+import { fileURLToPath } from "node:url";
 
 // Workspace packages ship raw .ts source (no build step) — bundle them into
 // the main/preload output instead of externalizing, since Node can't import
@@ -7,10 +8,11 @@ import react from "@vitejs/plugin-react";
 const WORKSPACE_PACKAGES = [
   "@ghostboard/shared",
   "@ghostboard/database",
-  "@ghostboard/scraping",
   "@ghostboard/matching",
+  "@ghostboard/scraping",
   "@ghostboard/autofill",
   "@ghostboard/resume",
+  "@ghostboard/scraping",
   "@ghostboard/tracking",
   "@ghostboard/ai",
 ];
@@ -35,6 +37,18 @@ export default defineConfig({
   },
   renderer: {
     plugins: [react()],
+    resolve: {
+      alias: {
+        "latex.js": fileURLToPath(new URL("../../node_modules/latex.js/dist/latex.js", import.meta.url)),
+      },
+    },
+    optimizeDeps: {
+      esbuildOptions: {
+        loader: {
+          ".keep": "text",
+        },
+      },
+    },
     root: ".",
     build: {
       rollupOptions: {

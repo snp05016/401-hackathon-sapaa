@@ -8,14 +8,18 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 
 const deadlineColors = {
-  green: "bg-green-100 text-green-800",
-  yellow: "bg-yellow-100 text-yellow-800",
-  red: "bg-red-100 text-red-800",
-  none: "bg-slate-100 text-slate-600",
+  green: "border-verdigris/35 text-verdigris",
+  yellow: "border-brass/40 text-brass",
+  red: "border-oxblood/35 text-oxblood",
+  none: "border-hairline text-ink-3",
 };
 
 function DeadlineBadge({ color, children }: { color: keyof typeof deadlineColors; children: ReactNode }) {
-  return <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${deadlineColors[color]}`}>{children}</span>;
+  return (
+    <span className={`inline-flex items-center whitespace-nowrap rounded-sm border px-2 py-0.5 text-[11px] ${deadlineColors[color]}`}>
+      {children}
+    </span>
+  );
 }
 
 function DeadlineEditor({ application, onSaved }: { application: Application; onSaved: () => void }) {
@@ -45,11 +49,13 @@ function DeadlineEditor({ application, onSaved }: { application: Application; on
 
   return (
     <form onSubmit={save} className="min-w-[230px]">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
         <Input
+          variant="rule"
           type="date"
           min="0001-01-01"
           max="9999-12-31"
+          className="tnum w-[135px]"
           aria-label={`Deadline for ${application.title} at ${application.company}`}
           aria-describedby={error ? `deadline-error-${application.id}` : undefined}
           aria-invalid={!!error}
@@ -57,12 +63,12 @@ function DeadlineEditor({ application, onSaved }: { application: Application; on
           disabled={saving}
           onChange={(event) => { setDeadline(event.target.value); setSaved(false); setError(null); }}
         />
-        <Button type="submit" variant="outline" disabled={saving || deadline === (application.deadline ?? "")}>
+        <Button type="submit" variant="rule" disabled={saving || deadline === (application.deadline ?? "")}>
           {saving ? "Saving…" : "Save"}
         </Button>
       </div>
-      {error && <p id={`deadline-error-${application.id}`} role="alert" className="mt-1 text-xs text-red-800">{error}</p>}
-      {saved && <p role="status" className="mt-1 text-xs text-green-800">Deadline saved.</p>}
+      {error && <p id={`deadline-error-${application.id}`} role="alert" className="mt-1.5 text-[11px] text-oxblood">{error}</p>}
+      {saved && <p role="status" className="mt-1.5 text-[11px] text-verdigris">Deadline saved.</p>}
     </form>
   );
 }
@@ -72,46 +78,69 @@ export function Tracking() {
 
   return (
     <div>
-      <h1 className="mb-2 text-2xl font-semibold">Tracking</h1>
-      <p className="mb-3 text-sm text-slate-600">Set the application deadline from each posting. Clear the date and save to remove it.</p>
-      <div className="mb-5 flex flex-wrap gap-2" aria-label="Deadline color legend">
+      <header className="animate-reveal flex items-baseline justify-between gap-10 border-b border-hairline pb-3">
+        <h1 className="font-display text-[52px] leading-[0.9] tracking-[-0.015em] text-ink">Tracking</h1>
+        <p className="max-w-[320px] text-right text-[12px] leading-relaxed text-ink-2">
+          Set the application deadline from each posting. Clear the date and save to remove it.
+        </p>
+      </header>
+
+      <div className="mt-6 flex flex-wrap items-center gap-2" aria-label="Deadline color legend">
         <DeadlineBadge color="green">7+ days</DeadlineBadge>
         <DeadlineBadge color="yellow">2–6 days</DeadlineBadge>
         <DeadlineBadge color="red">Today, tomorrow, or overdue</DeadlineBadge>
       </div>
-      {error && <div role="alert" className="mb-4 text-red-800">{error} <Button variant="outline" onClick={reload}>Retry</Button></div>}
-      {!applications && !error && <p role="status">Loading saved jobs…</p>}
-      {applications?.length === 0 && <p className="rounded-lg border border-dashed border-slate-300 p-6 text-slate-600">No saved jobs yet. Save a posting using the browser extension, then add its deadline here.</p>}
-      {!!applications?.length && <div className="overflow-x-auto">
-        <table className="w-full min-w-[850px] text-left text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 text-slate-600">
-              <th scope="col" className="px-2 py-3">Company / role</th>
-              <th scope="col" className="px-2">Stage</th>
-              <th scope="col" className="px-2">Application deadline</th>
-              <th scope="col" className="px-2">Deadline status</th>
-              <th scope="col" className="px-2">Days since activity</th>
-              <th scope="col" className="px-2">Staleness</th>
-            </tr>
-          </thead>
-          <tbody>
-            {applications?.map((application) => {
-              const staleness = evaluateApplicationStaleness(application, now);
-              const deadline = evaluateDeadline(application.deadline, now);
-              return (
-                <tr key={application.id} className="border-b border-slate-100">
-                  <td className="min-w-[160px] max-w-xs break-words px-2 py-4"><div className="font-medium">{application.company}</div><div>{application.title}</div></td>
-                  <td className="px-2">{application.status}</td>
-                  <td className="px-2"><DeadlineEditor application={application} onSaved={reload} /></td>
-                  <td className="px-2"><DeadlineBadge color={deadline.color}>{deadline.label}</DeadlineBadge></td>
-                  <td className="px-2">{staleness.daysSinceLastActivity}</td>
-                  <td className="px-2"><Badge variant={staleness.isStale ? "warning" : "outline"}>{staleness.isStale ? "Stale" : "OK"}</Badge></td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>}
+
+      {error && (
+        <div role="alert" className="mt-8 flex items-center gap-4 border-l-2 border-oxblood pl-4 text-[13px] text-ink">
+          {error}
+          <Button variant="quiet" onClick={reload}>Retry</Button>
+        </div>
+      )}
+      {!applications && !error && <p role="status" className="mt-8 text-[13px] text-ink-2">Loading saved jobs…</p>}
+      {applications?.length === 0 && (
+        <p className="mt-9 max-w-[560px] border-y border-dashed border-hairline py-7 font-display text-[22px] leading-snug text-ink-2">
+          No saved jobs yet. Save a posting with the browser extension, then add its deadline here.
+        </p>
+      )}
+
+      {!!applications?.length && (
+        <div className="animate-reveal mt-9 overflow-x-auto" style={{ animationDelay: "100ms" }}>
+          <table className="w-full min-w-[880px] border-collapse text-left text-[13px]">
+            <thead>
+              <tr className="border-b border-hairline text-[11px] text-ink-2">
+                <th scope="col" className="px-3 pb-3 pl-0 font-normal">Company / role</th>
+                <th scope="col" className="px-3 pb-3 font-normal">Stage</th>
+                <th scope="col" className="px-3 pb-3 font-normal">Application deadline</th>
+                <th scope="col" className="px-3 pb-3 font-normal">Deadline status</th>
+                <th scope="col" className="px-3 pb-3 font-normal">Days quiet</th>
+                <th scope="col" className="px-3 pb-3 pr-0 font-normal">Staleness</th>
+              </tr>
+            </thead>
+            <tbody>
+              {applications?.map((application) => {
+                const staleness = evaluateApplicationStaleness(application, now);
+                const deadline = evaluateDeadline(application.deadline, now);
+                return (
+                  <tr key={application.id} className="border-b border-hairline transition-colors hover:bg-paper-raised">
+                    <td className="min-w-[170px] max-w-xs break-words px-3 py-5 pl-0">
+                      <div className="font-semibold text-ink">{application.company}</div>
+                      <div className="mt-0.5 text-ink-2">{application.title}</div>
+                    </td>
+                    <td className="px-3 text-ink-2">{application.status}</td>
+                    <td className="px-3"><DeadlineEditor application={application} onSaved={reload} /></td>
+                    <td className="px-3"><DeadlineBadge color={deadline.color}>{deadline.label}</DeadlineBadge></td>
+                    <td className="tnum px-3 text-ink-2">{staleness.daysSinceLastActivity}</td>
+                    <td className="px-3 pr-0">
+                      <Badge variant={staleness.isStale ? "brass" : "mist"}>{staleness.isStale ? "Stale" : "OK"}</Badge>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
