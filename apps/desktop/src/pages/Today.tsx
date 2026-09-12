@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Check, Copy, X } from "lucide-react";
+import { ActivityCalendar } from "react-activity-calendar";
 import type { FollowUpSuggestion } from "@ghostboard/shared";
 import { FOLLOW_UP_KIND_LABELS, summarizeToday } from "@ghostboard/tracking";
 import { useApplications } from "../lib/useApplications";
@@ -127,6 +128,61 @@ export function Today() {
               <Figure count={counts.applied} label="Applied" accent="text-ink" delay={440} />
               <Figure count={counts.interviewing} label="Interviewing" accent="text-brass" delay={500} />
               <Figure count={counts.followUpOn} label="Follow-up on" accent="text-ink" delay={560} />
+            </div>
+          </section>
+
+          <section className="mt-14 w-full animate-reveal" style={{ animationDelay: "400ms" }}>
+            <h2 className="border-b border-hairline pb-3 font-display text-[26px] leading-none text-ink">
+              Application activity
+            </h2>
+            <div className="mt-8">
+              <ActivityCalendar
+                data={(() => {
+                  const counts = new Map<string, number>();
+                  for (const app of applications ?? []) {
+                    if (app.dateApplied) {
+                      const date = app.dateApplied.split("T")[0];
+                      counts.set(date, (counts.get(date) ?? 0) + 1);
+                    }
+                  }
+
+                  const maxCount = Math.max(...counts.values(), 1);
+
+                  // build the full 12-month range, filling gaps with zero
+                  const end = new Date();
+                  const start = new Date();
+                  start.setFullYear(start.getFullYear() - 1);
+                  start.setDate(start.getDate() + 1); // inclusive of today, 12 months back
+
+                  const days = [];
+                  const cursor = new Date(start);
+                  while (cursor <= end) {
+                    const iso = cursor.toISOString().split("T")[0];
+                    const count = counts.get(iso) ?? 0;
+                    const level = count === 0 ? 0 : Math.min(4, Math.max(1, Math.floor((count / maxCount) * 4)));
+                    days.push({ date: iso, count, level });
+                    cursor.setDate(cursor.getDate() + 1);
+                  }
+
+                  return days;
+                })()}
+                blockSize={12}
+                blockMargin={3}
+                blockRadius={2}
+                fontSize={11}
+                showMonthLabels={true}
+                showWeekdayLabels={["mon", "wed", "fri"]}
+                showColorLegend
+                showTotalCount
+                tooltips={{
+                  activity: {
+                    text: (activity) =>
+                      `${activity.count} application${activity.count === 1 ? "" : "s"} on ${activity.date}`,
+                  },
+                }}
+                minLevel={0}
+                maxLevel={4}
+              />
             </div>
           </section>
         </>
