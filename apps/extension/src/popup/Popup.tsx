@@ -107,6 +107,31 @@ export function Popup() {
     }
   }
 
+  async function handleAutofill() {
+    setStatus("Autofill…");
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id) {
+      setStatus("No active tab available.");
+      return;
+    }
+
+    chrome.tabs.sendMessage(tab.id, { type: "trigger-autofill" }, (response) => {
+      if (chrome.runtime.lastError) {
+        setStatus("Autofill is unavailable on this page.");
+        return;
+      }
+      if (response?.error) {
+        setStatus(response.error);
+        return;
+      }
+      if (response?.filled?.length) {
+        setStatus(`Filled ${response.filled.length} fields`);
+        return;
+      }
+      setStatus("No matching profile fields were filled.");
+    });
+  }
+
   return (
     <div className="popup">
       <h1>👻 Ghostboard</h1>
@@ -124,6 +149,9 @@ export function Popup() {
               Save Job
             </button>
           )}
+          <button onClick={handleAutofill} style={{ marginTop: 8, marginLeft: 8 }}>
+            Autofill form
+          </button>
         </div>
       ) : (
         <div className="empty">No job detected on this page yet.</div>
