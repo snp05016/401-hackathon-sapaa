@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "dev": "npm run dev --workspace=apps/desktop",
+    "dev:jobspy": "python3 -m uvicorn main:app --app-dir services/jobspy --host 127.0.0.1 --port 8001",
     "dev:extension": "npm run dev --workspace=apps/extension",
     "build": "npm run build --workspaces --if-present",
     "test": "tsx --test packages/scraping/src/*.test.ts packages/matching/src/*.test.ts packages/autofill/src/*.test.ts packages/resume/src/*.test.ts packages/tracking/src/*.test.ts packages/tracking/src/statusProviders/*.test.ts packages/extension-messaging/src/*.test.ts apps/desktop/electron/db/*.test.ts apps/desktop/electron/gmail/*.test.ts",
