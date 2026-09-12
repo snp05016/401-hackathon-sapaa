@@ -63,7 +63,7 @@ export function KanbanBoard({ initialApplications }: { initialApplications: Appl
         </div>
       )}
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-        <div className="flex gap-4 overflow-x-auto pb-5">
+        <div className="flex gap-4 overflow-x-auto pb-5 snap-x snap-mandatory sm:snap-none">
           {APPLICATION_STAGES.map((stage, index) => (
             <KanbanColumn key={stage} stage={stage} applications={byStage[stage]} index={index} />
           ))}

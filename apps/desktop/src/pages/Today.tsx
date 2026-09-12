@@ -9,8 +9,8 @@ import { Button } from "../components/ui/button";
 
 function Figure({ count, label, accent, delay }: { count: number; label: string; accent: string; delay: number }) {
   return (
-    <div className="animate-reveal px-7 first:pl-0 last:pr-0" style={{ animationDelay: `${delay}ms` }}>
-      <div className={`tnum font-display text-[64px] leading-[0.85] ${accent}`}>{count}</div>
+    <div className="animate-reveal px-5 first:pl-0 last:pr-0 sm:px-7" style={{ animationDelay: `${delay}ms` }}>
+      <div className={`tnum font-display text-[40px] leading-[0.85] sm:text-[64px] ${accent}`}>{count}</div>
       <div className="mt-3 text-[12px] text-ink-2">{label}</div>
     </div>
   );
@@ -83,7 +83,7 @@ export function Today() {
         <p className="text-[12px] text-ink-2">
           {now.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
         </p>
-        <h1 className="mt-1 font-display text-[88px] leading-[0.88] tracking-[-0.02em] text-ink">Today</h1>
+        <h1 className="mt-1 font-display text-[48px] leading-[0.88] tracking-[-0.02em] text-ink sm:text-[88px]">Today</h1>
       </header>
 
       {error && (
@@ -97,13 +97,13 @@ export function Today() {
       {applications && (
         <>
           <section className="mt-14">
-            <div className="flex items-baseline justify-between gap-10 border-b border-hairline pb-3">
+            <div className="flex flex-col gap-3 border-b border-hairline pb-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-10">
               <h2 className="font-display text-[26px] leading-none text-ink">Application deadlines</h2>
-              <p className="max-w-[300px] text-right text-[12px] leading-relaxed text-ink-2">
+              <p className="max-w-[300px] text-[12px] leading-relaxed text-ink-2 sm:text-right">
                 Jobs in Found that still need an application. Set their deadlines in Tracking.
               </p>
             </div>
-            <div className="mt-9 flex divide-x divide-hairline">
+            <div className="mt-9 flex flex-wrap gap-x-4 gap-y-6 divide-x divide-hairline sm:flex-nowrap">
               <Figure count={counts.dueToday} label="Due today" accent="text-oxblood" delay={80} />
               <Figure count={counts.upcoming} label="Due in the next 7 days" accent="text-ink" delay={160} />
               <Figure count={counts.overdue} label="Overdue" accent="text-oxblood" delay={240} />
@@ -118,11 +118,11 @@ export function Today() {
             )}
           </section>
 
-          <section className="mt-20 ml-auto w-[78%] animate-reveal" style={{ animationDelay: "320ms" }}>
+          <section className="mt-14 w-full animate-reveal sm:mt-20 sm:ml-auto sm:w-[78%]" style={{ animationDelay: "320ms" }}>
             <h2 className="border-b border-hairline pb-3 font-display text-[26px] leading-none text-ink">
               Application overview
             </h2>
-            <div className="mt-8 flex divide-x divide-hairline">
+            <div className="mt-8 flex flex-wrap gap-x-4 gap-y-6 divide-x divide-hairline sm:flex-nowrap">
               <Figure count={counts.total} label="Total applications" accent="text-ink" delay={380} />
               <Figure count={counts.applied} label="Applied" accent="text-ink" delay={440} />
               <Figure count={counts.interviewing} label="Interviewing" accent="text-brass" delay={500} />

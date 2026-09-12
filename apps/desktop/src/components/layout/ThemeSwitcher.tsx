@@ -27,7 +27,7 @@ export function ThemeSwitcher() {
           />
         ))}
       </div>
-      <span className="text-[11px] text-ink-2">{current?.label}</span>
+      <span className="hidden text-[11px] text-ink-2 sm:inline">{current?.label}</span>
     </div>
   );
 }

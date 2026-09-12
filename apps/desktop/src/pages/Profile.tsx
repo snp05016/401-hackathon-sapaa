@@ -86,9 +86,9 @@ export function Profile() {
 
   return (
     <div className="max-w-[860px]">
-      <header className="animate-reveal flex items-baseline justify-between gap-10 border-b border-hairline pb-3">
-        <h1 className="font-display text-[52px] leading-[0.9] tracking-[-0.015em] text-ink">Profile</h1>
-        <p className="max-w-[280px] text-right text-[12px] leading-relaxed text-ink-2">
+      <header className="animate-reveal flex flex-col gap-3 border-b border-hairline pb-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-10">
+        <h1 className="font-display text-[36px] leading-[0.9] tracking-[-0.015em] text-ink sm:text-[52px]">Profile</h1>
+        <p className="max-w-[280px] text-[12px] leading-relaxed text-ink-2 sm:text-right">
           These details fill in application forms through the browser extension.
         </p>
       </header>

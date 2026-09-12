@@ -113,9 +113,9 @@ export function Tracking() {
 
   return (
     <div>
-      <header className="animate-reveal flex items-baseline justify-between gap-10 border-b border-hairline pb-3">
-        <h1 className="font-display text-[52px] leading-[0.9] tracking-[-0.015em] text-ink">Tracking</h1>
-        <p className="max-w-[320px] text-right text-[12px] leading-relaxed text-ink-2">
+      <header className="animate-reveal flex flex-col gap-3 border-b border-hairline pb-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-10">
+        <h1 className="font-display text-[36px] leading-[0.9] tracking-[-0.015em] text-ink sm:text-[52px]">Tracking</h1>
+        <p className="max-w-[320px] text-[12px] leading-relaxed text-ink-2 sm:text-right">
           Set the application deadline from each posting. Clear the date and save to remove it.
         </p>
       </header>
