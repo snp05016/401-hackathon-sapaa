@@ -16,8 +16,9 @@ function application(
   return {
     id, company, title, location,
     jobUrl, jobDescription: description, status: "found",
-    dateFound: "2026-09-01", dateApplied: null, lastActivityAt: "2026-09-01",
-    nextAction: null, nextActionDate: null, resumeId: null, source,
+	    dateFound: "2026-09-01", dateApplied: null, lastActivityAt: "2026-09-01",
+	    followUpOn: false, followUpDismissedAt: null,
+	    nextAction: null, nextActionDate: null, resumeId: null, source,
     createdAt, updatedAt: createdAt,
   };
 }

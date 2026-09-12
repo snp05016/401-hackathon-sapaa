@@ -1,4 +1,4 @@
-import type { DetectedFormField, ProfileField } from "@ghostboard/shared";
+import type { DetectedFormField, MasterResume, ProfileField, ResumeReference } from "@ghostboard/shared";
 import { matchFormField } from "@ghostboard/autofill";
 
 type FillableElement = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
@@ -56,7 +56,20 @@ function fieldLabel(element: FillableElement): string | null {
     .filter(Boolean)
     .join(" ");
   if (referenced) return referenced;
-  return element.closest("label")?.textContent?.trim() || null;
+  const wrappedLabel = element.closest("label")?.textContent?.trim();
+  if (wrappedLabel) return wrappedLabel;
+
+  let container: HTMLElement | null = element.parentElement;
+  for (let depth = 0; container && depth < 4; depth += 1, container = container.parentElement) {
+    const precedingText = [...container.querySelectorAll<HTMLElement>("label, span, div, p")]
+      .filter((candidate) => candidate.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .map((candidate) => candidate.textContent?.replace(/\*/g, "").trim())
+      .filter((text): text is string => !!text && text.length <= 80 && !/^(delete|add|remove)$/i.test(text))
+      .at(-1);
+    if (precedingText) return precedingText;
+  }
+
+  return null;
 }
 
 function selectorFor(element: FillableElement): string {
@@ -139,10 +152,21 @@ export function writeFormValue(element: FillableElement, requestedValue: string)
   if (
     element.disabled
     || ("readOnly" in element && element.readOnly)
-    || ["submit", "button", "reset", "image", "hidden", "password", "file", "checkbox", "radio"].includes(inputType)
+    || ["submit", "button", "reset", "image", "hidden", "password", "file"].includes(inputType)
   ) return false;
 
   let value = requestedValue;
+  if (inputType === "checkbox" || inputType === "radio") {
+    const checked = /^(?:true|yes|checked|1)$/i.test(requestedValue.trim());
+    if (!checked) return false;
+    (element as HTMLInputElement).checked = true;
+    const EventConstructor = element.ownerDocument?.defaultView?.Event ?? globalThis.Event;
+    for (const type of ["input", "change", "blur"]) {
+      element.dispatchEvent(new EventConstructor(type, { bubbles: true }));
+    }
+    return true;
+  }
+
   if (element.tagName === "SELECT") {
     const option = [...(element as HTMLSelectElement).options].find((candidate) => {
       const expected = normalized(requestedValue);
@@ -200,11 +224,123 @@ export function fillApplicationForm(
   return { pageType: "application_form", filled, skipped, error: null };
 }
 
-async function requestProfileForAutofill(): Promise<ProfileField[] | null> {
+function referenceField(key: string, label: string, value: string): ProfileField | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return { key, label, value: trimmed, category: "custom" };
+}
+
+function monthNumber(month: string): string | null {
+  const normalizedMonth = month.toLowerCase().slice(0, 3);
+  const index = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"].indexOf(normalizedMonth);
+  return index >= 0 ? String(index + 1).padStart(2, "0") : null;
+}
+
+function formatWorkdayMonthYear(value: string): string | null {
+  const text = value.trim();
+  const numeric = text.match(/\b(0?[1-9]|1[0-2])\s*[/-]\s*((?:19|20)\d{2})\b/);
+  if (numeric) return `${numeric[1].padStart(2, "0")}/${numeric[2]}`;
+
+  const named = text.match(/\b([A-Za-z]{3,9})\.?\s+((?:19|20)\d{2})\b/);
+  if (!named) return null;
+  const month = monthNumber(named[1]);
+  return month ? `${month}/${named[2]}` : null;
+}
+
+function splitDateRange(dateRange: string | null): { from: string | null; to: string | null; current: boolean } {
+  if (!dateRange) return { from: null, to: null, current: false };
+  const parts = dateRange.split(/\s+(?:to|through|-|--|–|—)\s+/i).map((part) => part.trim()).filter(Boolean);
+  const from = formatWorkdayMonthYear(parts[0] ?? dateRange);
+  const toText = parts[1] ?? "";
+  const current = /\b(?:present|current|now)\b/i.test(toText || dateRange);
+  return { from, to: current ? null : formatWorkdayMonthYear(toText), current };
+}
+
+function experienceDescription(bullets: string[]): string {
+  return bullets.join("\n");
+}
+
+function resumeReferenceToFields(reference: ResumeReference | undefined): ProfileField[] {
+  if (!reference) return [];
+  const experienceFields = reference.experience.flatMap((experience, index) => {
+    const position = index + 1;
+    const dates = splitDateRange(experience.dateRange);
+    return [
+      referenceField(`resumeExperience${position}Title`, `Work experience ${position} job title position role`, experience.title),
+      referenceField(`resumeExperience${position}Company`, `Work experience ${position} company employer organization`, experience.company),
+      referenceField(`resumeExperience${position}Location`, `Work experience ${position} location city country`, experience.location ?? ""),
+      referenceField(`resumeExperience${position}Current`, `Work experience ${position} currently work here current role present`, dates.current ? "true" : ""),
+      referenceField(`resumeExperience${position}From`, `Work experience ${position} from start date start month year`, dates.from ?? ""),
+      referenceField(`resumeExperience${position}To`, `Work experience ${position} to end date end month year`, dates.to ?? ""),
+      referenceField(`resumeExperience${position}Description`, `Work experience ${position} role description responsibilities duties achievements`, experienceDescription(experience.bullets)),
+    ].filter((field): field is ProfileField => field !== null);
+  });
+  const educationFields = reference.education.flatMap((education, index) => {
+    const position = index + 1;
+    return [
+      referenceField(`resumeEducation${position}School`, `Education ${position} school university college institution`, education.school),
+      referenceField(`resumeEducation${position}Degree`, `Education ${position} degree program field of study major`, education.degree ?? ""),
+      referenceField(`resumeEducation${position}Location`, `Education ${position} location city country`, education.location ?? ""),
+      referenceField(`resumeEducation${position}Date`, `Education ${position} graduation date dates attended year`, education.dateRange ?? ""),
+      referenceField(`resumeEducation${position}Details`, `Education ${position} details coursework honors`, education.details.join("\n")),
+    ].filter((field): field is ProfileField => field !== null);
+  });
+  return [
+    ...experienceFields,
+    ...educationFields,
+    referenceField("resumeSummary", "Resume summary", reference.summary ?? ""),
+    referenceField("resumeSkills", "Resume skills", reference.skills.join(", ")),
+    referenceField(
+      "resumeExperience",
+      "Resume experience",
+      reference.experience
+        .map((experience) => {
+          const heading = [experience.title, experience.company, experience.location, experience.dateRange].filter(Boolean).join(", ");
+          return [heading, ...experience.bullets.map((bullet) => `- ${bullet}`)].join("\n");
+        })
+        .join("\n\n")
+    ),
+    referenceField(
+      "resumeEducation",
+      "Resume education",
+      reference.education
+        .map((education) => [education.degree, education.school, education.location, education.dateRange, ...education.details].filter(Boolean).join(", "))
+        .join("\n")
+    ),
+    referenceField(
+      "resumeProjects",
+      "Resume projects",
+      reference.projects
+        .map((project) => [project.name, project.dateRange, ...project.bullets].filter(Boolean).join("\n"))
+        .join("\n\n")
+    ),
+    referenceField("resumeText", "Resume text", reference.plainText),
+  ].filter((field): field is ProfileField => field !== null);
+}
+
+function profileFieldsForAutofill(fields: unknown): ProfileField[] {
+  if (!Array.isArray(fields)) return [];
+  const profileFields = fields as ProfileField[];
+  const firstName = profileFields.find((field) => field.key === "firstName")?.value.trim() ?? "";
+  const lastName = profileFields.find((field) => field.key === "lastName")?.value.trim() ?? "";
+  const fullName = [firstName, lastName].filter(Boolean).join(" ");
+  if (!fullName || profileFields.some((field) => field.key === "fullName" && field.value.trim())) return profileFields;
+  return [
+    ...profileFields,
+    { key: "fullName", label: "Full name", value: fullName, category: "personal" },
+  ];
+}
+
+async function requestAutofillSources(): Promise<ProfileField[] | null> {
   return new Promise((resolve) => {
     chrome.runtime.sendMessage({ type: "request-autofill-profile" }, (response) => {
-      const fields = response?.profile?.fields;
-      resolve(Array.isArray(fields) ? fields : null);
+      const fields = profileFieldsForAutofill(response?.profile?.fields);
+      const resume = response?.resume as MasterResume | null | undefined;
+      if (fields.length === 0 && !resume?.reference) {
+        resolve(null);
+        return;
+      }
+      resolve([...fields, ...resumeReferenceToFields(resume?.reference)]);
     });
   });
 }
@@ -214,7 +350,7 @@ export async function triggerAutofill(): Promise<AutofillResult> {
     return { pageType: "unknown", filled: [], skipped: [], error: "This page was not recognized as an application form." };
   }
 
-  const profileFields = await requestProfileForAutofill();
+  const profileFields = await requestAutofillSources();
   if (!profileFields || profileFields.length === 0) {
     return { pageType: "application_form", filled: [], skipped: [], error: "No saved profile is available for autofill." };
   }

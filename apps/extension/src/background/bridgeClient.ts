@@ -4,7 +4,7 @@ import {
   BRIDGE_EXTENSION_MESSAGES_PATH,
   isExtensionAuthenticationMessage,
 } from "@ghostboard/shared";
-import type { Profile } from "@ghostboard/shared";
+import type { MasterResume, Profile } from "@ghostboard/shared";
 import type { BridgeSettings } from "../shared/messages";
 
 export type JsonMessage = null | boolean | number | string | JsonMessage[] | { [key: string]: JsonMessage };
@@ -140,6 +140,17 @@ export async function getProfileFromBridge(): Promise<Profile | null> {
     if (!res.ok) return null;
     const payload = (await res.json()) as { profile?: Profile | null };
     return payload.profile ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function getResumeTemplateFromBridge(): Promise<MasterResume | null> {
+  try {
+    const res = await bridgeFetch("/external/resume-template");
+    if (!res.ok) return null;
+    const payload = (await res.json()) as { resume?: MasterResume | null };
+    return payload.resume ?? null;
   } catch {
     return null;
   }

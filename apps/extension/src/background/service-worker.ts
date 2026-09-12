@@ -1,6 +1,6 @@
 import type { ExtensionMessage } from "../shared/messages";
 import type { IngestJobResponse, JobPosting } from "@ghostboard/shared";
-import { getProfileFromBridge, postJson, startBridgeMessageReceiver } from "./bridgeClient";
+import { getProfileFromBridge, getResumeTemplateFromBridge, postJson, startBridgeMessageReceiver } from "./bridgeClient";
 
 // ponytail: in-memory per-tab state, resets on service-worker restart — fine for a hackathon popup
 const detectedJobByTab = new Map<number, { job: JobPosting; confidence: number }>();
@@ -11,10 +11,10 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
   const tabId = sender.tab?.id;
 
   if (message.type === "request-autofill-profile") {
-    void getProfileFromBridge().then((profile) => {
-      sendResponse({ type: "autofill-profile-response", profile: profile ?? null });
+    void Promise.all([getProfileFromBridge(), getResumeTemplateFromBridge()]).then(([profile, resume]) => {
+      sendResponse({ type: "autofill-profile-response", profile: profile ?? null, resume: resume ?? null });
     }).catch(() => {
-      sendResponse({ type: "autofill-profile-response", profile: null });
+      sendResponse({ type: "autofill-profile-response", profile: null, resume: null });
     });
     return true;
   }

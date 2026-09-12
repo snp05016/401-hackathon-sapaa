@@ -8,7 +8,7 @@ import { buildFollowUpSuggestions } from "@ghostboard/tracking";
 import type { Application, FollowUpSuggestion, ProfileField } from "@ghostboard/shared";
 import { STAGE_LABELS, type ApplicationEvent } from "@ghostboard/shared";
 import type { MoveApplicationRequest, MoveApplicationResult } from "../preload";
-import { readProfile, writeProfile } from "../db/index";
+import { readMasterResume, readProfile, writeMasterResume, writeProfile } from "../db/index";
 import { readBridgeFile } from "../bridge/token";
 import { IPC_CHANNELS } from "./channels";
 import { updateApplicationDeadline } from "../db/deadlines";
@@ -103,6 +103,15 @@ export function registerIpcHandlers(db: GhostboardDb): void {
 
   ipcMain.handle(IPC_CHANNELS.saveProfile, (_event, fields: ProfileField[]) => {
     return writeProfile(fields);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.getMasterResume, () => {
+    return readMasterResume();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.saveMasterResume, (_event, latex: unknown) => {
+    if (typeof latex !== "string") throw new Error("resume latex is required");
+    return writeMasterResume(latex);
   });
 
   ipcMain.handle(IPC_CHANNELS.bridgeInfo, () => {

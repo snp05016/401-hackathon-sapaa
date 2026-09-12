@@ -21,7 +21,14 @@ export function Applications() {
         <h1 className="font-display text-[36px] leading-[0.9] tracking-[-0.015em] text-ink sm:text-[52px]">Applications</h1>
         <p className="tnum text-[12px] text-ink-2">{applications.length} tracked</p>
       </header>
-      <KanbanBoard initialApplications={applications} />
+      <KanbanBoard
+        initialApplications={applications}
+        onApplicationDeleted={(applicationId) =>
+          setApplications((current) =>
+            current?.filter((application) => application.id !== applicationId) ?? [],
+          )
+        }
+      />
     </div>
   );
 }
