@@ -61,3 +61,86 @@
 - Do not use standards files to document architecture or data flow. Use them to capture pitfalls and constraints.
 - Rules should emerge from validated patterns, not one-time observations. Propose them in review before codifying them.
 
+## Custom AI Agent Workflow
+
+Project-scoped custom agents are defined in `.codex/agents/`. The detailed
+teammate guide, invocation examples, model guidance, and workflow templates are
+in `.codex/README.md`.
+
+These agents are workflow roles, not one-to-one representations of the seven
+human teammates:
+
+- `scoper`: read-only evidence gathering, contract discovery, and
+  implementation-ready planning.
+- `builder`: bounded implementation for backend, package, persistence,
+  extension-runtime, and integration tasks.
+- `ui_builder`: desktop and extension UI implementation using established
+  contracts.
+- `verifier`: read-only adversarial behavior, regression, and test validation.
+- `integrator`: read-only cross-package and merge-readiness review.
+
+### Routing
+
+- Keep small, isolated tasks in the primary thread when delegation adds no value.
+- Use `scoper` before implementation when requirements, ownership, or contracts
+  are ambiguous.
+- Use `builder` only after its objective, owned files, forbidden areas, contracts,
+  acceptance criteria, and verification commands are clear.
+- Use `ui_builder` when the deliverable is primarily a React desktop or extension
+  interface.
+- Use `verifier` after meaningful implementation, especially when the work has
+  failure modes not proven by typechecking.
+- Use `integrator` when a change affects shared types, bridge or IPC contracts,
+  database migrations, workspace dependencies, or multiple human-owned areas.
+- Do not invoke all agents by default. Use the smallest workflow that controls the
+  task's actual risk.
+
+### Ownership and concurrent work
+
+- Human ownership always takes precedence over agent convenience.
+- Every write-capable delegated task must name owned files or directories and
+  explicitly forbidden areas.
+- Treat existing working-tree changes as another person's work unless the task
+  proves otherwise.
+- Do not rewrite, reset, revert, stage, or commit unrelated changes.
+- Prefer one write-capable agent at a time in a shared checkout.
+- Parallelize read-only investigation or verification only when the tasks are
+  independent and the user or workflow explicitly requests delegation.
+- If multiple write agents are explicitly requested, assign disjoint files and
+  tell every agent that other work is happening concurrently.
+- The primary agent remains responsible for inspecting and reconciling the final
+  combined diff.
+
+### Agent task contract
+
+When delegating implementation, provide:
+
+1. A concrete objective.
+2. The human owner or coordinating teammate.
+3. Owned files and directories.
+4. Shared files that may be changed only if necessary.
+5. Explicitly forbidden areas.
+6. Existing input contracts.
+7. Required output contracts.
+8. Expected success, failure, and boundary behavior.
+9. Acceptance criteria.
+10. Exact verification commands.
+11. The expected return format.
+
+If enough of this information is missing to change the meaning or architecture of
+the task, use `scoper` or ask the human rather than making `builder` guess.
+
+### Completion and reporting
+
+- A write-capable agent must report its outcome, changed files, contract effects,
+  exact checks run, limitations, and teammate handoff notes.
+- A read-only agent must separate confirmed findings from unverified assumptions
+  and include reproducible evidence.
+- Never claim a test, build, visual state, or runtime flow passed unless it was
+  actually checked.
+- The root `npm run lint` command is currently a placeholder and must not be
+  presented as substantive lint coverage.
+- Agents must not commit, push, open or modify pull requests, alter branch
+  protection, merge, or delete branches unless the user explicitly requests that
+  external action.
+

@@ -1,0 +1,12 @@
+#:schema https://developers.openai.com/codex/config-schema.json
+
+# Project-local Codex configuration.
+#
+# Agent files intentionally do not pin a model. Each teammate therefore uses the
+# best model available to their account, while the role instructions remain
+# consistent across the team.
+
+[agents]
+enabled = true
+max_concurrent_threads_per_session = 5
+interrupt_message = true
