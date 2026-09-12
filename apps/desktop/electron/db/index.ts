@@ -20,8 +20,12 @@ const DEFAULT_PROFILE_FIELDS: ProfileField[] = [
 export async function initDb(): Promise<GhostboardDb> {
   if (db) return db;
   const userDataPath = app.getPath("userData");
-  fs.mkdirSync(userDataPath, { recursive: true });
-  const dbPath = path.join(userDataPath, "ghostboard.db");
+  const dbPath = process.env.GHOSTBOARD_DB_PATH
+    ? path.resolve(process.env.GHOSTBOARD_DB_PATH)
+    : process.env.ELECTRON_RENDERER_URL
+      ? path.join(__dirname, "../../../../dev.db")
+      : path.join(userDataPath, "ghostboard.db");
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   const newDb = createDb(dbPath);
 
   // electron-vite bundles electron/main.ts (and everything it imports, this
