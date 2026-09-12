@@ -5,7 +5,7 @@ import { createEmailStatusProvider } from "./emailStatusProvider";
 
 const now = new Date("2026-09-12T12:00:00Z");
 function application(id = "one", title = "Software Developer"): Application {
-  return { id, company: "Acme", title, location: null, jobUrl: "https://example.com/job", jobDescription: "", status: "applied", dateFound: "2026-09-01", dateApplied: "2026-09-02", lastActivityAt: "2026-09-02", nextAction: null, nextActionDate: null, resumeId: null, source: "manual", createdAt: "2026-09-01", updatedAt: "2026-09-02" };
+  return { id, company: "Acme", title, location: null, jobUrl: "https://example.com/job", jobDescription: "", status: "applied", dateFound: "2026-09-01", dateApplied: "2026-09-02", lastActivityAt: "2026-09-02", followUpOn: false, followUpDismissedAt: null, nextAction: null, nextActionDate: null, resumeId: null, source: "manual", createdAt: "2026-09-01", updatedAt: "2026-09-02" };
 }
 function encoded(value: string) {
   return Buffer.from(value).toString("base64url");

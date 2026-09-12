@@ -3,6 +3,7 @@ import { HtmlGenerator, parse } from "latex.js";
 import { customizeResume } from "@ghostboard/resume";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { ipc } from "../lib/ipc";
 
 const MASTER_LATEX_PLACEHOLDER = String.raw`
   \documentclass{article}
@@ -74,9 +75,23 @@ const MASTER_LATEX_PLACEHOLDER = String.raw`
 
 export function Resumes() {
   const [masterLatex, setMasterLatex] = useState(MASTER_LATEX_PLACEHOLDER);
+  const [savedLatex, setSavedLatex] = useState(MASTER_LATEX_PLACEHOLDER);
   const [status, setStatus] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewHtml, setPreviewHtml] = useState("");
+
+  useEffect(() => {
+    ipc()
+      .getMasterResume()
+      .then((resume) => {
+        const latex = resume.latex.trim() ? resume.latex : MASTER_LATEX_PLACEHOLDER;
+        setMasterLatex(latex);
+        setSavedLatex(latex);
+      })
+      .catch((error) => {
+        setStatus(error instanceof Error ? error.message : "Unable to load saved master resume.");
+      });
+  }, []);
 
   useEffect(() => {
     try {
@@ -97,6 +112,17 @@ export function Resumes() {
       setStatus(`Done (no-op stub) — ${result.changesSummary.length} changes.`);
     } catch (err) {
       setStatus(err instanceof Error ? err.message : "Failed");
+    }
+  }
+
+  async function handleSaveMasterResume() {
+    setStatus("Saving resume JSON...");
+    try {
+      const resume = await ipc().saveMasterResume(masterLatex);
+      setSavedLatex(resume.latex);
+      setStatus(`Saved master-resume.json with ${resume.reference?.experience.length ?? 0} experience entries.`);
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "Failed to save resume.");
     }
   }
 
@@ -139,7 +165,12 @@ export function Resumes() {
           </CardContent>
         </Card>
       </div>
-      <Button onClick={handleTailor}>Tailor to Job</Button>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button onClick={handleSaveMasterResume} disabled={masterLatex === savedLatex}>
+          Save master resume JSON
+        </Button>
+        <Button onClick={handleTailor}>Tailor to Job</Button>
+      </div>
       {status && <p className="mt-2 text-sm text-slate-500">{status}</p>}
     </div>
   );
