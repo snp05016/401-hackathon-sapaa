@@ -25,7 +25,7 @@ export function KanbanCard({ application }: { application: Application }) {
             {daysSince(application.lastActivityAt)}d since activity
           </div>
           <div className="mt-2 text-xs text-slate-400">
-            {formatDate(application.dateApplied || '')}
+            applied on {formatDate(application.dateApplied || '')}
           </div>
         </CardContent>
       </Card>
