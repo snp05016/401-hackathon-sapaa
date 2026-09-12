@@ -1,13 +1,62 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import type { Application, ApplicationStage } from "@ghostboard/shared";
 import { APPLICATION_STAGES } from "@ghostboard/shared";
 import { KanbanColumn } from "./KanbanColumn";
 import { moveApplication } from "./moveApplication";
 
+function ApplicationDetails({ application, onClose }: { application: Application; onClose: () => void }) {
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="application-details-title">
+      <button type="button" className="absolute inset-0 cursor-default bg-ink/40" aria-label="Close application details" onClick={onClose} />
+      <section className="relative z-10 flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden border border-hairline bg-paper-raised shadow-2xl">
+        <header className="flex items-start justify-between gap-5 border-b border-hairline px-5 py-4 sm:px-7">
+          <div className="min-w-0">
+            <p className="text-[11px] uppercase tracking-[0.14em] text-ink-3">{application.status}</p>
+            <h2 id="application-details-title" className="mt-1 break-words font-display text-[28px] leading-tight text-ink sm:text-[34px]">{application.title}</h2>
+            <p className="mt-1 text-[13px] text-ink-2">{application.company}</p>
+          </div>
+          <button type="button" onClick={onClose} className="shrink-0 text-ink-2 transition-colors hover:text-ink" aria-label="Close application details">
+            <span aria-hidden="true" className="text-2xl leading-none">×</span>
+          </button>
+        </header>
+
+        <div className="overflow-y-auto px-5 py-5 sm:px-7">
+          <dl className="grid gap-x-6 gap-y-4 border-b border-hairline pb-5 text-[13px] sm:grid-cols-2">
+            <div><dt className="text-[11px] text-ink-3">Stage</dt><dd className="mt-1 capitalize text-ink">{application.status}</dd></div>
+            <div><dt className="text-[11px] text-ink-3">Location</dt><dd className="mt-1 text-ink">{application.location || "Not specified"}</dd></div>
+            <div><dt className="text-[11px] text-ink-3">Source</dt><dd className="mt-1 text-ink">{application.source}</dd></div>
+            <div><dt className="text-[11px] text-ink-3">Saved</dt><dd className="mt-1 text-ink">{new Date(application.dateFound).toLocaleDateString()}</dd></div>
+            <div><dt className="text-[11px] text-ink-3">Applied</dt><dd className="mt-1 text-ink">{application.dateApplied ? new Date(application.dateApplied).toLocaleDateString() : "Not applied"}</dd></div>
+            <div><dt className="text-[11px] text-ink-3">Last activity</dt><dd className="mt-1 text-ink">{new Date(application.lastActivityAt).toLocaleDateString()}</dd></div>
+          </dl>
+
+          <div className="mt-5">
+            <h3 className="font-display text-[22px] text-ink">Job description</h3>
+            <p className="mt-3 whitespace-pre-wrap text-[13px] leading-relaxed text-ink-2">{application.jobDescription || "No job description was saved for this application."}</p>
+          </div>
+
+          <a href={application.jobUrl} target="_blank" rel="noreferrer" className="mt-6 inline-block break-all text-[12px] text-oxblood underline underline-offset-4">
+            Open original job posting
+          </a>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export function KanbanBoard({ initialApplications }: { initialApplications: Application[] }) {
   const [applications, setApplications] = useState(initialApplications);
   const [banner, setBanner] = useState<string | null>(null);
+  const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const byStage = useMemo(() => {
@@ -52,6 +101,10 @@ export function KanbanBoard({ initialApplications }: { initialApplications: Appl
       });
   }
 
+  function openApplication(application: Application) {
+    setSelectedApplication(application);
+  }
+
   return (
     <div>
       {banner && (
@@ -65,10 +118,11 @@ export function KanbanBoard({ initialApplications }: { initialApplications: Appl
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <div className="flex gap-4 overflow-x-auto pb-5 snap-x snap-mandatory sm:snap-none">
           {APPLICATION_STAGES.map((stage, index) => (
-            <KanbanColumn key={stage} stage={stage} applications={byStage[stage]} index={index} />
+            <KanbanColumn key={stage} stage={stage} applications={byStage[stage]} index={index} onOpen={openApplication} />
           ))}
         </div>
       </DndContext>
+      {selectedApplication && <ApplicationDetails application={selectedApplication} onClose={() => setSelectedApplication(null)} />}
     </div>
   );
 }

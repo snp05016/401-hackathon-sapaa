@@ -12,7 +12,7 @@ const STAGE_EDGE: Record<ApplicationStage, string> = {
   ghosted: "hover:border-ink-3",
 };
 
-export function KanbanCard({ application, stage }: { application: Application; stage: ApplicationStage }) {
+export function KanbanCard({ application, stage, onOpen }: { application: Application; stage: ApplicationStage; onOpen: (application: Application) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: application.id,
   });
@@ -28,6 +28,16 @@ export function KanbanCard({ application, stage }: { application: Application; s
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
       <article
+        onClick={() => onOpen(application)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onOpen(application);
+          }
+        }}
+        role="button"
+        tabIndex={0}
+        aria-label={`View details for ${application.title} at ${application.company}`}
         className={cn(
           "mb-2 cursor-grab rounded-sm border bg-paper px-3.5 py-3 transition-all duration-200 last:mb-0",
           "hover:-translate-y-px hover:shadow-[3px_3px_0_0_var(--card-shadow)] active:cursor-grabbing",
