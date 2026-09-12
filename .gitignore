@@ -8,6 +8,10 @@ out
 .env
 .env.local
 .DS_Store
+__pycache__/
+*.py[cod]
+.venv/
+vendor/
 
 # Local Google OAuth downloads and tokens
 gmail-credentials.json
