@@ -2,7 +2,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { Application } from "@ghostboard/shared";
 import { Card, CardContent } from "../ui/card";
-import { daysSince } from "../../lib/utils";
+import { daysSince, formatDate } from "../../lib/utils";
 
 export function KanbanCard({ application }: { application: Application }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -23,6 +23,9 @@ export function KanbanCard({ application }: { application: Application }) {
           <div className="text-xs text-slate-600">{application.title}</div>
           <div className="mt-2 text-xs text-slate-400">
             {daysSince(application.lastActivityAt)}d since activity
+          </div>
+          <div className="mt-2 text-xs text-slate-400">
+            {formatDate(application.dateApplied || '')}
           </div>
         </CardContent>
       </Card>
