@@ -1,8 +1,15 @@
-import { useCallback, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Application } from "@ghostboard/shared";
 import { ipc } from "./ipc";
 
-export function useApplications() {
+interface ApplicationsState {
+  applications: Application[] | null;
+  error: string | null;
+  now: Date;
+  reload: () => void;
+}
+
+function useApplicationsData(): ApplicationsState {
   const [applications, setApplications] = useState<Application[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
@@ -37,4 +44,17 @@ export function useApplications() {
   }, [revision]);
 
   return { applications, error, now, reload };
+}
+
+const ApplicationsContext = createContext<ApplicationsState | null>(null);
+
+export function ApplicationsProvider({ children }: { children: ReactNode }) {
+  const state = useApplicationsData();
+  return <ApplicationsContext.Provider value={state}>{children}</ApplicationsContext.Provider>;
+}
+
+export function useApplications(): ApplicationsState {
+  const context = useContext(ApplicationsContext);
+  if (!context) throw new Error("useApplications must be used within an ApplicationsProvider");
+  return context;
 }

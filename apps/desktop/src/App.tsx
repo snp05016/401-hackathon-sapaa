@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ApplicationsProvider } from "./lib/useApplications";
 import { AppShell } from "./components/layout/AppShell";
 import { SplashScreen } from "./components/layout/SplashScreen";
 import type { NavPage } from "./components/layout/Sidebar";
@@ -48,13 +49,13 @@ export function App() {
   }, [phase]);
 
   return (
-    <>
+    <ApplicationsProvider>
       <AppShell page={page} onNavigate={setPage}>
         {phase !== "intro" && <Page />}
       </AppShell>
       {phase !== "done" && (
         <SplashScreen exiting={phase === "revealing"} onSkip={() => setPhase("revealing")} />
       )}
-    </>
+    </ApplicationsProvider>
   );
 }

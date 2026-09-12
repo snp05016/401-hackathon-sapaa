@@ -3,6 +3,7 @@ import { LayoutDashboard, KanbanSquare, ListTodo, Compass, FileText, User, LineC
 import { cn } from "../../lib/utils";
 import { GhostMark } from "../ui/GhostMark";
 import { ThemeSwitcher } from "./ThemeSwitcher";
+import { useApplications } from "../../lib/useApplications";
 
 export type NavPage = "today" | "todo" | "applications" | "discover" | "resumes" | "profile" | "tracking" | "recruiterInbox";
 
@@ -18,6 +19,9 @@ const NAV_ITEMS: Array<{ id: NavPage; label: string; icon: typeof LayoutDashboar
 ];
 
 export function Sidebar({ page, onNavigate }: { page: NavPage; onNavigate: (page: NavPage) => void }) {
+  const { applications } = useApplications();
+  const todoCount = (applications ?? []).filter((application) => application.followUpOn).length;
+
   return (
     <nav className="flex h-full w-[228px] shrink-0 flex-col border-r border-hairline bg-paper-rail">
       <div className="flex items-center gap-2.5 px-7 pb-9 pt-11">
@@ -43,7 +47,15 @@ export function Sidebar({ page, onNavigate }: { page: NavPage; onNavigate: (page
                   active ? "scale-y-100" : "scale-y-0",
                 )}
               />
-              <Icon size={15} strokeWidth={1.6} className={active ? "text-oxblood" : "text-ink-3"} />
+              <span className="relative">
+                <Icon size={15} strokeWidth={1.6} className={active ? "text-oxblood" : "text-ink-3"} />
+                {id === "todo" && todoCount > 0 && (
+                  <span
+                    aria-label={`${todoCount} follow-up${todoCount === 1 ? "" : "s"} pending`}
+                    className="absolute -right-[7px] -top-[5px] h-[7px] w-[7px] rounded-full bg-oxblood"
+                  />
+                )}
+              </span>
               <span className={active ? "font-medium" : ""}>{label}</span>
             </button>
           );
