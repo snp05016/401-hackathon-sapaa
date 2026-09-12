@@ -1,6 +1,6 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import type { Application } from "@ghostboard/shared";
-import { evaluateApplicationStaleness, evaluateDeadline } from "@ghostboard/tracking";
+import { evaluateApplicationStaleness, evaluateDeadline, mixedSourceGroups, redundantApplicationIds } from "@ghostboard/tracking";
 import { ipc } from "../lib/ipc";
 import { useApplications } from "../lib/useApplications";
 import { Badge } from "../components/ui/badge";
@@ -76,6 +76,41 @@ function DeadlineEditor({ application, onSaved }: { application: Application; on
 export function Tracking() {
   const { applications, error, now, reload } = useApplications();
 
+  const mixedGroups = useMemo(() => mixedSourceGroups(applications ?? []), [applications]);
+  const mixedKeysByApplicationId = useMemo(() => {
+    const keys = new Set<string>();
+    for (const group of mixedGroups) {
+      for (const entry of group.applications) keys.add(entry.id);
+    }
+    return keys;
+  }, [mixedGroups]);
+
+  const redundantIds = useMemo(() => redundantApplicationIds(applications ?? []), [applications]);
+  const redundantSignature = redundantIds.slice().sort().join("|");
+  const cleanedSignature = useRef("");
+  const [cleanupNotice, setCleanupNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!redundantSignature || cleanedSignature.current === redundantSignature) return;
+    cleanedSignature.current = redundantSignature;
+    let cancelled = false;
+    (async () => {
+      try {
+        for (const applicationId of redundantIds) await ipc().deleteApplication(applicationId);
+        if (cancelled) return;
+        setCleanupNotice(
+          `Removed ${redundantIds.length} duplicate ${redundantIds.length === 1 ? "copy" : "copies"} saved from the same website.`
+        );
+        reload();
+      } catch {
+        if (!cancelled) setCleanupNotice("Could not remove duplicate copies. Try again.");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [redundantSignature, redundantIds, reload]);
+
   return (
     <div>
       <header className="animate-reveal flex items-baseline justify-between gap-10 border-b border-hairline pb-3">
@@ -104,6 +139,41 @@ export function Tracking() {
         </p>
       )}
 
+      {!!mixedGroups.length && (
+        <div role="status" className="animate-reveal mt-8 max-w-[720px] border-l-2 border-brass pl-4 text-[13px] text-ink">
+          <strong className="font-semibold">
+            {mixedGroups.length} {mixedGroups.length === 1 ? "job" : "jobs"} saved from more than one website — open each to see where its copies came from.
+          </strong>
+          <ul className="mt-2 space-y-2">
+            {mixedGroups.map((group) => {
+              const places = [...new Set(group.applications.map((entry) => entry.source))];
+              return (
+                <li key={group.key}>
+                  <details>
+                    <summary className="cursor-pointer text-ink-2">
+                      {group.applications[0].title} at {group.applications[0].company} — saved from {places.join(" and ")}
+                    </summary>
+                    <ul className="mt-1.5 space-y-1 border-l border-hairline pl-3 text-ink-2">
+                      {group.applications.map((entry) => (
+                        <li key={entry.id}>
+                          {entry.source} · saved {new Date(entry.createdAt).toLocaleDateString()}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      {cleanupNotice && (
+        <div role="status" className="animate-reveal mt-8 max-w-[720px] border-l-2 border-verdigris pl-4 text-[13px] text-ink">
+          {cleanupNotice}
+        </div>
+      )}
+
       {!!applications?.length && (
         <div className="animate-reveal mt-9 overflow-x-auto" style={{ animationDelay: "100ms" }}>
           <table className="w-full min-w-[880px] border-collapse text-left text-[13px]">
@@ -126,6 +196,11 @@ export function Tracking() {
                     <td className="min-w-[170px] max-w-xs break-words px-3 py-5 pl-0">
                       <div className="font-semibold text-ink">{application.company}</div>
                       <div className="mt-0.5 text-ink-2">{application.title}</div>
+                      {mixedKeysByApplicationId.has(application.id) && (
+                        <div className="mt-1.5">
+                          <Badge variant="brass">Saved from multiple sites</Badge>
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 text-ink-2">{application.status}</td>
                     <td className="px-3"><DeadlineEditor application={application} onSaved={reload} /></td>

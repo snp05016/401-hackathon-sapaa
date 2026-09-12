@@ -13,7 +13,8 @@ const providers: Record<string, LLMProvider> = {
 };
 
 export function getProvider(): LLMProvider {
-  const name = (process.env.GHOSTBOARD_LLM_PROVIDER ?? "groq").toLowerCase();
+  const preferredProvider = typeof process === "undefined" ? "groq" : process.env.GHOSTBOARD_LLM_PROVIDER ?? "groq";
+  const name = preferredProvider.toLowerCase();
   const provider = providers[name];
   if (!provider) {
     throw new Error(`Unknown GHOSTBOARD_LLM_PROVIDER "${name}". Expected one of: ${Object.keys(providers).join(", ")}`);

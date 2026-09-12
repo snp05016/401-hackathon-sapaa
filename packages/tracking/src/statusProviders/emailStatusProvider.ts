@@ -271,5 +271,5 @@ export function createEmailStatusProvider(options: GmailStatusProviderOptions): 
 }
 
 export const emailStatusProvider = createEmailStatusProvider({
-  getAccessToken: () => process.env.GMAIL_ACCESS_TOKEN ?? "",
+  getAccessToken: () => (typeof process === "undefined" ? "" : process.env.GMAIL_ACCESS_TOKEN ?? ""),
 });
