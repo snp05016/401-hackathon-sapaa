@@ -25,7 +25,7 @@ export function Discover() {
 
   return (
     <div className="max-w-[860px]">
-      <h1 className="animate-reveal border-b border-hairline pb-3 font-display text-[52px] leading-[0.9] tracking-[-0.015em] text-ink">
+      <h1 className="animate-reveal border-b border-hairline pb-3 font-display text-[36px] leading-[0.9] tracking-[-0.015em] text-ink sm:text-[52px]">
         Discover
       </h1>
       {results.length === 0 ? (

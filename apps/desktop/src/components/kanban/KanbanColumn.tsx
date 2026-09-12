@@ -32,7 +32,7 @@ export function KanbanColumn({
       ref={setNodeRef}
       style={{ animationDelay: `${index * 70}ms` }}
       className={cn(
-        "animate-reveal flex w-[252px] shrink-0 flex-col rounded-sm border bg-paper-raised transition-colors duration-200",
+        "animate-reveal flex w-[78vw] max-w-[280px] shrink-0 snap-center flex-col rounded-sm border bg-paper-raised transition-colors duration-200 sm:w-[252px] sm:max-w-none sm:snap-align-none",
         isOver ? "border-oxblood" : "border-hairline",
       )}
     >

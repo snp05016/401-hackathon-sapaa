@@ -1,4 +1,5 @@
-import type { DetectedFormField } from "@ghostboard/shared";
+import type { DetectedFormField, ProfileField } from "@ghostboard/shared";
+import { matchFormField } from "@ghostboard/autofill";
 
 type FillableElement = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
 
@@ -199,11 +200,63 @@ export function fillApplicationForm(
   return { pageType: "application_form", filled, skipped, error: null };
 }
 
+async function requestProfileForAutofill(): Promise<ProfileField[] | null> {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({ type: "request-autofill-profile" }, (response) => {
+      const fields = response?.profile?.fields;
+      resolve(Array.isArray(fields) ? fields : null);
+    });
+  });
+}
+
+export async function triggerAutofill(): Promise<AutofillResult> {
+  if (!isApplicationFormPage()) {
+    return { pageType: "unknown", filled: [], skipped: [], error: "This page was not recognized as an application form." };
+  }
+
+  const profileFields = await requestProfileForAutofill();
+  if (!profileFields || profileFields.length === 0) {
+    return { pageType: "application_form", filled: [], skipped: [], error: "No saved profile is available for autofill." };
+  }
+
+  const nonEmptyProfileFields = profileFields.filter((field) => field.value && field.value.trim().length > 0);
+  if (nonEmptyProfileFields.length === 0) {
+    return { pageType: "application_form", filled: [], skipped: [], error: "Save profile details before autofilling an application form." };
+  }
+
+  const matches = detectApplicationFormFields()
+    .map((field) => ({ field, match: matchFormField(field, nonEmptyProfileFields) }))
+    .flatMap(({ field, match }) => {
+      if (!match.matchedProfileKey || match.confidence <= 0) return [];
+      const sourceValue = nonEmptyProfileFields.find((profileField) => profileField.key === match.matchedProfileKey)?.value?.trim();
+      if (!sourceValue) return [];
+      return [{
+        selector: field.selector,
+        value: sourceValue,
+        profileKey: match.matchedProfileKey,
+        confidence: match.confidence,
+      } satisfies AutofillInstruction];
+    });
+
+  return fillApplicationForm(matches);
+}
+
 export function startAutofillListener(): void {
-  chrome.runtime.onMessage.addListener((message: AutofillContentMessage, _sender, sendResponse) => {
+  chrome.runtime.onMessage.addListener((message: AutofillContentMessage | { type: "trigger-autofill" }, _sender, sendResponse) => {
+    if (!message || message.type === "trigger-autofill") {
+      void triggerAutofill().then((result) => sendResponse(result)).catch((error) => {
+        sendResponse({
+          pageType: "unknown",
+          filled: [],
+          skipped: [{ selector: "", reason: error instanceof Error ? error.message : "Autofill failed." }],
+          error: error instanceof Error ? error.message : "Autofill failed.",
+        });
+      });
+      return true;
+    }
+
     if (
-      !message
-      || message.type !== "autofill-fields"
+      message.type !== "autofill-fields"
       || message.pageType !== "application_form"
       || !Array.isArray(message.fields)
     ) return;

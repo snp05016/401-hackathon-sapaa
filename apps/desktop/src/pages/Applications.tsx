@@ -17,8 +17,8 @@ export function Applications() {
 
   return (
     <div>
-      <header className="animate-reveal mb-9 flex items-baseline justify-between gap-10 border-b border-hairline pb-3">
-        <h1 className="font-display text-[52px] leading-[0.9] tracking-[-0.015em] text-ink">Applications</h1>
+      <header className="animate-reveal mb-9 flex flex-col gap-3 border-b border-hairline pb-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-10">
+        <h1 className="font-display text-[36px] leading-[0.9] tracking-[-0.015em] text-ink sm:text-[52px]">Applications</h1>
         <p className="tnum text-[12px] text-ink-2">{applications.length} tracked</p>
       </header>
       <KanbanBoard initialApplications={applications} />
