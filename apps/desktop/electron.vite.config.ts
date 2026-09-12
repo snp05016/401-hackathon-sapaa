@@ -7,6 +7,7 @@ import react from "@vitejs/plugin-react";
 const WORKSPACE_PACKAGES = [
   "@ghostboard/shared",
   "@ghostboard/database",
+  "@ghostboard/scraping",
   "@ghostboard/matching",
   "@ghostboard/autofill",
   "@ghostboard/resume",
