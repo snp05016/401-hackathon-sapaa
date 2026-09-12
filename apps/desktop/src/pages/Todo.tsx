@@ -45,7 +45,7 @@ export function Todo() {
   return (
     <div className="max-w-[980px]">
       <header className="animate-reveal">
-        <h1 className="font-display text-[88px] leading-[0.88] tracking-[-0.02em] text-ink">To Do</h1>
+        <h1 className="font-display text-[48px] leading-[0.88] tracking-[-0.02em] text-ink sm:text-[88px]">To Do</h1>
         <p className="mt-4 max-w-[520px] text-[13px] leading-relaxed text-ink-2">
           Applications nearing their deadline or that are due for a follow-up, picked out automatically by the Today page. Check an item off once you have followed up.
         </p>
