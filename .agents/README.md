@@ -5,6 +5,11 @@ AI agent roles. The agents are defined as plain Markdown so they can be read by 
 local coding model, a hosted chat model, an IDE assistant, a command-line agent,
 or a human teammate without requiring a particular vendor or model family.
 
+The canonical product and technical context is indexed in
+`docs/HACKATHON_PROJECT.md`. Every role in this directory must follow the
+project-context indexing workflow defined by the root `AGENTS.md` before
+planning, implementation, verification, or integration work.
+
 The roles are organized around engineering capabilities rather than people or
 packages. They support the seven-person team without pretending that seven humans
 need seven separate AI personas.
