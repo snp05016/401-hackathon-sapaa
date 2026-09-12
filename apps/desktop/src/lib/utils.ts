@@ -7,7 +7,7 @@ export function daysSince(iso: string, now: Date = new Date()): number {
 }
 
 export function formatDate(iso: string): string {
-  if string.isNullOrEmpty(iso)) {
+  if (string.isNullOrEmpty(iso)) {
     return '';
   }
   const date = new Date(iso);
