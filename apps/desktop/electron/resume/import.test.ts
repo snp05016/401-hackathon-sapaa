@@ -58,11 +58,11 @@ describe("mergeImportedExperienceEntries", () => {
     assert.deepEqual(result, []);
   });
 
-  test("assigns source = 'experience' to accepted entries", () => {
+  test("preserves the parsed source category", () => {
     const existing: ExperienceEntry[] = [];
     const proposed = [makeEntry({ id: "1", source: "project" })];
     const result = mergeImportedExperienceEntries(existing, proposed);
-    assert.equal(result[0].source, "experience");
+    assert.equal(result[0].source, "project");
   });
 
   test("preserves existing order and appends accepted", () => {

@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { HtmlGenerator, parse } from "latex.js";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { Document, Page, pdfjs } from "react-pdf";
+import "react-pdf/dist/Page/AnnotationLayer.css";
+import "react-pdf/dist/Page/TextLayer.css";
 import type { Application, ExperienceEntry, TailoredResumeRecord } from "@ghostboard/shared";
 import type { ResumeCustomizeResult } from "@ghostboard/resume";
-import { FileDown, FolderDown, Mic, Pencil, Plus, Save, Square, Trash2, X } from "lucide-react";
+import { FileDown, FileUp, FolderDown, Mic, Pencil, Plus, Save, Square, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
 import { ipc } from "../lib/ipc";
 import { cn, formatDate } from "../lib/utils";
 import { Badge } from "../components/ui/badge";
@@ -24,7 +26,7 @@ interface ExperienceDraft {
   skillsText: string;
 }
 
-const EXPERIENCE_SOURCES = ["experience", "project", "education", "volunteer", "custom"] as const;
+const EXPERIENCE_SOURCES = ["experience", "project", "skill", "education", "volunteer", "custom"] as const;
 
 const TEXTAREA_CLASSES =
   "w-full resize-y rounded-md border border-slate-300 bg-slate-50 p-3 font-mono text-xs leading-5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400";
@@ -66,8 +68,19 @@ Write two or three truthful sentences here, for example what you do, who you wor
 \end{document}
 `;
 
+pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
+}
+
+function pdfDataUrl(pdf: Uint8Array): string {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < pdf.length; offset += chunkSize) {
+    binary += String.fromCharCode(...pdf.subarray(offset, offset + chunkSize));
+  }
+  return `data:application/pdf;base64,${window.btoa(binary)}`;
 }
 
 function createId(): string {
@@ -88,28 +101,128 @@ function entryDateRange(entry: ExperienceEntry): string | null {
   return `${start} – ${end}`;
 }
 
-function useLatexPreview(source: string) {
-  const [htmlPreview, setHtmlPreview] = useState("");
-  const [parseError, setParseError] = useState<string | null>(null);
+function useLatexPdf(source: string) {
+  const [pdf, setPdf] = useState<Uint8Array | null>(null);
+  const [compileError, setCompileError] = useState<string | null>(null);
+  const [compiling, setCompiling] = useState(false);
+  const requestRef = useRef(0);
 
   useEffect(() => {
+    const request = ++requestRef.current;
     if (!source.trim()) {
-      setHtmlPreview("");
-      setParseError(null);
+      setPdf(null);
+      setCompileError(null);
+      setCompiling(false);
+      return;
+    }
+
+    setCompiling(true);
+    setCompileError(null);
+    const timer = window.setTimeout(() => {
+      void ipc().compileLatexToPdf(source).then((compiled) => {
+        if (request !== requestRef.current) return;
+        setPdf(compiled);
+        setCompileError(null);
+      }).catch((error: unknown) => {
+        if (request !== requestRef.current) return;
+        setPdf(null);
+        setCompileError(errorMessage(error, "Unable to compile this LaTeX."));
+      }).finally(() => {
+        if (request === requestRef.current) setCompiling(false);
+      });
+    }, 1000);
+
+    return () => window.clearTimeout(timer);
+  }, [source]);
+
+  return { pdf, compileError, compiling };
+}
+
+function LatexPdfPreview({
+  pdf,
+  compileError,
+  compiling,
+  minHeight = "min-h-96",
+}: {
+  pdf: Uint8Array | null;
+  compileError: string | null;
+  compiling: boolean;
+  minHeight?: string;
+}) {
+  const [pageCount, setPageCount] = useState(0);
+  const [pdfSource, setPdfSource] = useState<string | null>(null);
+  const [displayError, setDisplayError] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(1);
+
+  useEffect(() => {
+    setPageCount(0);
+    setDisplayError(null);
+    setZoom(1);
+    if (!pdf) {
+      setPdfSource(null);
       return;
     }
     try {
-      const generator = new HtmlGenerator({ hyphenate: false });
-      parse(source, { generator });
-      setHtmlPreview(`<!doctype html>${generator.htmlDocument().documentElement.outerHTML}`);
-      setParseError(null);
+      setPdfSource(pdfDataUrl(pdf));
     } catch (error) {
-      setHtmlPreview("");
-      setParseError(errorMessage(error, "Unable to render this LaTeX."));
+      setPdfSource(null);
+      setDisplayError(errorMessage(error, "Could not prepare the compiled PDF."));
     }
-  }, [source]);
+  }, [pdf]);
 
-  return { htmlPreview, parseError };
+  return (
+    <div className={cn("relative overflow-auto rounded-md border border-slate-200 bg-slate-100", minHeight)}>
+      {compileError || displayError ? (
+        <div role="alert" className="p-3 text-[12px] leading-relaxed text-red-700">
+          {compileError ?? displayError}
+        </div>
+      ) : pdfSource ? (
+        <>
+          <div className="sticky top-0 z-10 flex items-center justify-end gap-1 border-b border-slate-200 bg-slate-100/95 p-2">
+            <button
+              type="button"
+              onClick={() => setZoom((current) => Math.max(0.6, Number((current - 0.1).toFixed(1))))}
+              disabled={zoom <= 0.6}
+              className="rounded-md p-1.5 text-slate-700 hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Zoom out preview"
+              title="Zoom out"
+            >
+              <ZoomOut size={15} />
+            </button>
+            <span className="tnum min-w-12 text-center text-[11px] text-slate-600">{Math.round(zoom * 100)}%</span>
+            <button
+              type="button"
+              onClick={() => setZoom((current) => Math.min(1.6, Number((current + 0.1).toFixed(1))))}
+              disabled={zoom >= 1.6}
+              className="rounded-md p-1.5 text-slate-700 hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Zoom in preview"
+              title="Zoom in"
+            >
+              <ZoomIn size={15} />
+            </button>
+          </div>
+          <Document
+            file={pdfSource}
+            onLoadSuccess={({ numPages }) => setPageCount(numPages)}
+            onLoadError={(error) => setDisplayError(errorMessage(error, "Could not display the compiled PDF."))}
+            loading={<p className="p-3 text-[12px] text-slate-500">Loading PDF…</p>}
+            error={<p role="alert" className="p-3 text-[12px] text-red-700">Could not display the compiled PDF.</p>}
+            className="flex min-w-fit justify-center p-3"
+          >
+            <div className="space-y-3">
+              {Array.from({ length: pageCount }, (_, index) => (
+                <Page key={index + 1} pageNumber={index + 1} width={460 * zoom} renderAnnotationLayer renderTextLayer />
+              ))}
+            </div>
+          </Document>
+        </>
+      ) : (
+        <div className="flex h-full min-h-96 items-center justify-center p-3 text-center text-[12px] text-slate-500">
+          {compiling ? "Compiling with pdflatex…" : "PDF preview appears here after compilation."}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function ChangeLine({ line }: { line: string }) {
@@ -132,15 +245,17 @@ function LatexSourceEditor({
   value,
   onChange,
   latexId,
-  parseError,
-  htmlPreview,
+  compileError,
+  pdf,
+  compiling,
   minHeight = "min-h-96",
 }: {
   value: string;
   onChange: (value: string) => void;
   latexId: string;
-  parseError: string | null;
-  htmlPreview: string;
+  compileError: string | null;
+  pdf: Uint8Array | null;
+  compiling: boolean;
   minHeight?: string;
 }) {
   return (
@@ -160,27 +275,7 @@ function LatexSourceEditor({
       </div>
       <div>
         <p className="mb-1.5 text-[12px] font-medium text-slate-700">Preview</p>
-        {parseError ? (
-          <div role="alert" className={cn("rounded-md border border-red-300 bg-red-50 p-3 text-[12px] leading-relaxed text-red-700", minHeight)}>
-            {parseError}
-          </div>
-        ) : htmlPreview ? (
-          <iframe
-            title="Rendered resume preview"
-            sandbox=""
-            srcDoc={htmlPreview}
-            className={cn("w-full rounded-md border border-slate-200 bg-white", minHeight)}
-          />
-        ) : (
-          <div
-            className={cn(
-              "flex items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 p-3 text-center text-[12px] text-slate-500",
-              minHeight,
-            )}
-          >
-            Preview appears here once the LaTeX is ready.
-          </div>
-        )}
+        <LatexPdfPreview pdf={pdf} compileError={compileError} compiling={compiling} minHeight={minHeight} />
       </div>
     </div>
   );
@@ -195,6 +290,9 @@ export function Resumes() {
   const [masterSaveState, setMasterSaveState] = useState<"idle" | "saved" | "error">("idle");
   const [masterSaveError, setMasterSaveError] = useState<string | null>(null);
   const [usingSample, setUsingSample] = useState(false);
+  const [resumeImporting, setResumeImporting] = useState(false);
+  const [resumeImportError, setResumeImportError] = useState<string | null>(null);
+  const [resumeImportResult, setResumeImportResult] = useState<{ added: number; skipped: number } | null>(null);
 
   const [experienceEntries, setExperienceEntries] = useState<ExperienceEntry[] | null>(null);
   const [experienceLoading, setExperienceLoading] = useState(true);
@@ -243,8 +341,8 @@ export function Resumes() {
   const tailorRequestRef = useRef(0);
   const masterEditorValueRef = useRef("");
 
-  const masterPreview = useLatexPreview(masterLatex);
-  const tailoredPreview = useLatexPreview(tailoredLatex);
+  const masterPreview = useLatexPdf(masterLatex);
+  const tailoredPreview = useLatexPdf(tailoredLatex);
 
   const loadMaster = useCallback(async () => {
     const request = ++masterRequestRef.current;
@@ -363,6 +461,54 @@ export function Resumes() {
     }
   }
 
+  async function handleResumeUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    setResumeImporting(true);
+    setResumeImportError(null);
+    setResumeImportResult(null);
+
+    try {
+      if (!file.name.toLowerCase().endsWith(".tex")) {
+        throw new Error("Please select a LaTeX .tex file.");
+      }
+
+      const latex = await file.text();
+      if (!latex.trim()) throw new Error("The selected LaTeX file is empty.");
+
+      const parsedEntries = await ipc().extractExperienceEntries(latex);
+      if (parsedEntries.length === 0) {
+        throw new Error("No experience entries were detected. Add an Experience or Employment section and try again.");
+      }
+
+      const previousEntries = experienceEntries ?? [];
+      const previousKeys = new Set(
+        previousEntries.map((entry) => `${entry.role.trim().toLowerCase()}|${entry.employer.trim().toLowerCase()}`),
+      );
+      const savedMaster = await ipc().saveMasterResume(latex);
+      const updatedEntries = await ipc().importExperienceEntries(parsedEntries);
+      const added = updatedEntries.filter(
+        (entry) => !previousKeys.has(`${entry.role.trim().toLowerCase()}|${entry.employer.trim().toLowerCase()}`),
+      ).length;
+
+      setMasterId(savedMaster.id);
+      masterEditorValueRef.current = savedMaster.latex;
+      setMasterLatex(savedMaster.latex);
+      setUsingSample(false);
+      setMasterSaveState("saved");
+      setMasterSaveError(null);
+      setExperienceEntries(updatedEntries);
+      setExperienceError(null);
+      setResumeImportResult({ added, skipped: parsedEntries.length - added });
+    } catch (error) {
+      setResumeImportError(errorMessage(error, "Could not import the LaTeX resume."));
+    } finally {
+      setResumeImporting(false);
+    }
+  }
+
   function loadSample() {
     setMasterLatex(SAMPLE_MASTER_LATEX);
     masterEditorValueRef.current = SAMPLE_MASTER_LATEX;
@@ -434,6 +580,22 @@ export function Resumes() {
     setDraft((current) => (current ? { ...current, [key]: value } : current));
   }
 
+  function changeDraftSource(source: string) {
+    setDraft((current) => {
+      if (!current) return current;
+      if (source === "skill") return { ...current, source, employer: "Skills", startDate: "", endDate: "", bullets: [] };
+      if (source === "project") return { ...current, source, employer: current.employer === "Skills" ? "Project" : current.employer };
+      return { ...current, source, employer: current.employer === "Skills" || current.employer === "Project" ? "" : current.employer };
+    });
+  }
+
+  function sourceLabel(source: string): string {
+    if (source === "experience") return "Job Experience";
+    if (source === "project") return "Project";
+    if (source === "skill") return "Skills";
+    return source.charAt(0).toUpperCase() + source.slice(1);
+  }
+
   function updateBullet(index: number, value: string) {
     setDraft((current) => {
       if (!current) return current;
@@ -459,15 +621,15 @@ export function Resumes() {
     event.preventDefault();
     if (!draft || entrySaving) return;
     const validation: { role?: string; employer?: string } = {};
-    if (!draft.role.trim()) validation.role = "Add a role title.";
-    if (!draft.employer.trim()) validation.employer = "Add an employer or organization.";
+    if (!draft.role.trim()) validation.role = draft.source === "skill" ? "Add a skill category." : draft.source === "project" ? "Add a project name." : "Add a role title.";
+    if (draft.source !== "skill" && !draft.employer.trim()) validation.employer = draft.source === "project" ? "Add a project or organization." : "Add an employer or organization.";
     setDraftValidation(validation);
     if (validation.role || validation.employer) return;
 
     const entry: ExperienceEntry = {
       id: draft.id,
       role: draft.role.trim(),
-      employer: draft.employer.trim(),
+      employer: draft.employer.trim() || "Skills",
       startDate: draft.startDate || null,
       endDate: draft.endDate || null,
       bullets: draft.bullets.map((bullet) => bullet.trim()).filter(Boolean),
@@ -732,8 +894,7 @@ export function Resumes() {
     setPdfBusy(true);
     setPdfOutcome(null);
     try {
-      const html = renderTailoredHtml();
-      const pdf = await ipc().printResumePdf(html);
+      const pdf = getTailoredPdf();
       const savedPath = await ipc().downloadResumePdf({ pdf, suggestedFileName: suggestedPdfFileName() });
       if (savedPath) {
         setPdfOutcome({ kind: "success", message: `Saved to ${savedPath}.` });
@@ -752,8 +913,7 @@ export function Resumes() {
     setExportBusy(true);
     setExportOutcome(null);
     try {
-      const html = renderTailoredHtml();
-      const pdf = await ipc().printResumePdf(html);
+      const pdf = getTailoredPdf();
       const target = [jobCompany.trim(), jobTitle.trim()].filter(Boolean).join(" — ") || "this role";
       const provenance = `Generated for ${target} on ${new Date().toLocaleDateString()}. Tailored from the master resume and reviewed before export.`;
       const folderPath = await ipc().exportResumeToFolder({
@@ -775,12 +935,13 @@ export function Resumes() {
     }
   }
 
-  function renderTailoredHtml(): string {
-    if (tailoredPreview.parseError) throw new Error(tailoredPreview.parseError);
-    return tailoredPreview.htmlPreview;
+  function getTailoredPdf(): Uint8Array {
+    if (tailoredPreview.compileError) throw new Error(tailoredPreview.compileError);
+    if (!tailoredPreview.pdf) throw new Error("Wait for the LaTeX PDF preview to finish compiling.");
+    return tailoredPreview.pdf;
   }
 
-  const exportDisabled = pdfBusy || exportBusy || reviewSaving === "saving" || tailoredPreview.parseError !== null;
+  const exportDisabled = pdfBusy || exportBusy || reviewSaving === "saving" || tailoredPreview.compiling || tailoredPreview.compileError !== null || !tailoredPreview.pdf;
 
   return (
     <div className="mx-auto min-w-0 max-w-[1240px]">
@@ -843,12 +1004,49 @@ export function Resumes() {
                 </div>
               </div>
             )}
+            <div className="mb-4 rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <label
+                  htmlFor="resume-tex-upload"
+                  className={cn(
+                    "inline-flex cursor-pointer items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-[12px] font-medium text-slate-800 hover:bg-slate-100",
+                    resumeImporting && "cursor-not-allowed opacity-60",
+                  )}
+                >
+                  <FileUp size={13} />
+                  {resumeImporting ? "Importing resume…" : "Upload .tex resume"}
+                </label>
+                <input
+                  id="resume-tex-upload"
+                  type="file"
+                  accept=".tex,text/plain"
+                  onChange={(event) => void handleResumeUpload(event)}
+                  disabled={resumeImporting}
+                  className="sr-only"
+                />
+                <p className="text-[12px] text-slate-600">
+                  Upload your LaTeX file to save it as the master resume and add detected experience entries automatically.
+                </p>
+              </div>
+              {resumeImportError && (
+                <p role="alert" className="mt-2 text-[12px] text-oxblood">
+                  {resumeImportError}
+                </p>
+              )}
+              {resumeImportResult && (
+                <p role="status" className="mt-2 text-[12px] text-verdigris">
+                  Resume imported. Added {resumeImportResult.added} {resumeImportResult.added === 1 ? "entry" : "entries"}
+                  {resumeImportResult.skipped > 0 ? `; skipped ${resumeImportResult.skipped} duplicate or unsupported ${resumeImportResult.skipped === 1 ? "entry" : "entries"}.` : "."}
+                </p>
+              )}
+            </div>
             <LatexSourceEditor
               value={masterLatex}
               onChange={handleMasterChange}
               latexId="master-latex"
-              parseError={masterPreview.parseError}
-              htmlPreview={masterPreview.htmlPreview}
+              compileError={masterPreview.compileError}
+              pdf={masterPreview.pdf}
+              compiling={masterPreview.compiling}
             />
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <Button variant="ink" onClick={() => void handleSaveMaster()} disabled={masterSaving || masterLoading || !masterLatex.trim()}>
@@ -921,7 +1119,7 @@ export function Resumes() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <label htmlFor="exp-role" className="mb-1.5 block text-[12px] font-medium text-slate-700">
-                      Role title
+                      {draft.source === "skill" ? "Skill category" : draft.source === "project" ? "Project name" : "Role title"}
                     </label>
                     <Input
                       id="exp-role"
@@ -937,24 +1135,26 @@ export function Resumes() {
                       </p>
                     )}
                   </div>
-                  <div>
-                    <label htmlFor="exp-employer" className="mb-1.5 block text-[12px] font-medium text-slate-700">
-                      Employer
-                    </label>
-                    <Input
-                      id="exp-employer"
-                      variant="default"
-                      value={draft.employer}
-                      onChange={(event) => setDraftField("employer", event.target.value)}
-                      aria-invalid={!!draftValidation?.employer}
-                      aria-describedby={draftValidation?.employer ? "exp-employer-error" : undefined}
-                    />
-                    {draftValidation?.employer && (
-                      <p id="exp-employer-error" role="alert" className="mt-1 text-[11px] text-oxblood">
-                        {draftValidation.employer}
-                      </p>
-                    )}
-                  </div>
+                  {draft.source !== "skill" && (
+                    <div>
+                      <label htmlFor="exp-employer" className="mb-1.5 block text-[12px] font-medium text-slate-700">
+                        {draft.source === "project" ? "Project or organization" : "Employer"}
+                      </label>
+                      <Input
+                        id="exp-employer"
+                        variant="default"
+                        value={draft.employer}
+                        onChange={(event) => setDraftField("employer", event.target.value)}
+                        aria-invalid={!!draftValidation?.employer}
+                        aria-describedby={draftValidation?.employer ? "exp-employer-error" : undefined}
+                      />
+                      {draftValidation?.employer && (
+                        <p id="exp-employer-error" role="alert" className="mt-1 text-[11px] text-oxblood">
+                          {draftValidation.employer}
+                        </p>
+                      )}
+                    </div>
+                  )}
                   <div>
                     <label htmlFor="exp-source" className="mb-1.5 block text-[12px] font-medium text-slate-700">
                       Source
@@ -962,25 +1162,25 @@ export function Resumes() {
                     <select
                       id="exp-source"
                       value={draft.source}
-                      onChange={(event) => setDraftField("source", event.target.value)}
+                      onChange={(event) => changeDraftSource(event.target.value)}
                       className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400"
                     >
                       {EXPERIENCE_SOURCES.map((source) => (
                         <option key={source} value={source}>
-                          {source}
+                          {sourceLabel(source)}
                         </option>
                       ))}
                     </select>
                   </div>
-                  <div>
+                  {draft.source !== "skill" && <div>
                     <label htmlFor="exp-dates-note" className="mb-1.5 block text-[12px] font-medium text-slate-700">
                       Dates
                     </label>
                     <p id="exp-dates-note" className="text-[11px] leading-relaxed text-slate-500">
                       Leave the end date empty for a current role.
                     </p>
-                  </div>
-                  <div>
+                  </div>}
+                  {draft.source !== "skill" && <div>
                     <label htmlFor="exp-start-date" className="mb-1.5 block text-[12px] font-medium text-slate-700">
                       Start date
                     </label>
@@ -992,8 +1192,8 @@ export function Resumes() {
                       value={draft.startDate}
                       onChange={(event) => setDraftField("startDate", event.target.value)}
                     />
-                  </div>
-                  <div>
+                  </div>}
+                  {draft.source !== "skill" && <div>
                     <label htmlFor="exp-end-date" className="mb-1.5 block text-[12px] font-medium text-slate-700">
                       End date
                     </label>
@@ -1005,7 +1205,7 @@ export function Resumes() {
                       value={draft.endDate}
                       onChange={(event) => setDraftField("endDate", event.target.value)}
                     />
-                  </div>
+                  </div>}
                 </div>
 
                 <div className="mt-4">
@@ -1414,8 +1614,9 @@ export function Resumes() {
                     value={tailoredLatex}
                     onChange={setTailoredLatex}
                     latexId="tailored-latex"
-                    parseError={tailoredPreview.parseError}
-                    htmlPreview={tailoredPreview.htmlPreview}
+                    compileError={tailoredPreview.compileError}
+                    pdf={tailoredPreview.pdf}
+                    compiling={tailoredPreview.compiling}
                     minHeight="min-h-72"
                   />
                 </div>
@@ -1437,7 +1638,7 @@ export function Resumes() {
                     {exportBusy ? "Exporting…" : "Export to folder"}
                   </Button>
                 </div>
-                {tailoredPreview.parseError && (
+                {tailoredPreview.compileError && (
                   <p role="alert" className="mt-2 text-[11px] text-oxblood">
                     Fix the LaTeX errors above before exporting.
                   </p>

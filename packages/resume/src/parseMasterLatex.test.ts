@@ -111,6 +111,49 @@ describe("parseMasterLatex", () => {
     });
   });
 
+  test("parses Jake-style resumeSubheading and resumeItem macros", () => {
+    const latex = String.raw`
+\documentclass{article}
+\newcommand{\resumeSubheading}[4]{#1 #2 #3 #4}
+\newcommand{\resumeItem}[1]{\item #1}
+\begin{document}
+\section{Experience}
+\resumeSubheading
+  {Visfuture Inc.}{Markham, ON}
+  {Software Developer}{July 2024 -- Aug. 2024, May 2025 -- Aug. 2025}
+\resumeItemListStart
+  \resumeItem{Implemented multilingual website support.}
+  \resumeItem{Built full-stack features using Firebase and Google Cloud.}
+\resumeItemListEnd
+\resumeSubheading
+  {Beacon Hill Golf Club}{Aurora, ON}
+  {Golf Course Maintenance}{May 2022 -- July 2022}
+\resumeItemListStart
+  \resumeItem{Followed work orders and specifications.}
+\resumeItemListEnd
+\end{document}
+`;
+    const entries = parseMasterLatex(latex);
+    assert.equal(entries.length, 2);
+    assertEntry(entries[0], {
+      role: "Software Developer",
+      employer: "Visfuture Inc.",
+      startDate: "2024-07-01",
+      endDate: "2024-08-01",
+      bullets: [
+        "Implemented multilingual website support.",
+        "Built full-stack features using Firebase and Google Cloud.",
+      ],
+    });
+    assertEntry(entries[1], {
+      role: "Golf Course Maintenance",
+      employer: "Beacon Hill Golf Club",
+      startDate: "2022-05-01",
+      endDate: "2022-07-01",
+      bullets: ["Followed work orders and specifications."],
+    });
+  });
+
   test("parses various date formats", () => {
     const latex = String.raw`
 \documentclass{article}

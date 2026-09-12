@@ -47,6 +47,7 @@ export interface GhostboardApi {
   listTailoredResumes(): Promise<TailoredResumeRecord[]>;
   saveTailoredResume(record: TailoredResumeRecord): Promise<TailoredResumeRecord>;
   transcribeAudio(input: { audio: Uint8Array; mimeType: string }): Promise<{ text: string }>;
+  compileLatexToPdf(latex: string): Promise<Uint8Array>;
   printResumePdf(html: string): Promise<Uint8Array>;
   downloadResumePdf(input: { pdf: Uint8Array; suggestedFileName: string }): Promise<string | null>;
   exportResumeToFolder(input: { pdf: Uint8Array; latex: string; summary: string; company?: string; title?: string }): Promise<string | null>;
@@ -83,6 +84,7 @@ const api: GhostboardApi = {
   listTailoredResumes: () => ipcRenderer.invoke(IPC_CHANNELS.resumeTailoredList),
   saveTailoredResume: (record) => ipcRenderer.invoke(IPC_CHANNELS.resumeTailoredSave, record),
   transcribeAudio: (input) => ipcRenderer.invoke(IPC_CHANNELS.resumeTranscribe, input),
+  compileLatexToPdf: (latex) => ipcRenderer.invoke(IPC_CHANNELS.resumeCompileLatex, latex),
   printResumePdf: (html) => ipcRenderer.invoke(IPC_CHANNELS.resumePrintPdf, html),
   downloadResumePdf: (input) => ipcRenderer.invoke(IPC_CHANNELS.resumeDownloadPdf, input),
   exportResumeToFolder: (input) => ipcRenderer.invoke(IPC_CHANNELS.resumeExportFolder, input),

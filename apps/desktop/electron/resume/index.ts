@@ -15,7 +15,7 @@ import {
   writeTailoredResumes,
 } from "../db";
 import { IPC_CHANNELS } from "../ipc/channels";
-import { printHtmlToPdf, sanitizeFolderName } from "./pdf";
+import { compileLatexToPdf, printHtmlToPdf, sanitizeFolderName } from "./pdf";
 import { validateAudioForTranscription } from "./transcribe";
 import { mergeImportedExperienceEntries } from "./import";
 
@@ -264,7 +264,7 @@ function importExperienceEntries(value: unknown): ExperienceEntry[] {
   const proposed: ExperienceEntry[] = [];
   for (const raw of value) {
     if (!raw || typeof raw !== "object") continue;
-    const withSource = { ...(raw as Record<string, unknown>), source: "experience" };
+    const withSource = { ...(raw as Record<string, unknown>), source: (raw as Record<string, unknown>).source ?? "experience" };
     try {
       const normalized = normalizeExperienceEntry(withSource);
       proposed.push(normalized);
@@ -309,6 +309,7 @@ export function registerResumeHandlers(): void {
     [IPC_CHANNELS.resumeDownloadPdf, (payload) => downloadResumePdf(payload)],
     [IPC_CHANNELS.resumeExportFolder, (payload) => exportResumeToFolder(payload)],
     [IPC_CHANNELS.resumeTranscribe, (payload) => transcribeAudio(payload)],
+    [IPC_CHANNELS.resumeCompileLatex, (latex) => compileLatexToPdf(plainText(latex, "LaTeX source", MAX_MASTER_LATEX_LENGTH))],
   ];
   for (const [channel, handler] of handlers) {
     ipcMain.handle(channel, (event, ...arguments_) => {

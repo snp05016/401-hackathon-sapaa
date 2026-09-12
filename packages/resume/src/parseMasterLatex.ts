@@ -4,6 +4,8 @@ export interface ParsedExperienceEntry {
   startDate: string | null;
   endDate: string | null;
   bullets: string[];
+  skills?: string[];
+  source?: "experience" | "project" | "skill";
 }
 
 const MONTH_MAP: Record<string, string> = {
@@ -54,6 +56,7 @@ function decodeLatexText(text: string): string {
   result = result.replace(/\\hspace\{[^}]*\}/g, " ");
   result = result.replace(/\{\}/g, "");
   result = result.replace(/\\([%&#$_{}])/g, "$1");
+  result = result.replace(/[${}]/g, "");
   result = result.replace(/\s+/g, " ");
   return result.trim();
 }
@@ -87,20 +90,28 @@ function parseDateToken(token: string): string | null {
   return null;
 }
 
+const DATE_TOKEN_PATTERN = String.raw`(?:${Object.keys(MONTH_MAP).join("|")})[a-z]*\.?\s+(?:\d{1,2},?\s+)?(?:19|20)\d{2}|(?:19|20)\d{2}`;
+const DATE_RANGE_PATTERN = new RegExp(
+  String.raw`(${DATE_TOKEN_PATTERN})\s*(?:[–—]|-{1,2}|to)\s*(present|current|now|today|${DATE_TOKEN_PATTERN})`,
+  "i",
+);
+
 function extractDateRange(text: string): { start: string | null; end: string | null } {
   const normalized = text.replace(/\\\\/g, " ").replace(/\s+/g, " ");
-  const rangeMatch = normalized.match(
-    /(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|january|february|march|april|june|july|august|september|october|november|december)[a-z]*\.?\s+\d{1,2}?,?\s+\d{4}|\d{4}\s*[–—\-]\s*\d{4}|\d{4}\s+to\s+\d{4}|(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|january|february|march|april|june|july|august|september|october|november|december)[a-z]*\.?\s+\d{4}\s*[–—\-]\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|january|february|march|april|june|july|august|september|october|november|december)[a-z]*\.?\s+\d{4}|(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|january|february|march|april|june|july|august|september|october|november|december)[a-z]*\.?\s+\d{4}\s*[–—\-]\s*(present|current|now|today)|(\d{4})\s*[–—\-]\s*(present|current|now|today)|(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|january|february|march|april|june|july|august|september|october|november|december)[a-z]*\.?\s+\d{1,2}?,?\s+\d{4}\s*[–—\-]\s*(present|current|now|today)/i
-  );
+  const rangeMatch = normalized.match(DATE_RANGE_PATTERN);
   if (!rangeMatch) return { start: null, end: null };
 
-  const fullMatch = rangeMatch[0];
-  const parts = fullMatch.split(/\s*(?:[–—\-]|to)\s*/i);
-  if (parts.length < 2) return { start: null, end: null };
-
-  const start = parseDateToken(parts[0].trim());
-  const end = parseDateToken(parts[1].trim());
+  const start = parseDateToken(rangeMatch[1].trim());
+  const end = parseDateToken(rangeMatch[2].trim());
   return { start, end };
+}
+
+function removeDateRange(text: string): string {
+  return text
+    .replace(DATE_RANGE_PATTERN, " ")
+    .replace(/\s*(?:--|[–—-])\s*$/, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function splitRoleEmployer(heading: string): { role: string; employer: string } {
@@ -117,9 +128,9 @@ function splitRoleEmployer(heading: string): { role: string; employer: string } 
   for (const sep of separators) {
     const matches = [...text.matchAll(sep.regex)];
     if (matches.length > 0) {
-      const lastMatch = matches[matches.length - 1];
-      const splitIndex = (lastMatch.index ?? 0) + lastMatch[0].length;
-      const role = text.slice(0, lastMatch.index ?? 0).trim();
+      const selectedMatch = sep.name === "comma" ? matches[0] : matches[matches.length - 1];
+      const splitIndex = (selectedMatch.index ?? 0) + selectedMatch[0].length;
+      const role = removeDateRange(text.slice(0, selectedMatch.index ?? 0));
       const employer = text.slice(splitIndex).trim();
       if (role || employer) return { role, employer };
     }
@@ -129,7 +140,7 @@ function splitRoleEmployer(heading: string): { role: string; employer: string } 
 
 function extractBullets(itemizeContent: string): string[] {
   const bullets: string[] = [];
-  const itemRegex = /\\item\s*(?:\[[^\]]*\])?\s*([\s\S]*?)(?=\\item|\\end\{itemize\}|$)/g;
+  const itemRegex = /\\?item\s*(?:\[[^\]]*\])?\s*([\s\S]*?)(?=\\?item|\\end\{itemize\}|$)/g;
   let match;
   while ((match = itemRegex.exec(itemizeContent)) !== null) {
     const content = decodeLatexText(match[1]);
@@ -137,6 +148,125 @@ function extractBullets(itemizeContent: string): string[] {
     if (bullets.length >= 100) break;
   }
   return bullets;
+}
+
+function readBraceArgument(source: string, openingBraceIndex: number): { value: string; nextIndex: number } | null {
+  if (source[openingBraceIndex] !== "{") return null;
+  let depth = 0;
+  for (let index = openingBraceIndex; index < source.length; index += 1) {
+    if (source[index] === "{" && source[index - 1] !== "\\") depth += 1;
+    if (source[index] === "}" && source[index - 1] !== "\\") {
+      depth -= 1;
+      if (depth === 0) return { value: source.slice(openingBraceIndex + 1, index), nextIndex: index + 1 };
+    }
+  }
+  return null;
+}
+
+function readCommandArguments(source: string, command: string, startIndex: number, argumentCount: number): { values: string[]; nextIndex: number } | null {
+  const commandEnd = startIndex + command.length;
+  let cursor = commandEnd;
+  const values: string[] = [];
+  while (values.length < argumentCount) {
+    while (/\s/.test(source[cursor] ?? "")) cursor += 1;
+    const argument = readBraceArgument(source, cursor);
+    if (!argument) return null;
+    values.push(argument.value);
+    cursor = argument.nextIndex;
+  }
+  return { values, nextIndex: cursor };
+}
+
+function extractMacroBullets(body: string): string[] {
+  const bullets: string[] = [];
+  const command = "\\resumeItem";
+  let cursor = 0;
+  while (cursor < body.length && bullets.length < 100) {
+    const commandIndex = body.indexOf(command, cursor);
+    if (commandIndex < 0) break;
+    if (body[commandIndex + command.length] !== "{") {
+      cursor = commandIndex + command.length;
+      continue;
+    }
+    const argument = readCommandArguments(body, command, commandIndex, 1);
+    if (!argument) break;
+    const bullet = decodeLatexText(argument.values[0]);
+    if (bullet) bullets.push(bullet.slice(0, 1000));
+    cursor = argument.nextIndex;
+  }
+  return bullets;
+}
+
+function parseResumeSubheadingFormat(sectionBody: string): ParsedExperienceEntry[] {
+  const entries: ParsedExperienceEntry[] = [];
+  const command = "\\resumeSubheading";
+  let cursor = 0;
+  while (cursor < sectionBody.length && entries.length < 50) {
+    const commandIndex = sectionBody.indexOf(command, cursor);
+    if (commandIndex < 0) break;
+    const arguments_ = readCommandArguments(sectionBody, command, commandIndex, 4);
+    if (!arguments_) break;
+
+    const bodyEnd = sectionBody.indexOf(command, arguments_.nextIndex);
+    const body = sectionBody.slice(arguments_.nextIndex, bodyEnd < 0 ? sectionBody.length : bodyEnd);
+    const employer = decodeLatexText(arguments_.values[0]).slice(0, 200);
+    const role = decodeLatexText(arguments_.values[2]).slice(0, 200);
+    const { start, end } = extractDateRange(decodeLatexText(arguments_.values[3]));
+    const bullets = extractMacroBullets(body);
+    if (role || employer) entries.push({ role, employer, startDate: start, endDate: end, bullets, source: "experience" });
+    cursor = arguments_.nextIndex;
+  }
+  return entries;
+}
+
+function parseResumeProjectFormat(sectionBody: string): ParsedExperienceEntry[] {
+  const entries: ParsedExperienceEntry[] = [];
+  const command = "\\resumeProjectHeading";
+  let cursor = 0;
+  while (cursor < sectionBody.length && entries.length < 50) {
+    const commandIndex = sectionBody.indexOf(command, cursor);
+    if (commandIndex < 0) break;
+    const arguments_ = readCommandArguments(sectionBody, command, commandIndex, 2);
+    if (!arguments_) break;
+
+    const bodyEnd = sectionBody.indexOf(command, arguments_.nextIndex);
+    const body = sectionBody.slice(arguments_.nextIndex, bodyEnd < 0 ? sectionBody.length : bodyEnd);
+    const heading = decodeLatexText(arguments_.values[0]);
+    const separatorIndex = heading.indexOf("|");
+    const role = (separatorIndex >= 0 ? heading.slice(0, separatorIndex) : heading).trim().slice(0, 200);
+    const skills = (separatorIndex >= 0 ? heading.slice(separatorIndex + 1) : arguments_.values[1])
+      .split(",")
+      .map((skill) => decodeLatexText(skill).trim())
+      .filter(Boolean)
+      .slice(0, 100);
+    const bullets = extractMacroBullets(body);
+    if (role) entries.push({ role, employer: "Project", startDate: null, endDate: null, bullets, skills, source: "project" });
+    cursor = arguments_.nextIndex;
+  }
+  return entries;
+}
+
+function parseSkillsFormat(sectionBody: string): ParsedExperienceEntry[] {
+  const entries: ParsedExperienceEntry[] = [];
+  const skillRegex = /\\textbf\{([^{}]+)\}\s*:\s*([^\n]*)/g;
+  let match;
+  while ((match = skillRegex.exec(sectionBody)) !== null && entries.length < 50) {
+    const label = decodeLatexText(match[1]).trim();
+    const skills = match[2]
+      .split(",")
+      .map((skill) => decodeLatexText(skill).trim())
+      .filter(Boolean)
+      .slice(0, 100);
+    if (label && skills.length) {
+      entries.push({ role: label, employer: "Skills", startDate: null, endDate: null, bullets: [], skills, source: "skill" });
+    }
+  }
+  return entries;
+}
+
+function findSection(latex: string, name: string): string {
+  const sectionMatch = latex.match(new RegExp(`\\\\section\\*?\\{[^}]*${name}[^}]*\\}\\s*([\\s\\S]*?)(?=\\\\section\\*?\\{|\\\\end\\{document\\}|$)`, "i"));
+  return sectionMatch?.[1] ?? "";
 }
 
 function parseSubsectionFormat(sectionBody: string): ParsedExperienceEntry[] {
@@ -149,7 +279,7 @@ function parseSubsectionFormat(sectionBody: string): ParsedExperienceEntry[] {
     const { role, employer } = splitRoleEmployer(heading);
     const { start, end } = extractDateRange(heading + "\n" + body.split("\n")[0]);
     let bullets: string[] = [];
-    const itemizeMatch = body.match(/\\begin\{itemize\}([\s\S]*?)\\end\{itemize\}/);
+    const itemizeMatch = body.match(/\\?begin\{itemize\}([\s\S]*?)\\?end\{itemize\}/);
     if (itemizeMatch) {
       bullets = extractBullets(itemizeMatch[1]);
     }
@@ -168,7 +298,7 @@ function parseSubsectionFormat(sectionBody: string): ParsedExperienceEntry[] {
 
 function parseItemizeFormat(sectionBody: string): ParsedExperienceEntry[] {
   const entries: ParsedExperienceEntry[] = [];
-  const itemizeRegex = /\\begin\{itemize\}([\s\S]*?)\\end\{itemize\}/g;
+  const itemizeRegex = /\\?begin\{itemize\}([\s\S]*?)\\?end\{itemize\}/g;
   let lastEnd = 0;
   let match;
   while ((match = itemizeRegex.exec(sectionBody)) !== null) {
@@ -237,23 +367,29 @@ function parseParagraphFormat(sectionBody: string): ParsedExperienceEntry[] {
 
 export function parseMasterLatex(masterLatex: string): ParsedExperienceEntry[] {
   const latex = stripComments(masterLatex);
-  const sectionMatch = latex.match(/\\section\*?\{([^}]*(?:experience|employment)[^}]*)\}\s*([\s\S]*?)(?=\\section\*?\{|\\end\{document\}|$)/i);
-  if (!sectionMatch) return [];
-
-  const sectionBody = sectionMatch[2];
+  const sectionBody = findSection(latex, "(?:experience|employment)");
   let entries: ParsedExperienceEntry[] = [];
 
-  const subsectionEntries = parseSubsectionFormat(sectionBody);
-  if (subsectionEntries.length > 0) {
-    entries = subsectionEntries;
+  const resumeSubheadingEntries = sectionBody ? parseResumeSubheadingFormat(sectionBody) : [];
+  if (resumeSubheadingEntries.length > 0) {
+    entries = resumeSubheadingEntries;
   } else {
-    const itemizeEntries = parseItemizeFormat(sectionBody);
-    if (itemizeEntries.length > 0) {
-      entries = itemizeEntries;
+    const subsectionEntries = parseSubsectionFormat(sectionBody);
+    if (subsectionEntries.length > 0) {
+      entries = subsectionEntries;
     } else {
-      entries = parseParagraphFormat(sectionBody);
+      const itemizeEntries = parseItemizeFormat(sectionBody);
+      if (itemizeEntries.length > 0) {
+        entries = itemizeEntries;
+      } else {
+        entries = parseParagraphFormat(sectionBody);
+      }
     }
   }
 
-  return entries.filter(e => e.role.trim() || e.employer.trim()).slice(0, 50);
+  const projectEntries = parseResumeProjectFormat(findSection(latex, "projects?"));
+  const skillEntries = parseSkillsFormat(findSection(latex, "skills?"));
+  return [...entries.slice(0, 50), ...projectEntries, ...skillEntries]
+    .filter((entry) => entry.role.trim() || entry.employer.trim())
+    .slice(0, 100);
 }

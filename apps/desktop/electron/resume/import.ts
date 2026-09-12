@@ -23,7 +23,7 @@ export function mergeImportedExperienceEntries(
     accepted.push({
       ...entry,
       skills: entry.skills ?? [],
-      source: "experience",
+      source: entry.source ?? "experience",
     });
     if (accepted.length >= 200) break;
   }

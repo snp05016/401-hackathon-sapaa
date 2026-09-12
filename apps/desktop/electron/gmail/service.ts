@@ -282,8 +282,6 @@ export function createGmailService(db: GhostboardDb, dependencies: GmailDependen
             nextActionDate: null,
             resumeId: null,
             source: "gmail",
-            followUpOn: false,
-            followUpDismissedAt: null,
             createdAt: reviewedAt,
             updatedAt: reviewedAt,
           };

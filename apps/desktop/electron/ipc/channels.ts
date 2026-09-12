@@ -32,6 +32,7 @@ export const IPC_CHANNELS = {
   resumeDownloadPdf: "resume:download-pdf",
   resumeExportFolder: "resume:export-folder",
   resumeTranscribe: "resume:transcribe-audio",
+  resumeCompileLatex: "resume:compile-latex",
   resumeExtractExperience: "resume:extract-experience",
   resumeExperienceImport: "resume:experience:import",
 } as const;
