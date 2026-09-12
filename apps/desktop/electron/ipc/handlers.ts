@@ -33,7 +33,8 @@ export function registerIpcHandlers(db: GhostboardDb): void {
           .set({
             status: request.toStage,
             updatedAt: now,
-            ...(request.toStage === "applied" ? { dateApplied: now, lastActivityAt: now } : {}),
+            lastActivityAt: now,
+            ...(request.toStage === "applied" && !(request.fromStage === "interviewing" || request.fromStage === "offer") ? { dateApplied: now } : {}),
           })
           .where(eq(applications.id, request.applicationId));
 
