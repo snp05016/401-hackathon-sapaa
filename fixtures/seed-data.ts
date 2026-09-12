@@ -25,7 +25,7 @@ const seedApplications: Array<typeof applications.$inferInsert> = [
     status: "found",
     dateFound: daysAgo(1),
     dateApplied: null,
-    deadline: inDays(3),
+    deadline: inDays(1),
     lastActivityAt: daysAgo(1),
     nextAction: null,
     nextActionDate: null,
