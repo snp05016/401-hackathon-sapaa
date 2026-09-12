@@ -30,7 +30,12 @@ export function registerIpcHandlers(db: GhostboardDb): void {
 
         await tx
           .update(applications)
-          .set({ status: request.toStage, updatedAt: now })
+          .set({
+            status: request.toStage,
+            updatedAt: now,
+            lastActivityAt: now,
+            ...(request.toStage === "applied" && !(request.fromStage === "interviewing" || request.fromStage === "offer") ? { dateApplied: now } : {}),
+          })
           .where(eq(applications.id, request.applicationId));
 
         const event: ApplicationEvent = {
