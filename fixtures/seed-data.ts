@@ -12,6 +12,7 @@ const migrationsFolder = path.join(__dirname, "..", "packages", "database", "mig
 
 const now = new Date();
 const daysAgo = (n: number) => new Date(now.getTime() - n * 86_400_000).toISOString();
+const inDays = (n: number) => new Date(now.getTime() + n * 86_400_000).toISOString().slice(0, 10);
 
 const seedApplications: Array<typeof applications.$inferInsert> = [
   {
@@ -24,6 +25,7 @@ const seedApplications: Array<typeof applications.$inferInsert> = [
     status: "found",
     dateFound: daysAgo(1),
     dateApplied: null,
+    deadline: inDays(1),
     lastActivityAt: daysAgo(1),
     nextAction: null,
     nextActionDate: null,
@@ -77,7 +79,7 @@ const seedApplications: Array<typeof applications.$inferInsert> = [
     jobDescription: "Kubernetes + Go.",
     status: "rejected",
     dateFound: daysAgo(30),
-    dateApplied: daysAgo(28),
+    dateApplied: daysAgo(365),
     lastActivityAt: daysAgo(15),
     nextAction: null,
     nextActionDate: null,

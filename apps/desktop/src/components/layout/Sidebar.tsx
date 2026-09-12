@@ -3,6 +3,7 @@ import { LayoutDashboard, KanbanSquare, ListTodo, Compass, FileText, User, LineC
 import { cn } from "../../lib/utils";
 import { GhostMark } from "../ui/GhostMark";
 import { ThemeSwitcher } from "./ThemeSwitcher";
+import { useApplications } from "../../lib/useApplications";
 
 export type NavPage = "today" | "todo" | "applications" | "discover" | "resumes" | "profile" | "tracking" | "recruiterInbox";
 
@@ -18,6 +19,11 @@ const NAV_ITEMS: Array<{ id: NavPage; label: string; icon: typeof LayoutDashboar
 ];
 
 export function Sidebar({ page, onNavigate }: { page: NavPage; onNavigate: (page: NavPage) => void }) {
+  const { applications } = useApplications();
+  const todoCount = (applications ?? []).filter(
+    (application) => application.followUpOn || application.status === "found",
+  ).length;
+
   return (
     <nav className="flex w-full shrink-0 flex-col border-b border-hairline bg-paper-rail sm:h-full sm:w-[228px] sm:border-b-0 sm:border-r">
       <div className="flex items-center justify-between gap-2.5 px-4 py-3 sm:justify-start sm:px-7 sm:pb-9 sm:pt-11">
@@ -51,9 +57,16 @@ export function Sidebar({ page, onNavigate }: { page: NavPage; onNavigate: (page
                   active ? "scale-x-100 sm:scale-y-100" : "sm:scale-y-0",
                 )}
               />
-              <Icon size={15} strokeWidth={1.6} className={active ? "text-oxblood" : "text-ink-3"} />
-              <span className={cn("hidden sm:inline", active ? "font-medium" : "")}>{label}</span>
-              <span className="sr-only sm:hidden">{label}</span>
+              <span className="relative">
+                <Icon size={15} strokeWidth={1.6} className={active ? "text-oxblood" : "text-ink-3"} />
+                {id === "todo" && todoCount > 0 && (
+                  <span
+                    aria-label={`${todoCount} follow-up${todoCount === 1 ? "" : "s"} pending`}
+                    className="absolute -right-[7px] -top-[5px] h-[7px] w-[7px] rounded-full bg-oxblood"
+                  />
+                )}
+              </span>
+              <span className={active ? "font-medium" : ""}>{label}</span>
             </button>
           );
         })}

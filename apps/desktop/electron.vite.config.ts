@@ -50,11 +50,6 @@ export default defineConfig(({ mode }) => {
     server: {
       strictPort: true,
     },
-    resolve: {
-      alias: {
-        "latex.js": fileURLToPath(new URL("../../node_modules/latex.js/dist/latex.js", import.meta.url)),
-      },
-    },
     optimizeDeps: {
       esbuildOptions: {
         loader: {

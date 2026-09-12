@@ -202,7 +202,7 @@ export function draftFromHtml(html: string, url: string, visibleText?: string): 
   const h1 = tagText(html, "h1");
   const ogTitle = metaContent(html, ["og:title", "twitter:title"]);
   const site = metaContent(html, ["og:site_name", "application-name"]);
-  const title = ogTitle || h1 || documentTitle;
+  const title = ogTitle || h1 || documentTitle?.split(/\s[-|·]\s/)[0] || null;
   const description = candidateDescription(html) || normalizeWhitespace(visibleText);
   return {
     source: provider,

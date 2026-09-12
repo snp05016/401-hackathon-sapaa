@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { ApplicationsProvider } from "./lib/useApplications";
 import { AppShell } from "./components/layout/AppShell";
 import { SplashScreen } from "./components/layout/SplashScreen";
+import { LaunchAlerts } from "./components/layout/LaunchAlerts";
 import type { NavPage } from "./components/layout/Sidebar";
 import { Today } from "./pages/Today";
 import { Todo } from "./pages/Todo";
@@ -48,13 +50,14 @@ export function App() {
   }, [phase]);
 
   return (
-    <>
+    <ApplicationsProvider>
+      <LaunchAlerts />
       <AppShell page={page} onNavigate={setPage}>
         {phase !== "intro" && <Page />}
       </AppShell>
       {phase !== "done" && (
         <SplashScreen exiting={phase === "revealing"} onSkip={() => setPhase("revealing")} />
       )}
-    </>
+    </ApplicationsProvider>
   );
 }

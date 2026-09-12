@@ -26,6 +26,20 @@ async function markJobSaved(job: JobPosting): Promise<void> {
   await chrome.storage.local.set({ [SAVED_JOBS_KEY]: next });
 }
 
+async function notifySavedJob(job: JobPosting): Promise<void> {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id) return;
+    chrome.tabs.sendMessage(
+      tab.id,
+      { type: "job-saved", title: job.title, company: job.company },
+      () => { void chrome.runtime.lastError; },
+    );
+  } catch {
+    // The save already succeeded; the page celebration is best-effort.
+  }
+}
+
 export function Popup() {
   const [job, setJob] = useState<JobPosting | null>(null);
   const [isSaved, setIsSaved] = useState(false);
@@ -102,6 +116,7 @@ export function Popup() {
       setIsSaved(true);
       setJustSaved(true);
       setStatus("Saved job");
+      void notifySavedJob(job);
     } catch (err) {
       setStatus(err instanceof Error ? err.message : "Failed to save");
     }

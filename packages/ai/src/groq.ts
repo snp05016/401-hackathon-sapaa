@@ -1,7 +1,9 @@
-import type { CompletionRequest, CompletionResponse } from "./types";
+import type { CompletionRequest, CompletionResponse, TranscriptionRequest, TranscriptionResponse } from "./types";
 
 const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
+const GROQ_TRANSCRIBE_ENDPOINT = "https://api.groq.com/openai/v1/audio/transcriptions";
 const DEFAULT_GROQ_MODEL = "openai/gpt-oss-20b";
+const DEFAULT_WHISPER_MODEL = "whisper-large-v3-turbo";
 const MAX_RATE_LIMIT_RETRIES = 2;
 
 function retryDelay(response: Response, attempt: number): number {
@@ -54,4 +56,45 @@ export async function completeWithGroq(request: CompletionRequest): Promise<Comp
     };
   }
   throw new Error("Groq could not complete the request.");
+}
+
+export async function transcribeWithGroq(request: TranscriptionRequest): Promise<TranscriptionResponse> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) {
+    throw new Error("GROQ_API_KEY is not set. Add it to your .env file.");
+  }
+  const model = process.env.GROQ_WHISPER_MODEL?.trim() || DEFAULT_WHISPER_MODEL;
+  const audio = Uint8Array.from(request.audio);
+  const form = new FormData();
+  form.append("model", model);
+  form.append("file", new Blob([audio], { type: request.mimeType ?? "" }), "recording.webm");
+  if (request.language) form.append("language", request.language);
+
+  for (let attempt = 0; attempt <= MAX_RATE_LIMIT_RETRIES; attempt++) {
+    const response = await fetch(GROQ_TRANSCRIBE_ENDPOINT, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${apiKey}`,
+      },
+      body: form,
+    });
+
+    if (response.status === 429 && attempt < MAX_RATE_LIMIT_RETRIES) {
+      await wait(retryDelay(response, attempt));
+      continue;
+    }
+    if (!response.ok) {
+      if (response.status === 429) throw new Error("Groq is still rate-limiting transcription requests. Wait about a minute, then try again.");
+      const detail = (await response.text()).slice(0, 500);
+      throw new Error(`Groq transcription API error ${response.status}${detail ? `: ${detail}` : ""}`);
+    }
+
+    const data = (await response.json()) as { text?: string };
+    return {
+      text: data.text ?? "",
+      provider: "groq",
+      model,
+    };
+  }
+  throw new Error("Groq could not complete the transcription request.");
 }
