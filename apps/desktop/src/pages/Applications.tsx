@@ -13,11 +13,14 @@ export function Applications() {
       .catch(() => setApplications([]));
   }, []);
 
-  if (!applications) return <div className="text-slate-500">Loading…</div>;
+  if (!applications) return <div className="text-[13px] text-ink-2">Loading applications…</div>;
 
   return (
     <div>
-      <h1 className="mb-4 text-2xl font-semibold">Applications</h1>
+      <header className="animate-reveal mb-9 flex items-baseline justify-between gap-10 border-b border-hairline pb-3">
+        <h1 className="font-display text-[52px] leading-[0.9] tracking-[-0.015em] text-ink">Applications</h1>
+        <p className="tnum text-[12px] text-ink-2">{applications.length} tracked</p>
+      </header>
       <KanbanBoard initialApplications={applications} />
     </div>
   );
