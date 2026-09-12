@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 const WORKSPACE_PACKAGES = [
   "@ghostboard/shared",
   "@ghostboard/database",
+  "@ghostboard/extension-messaging",
   "@ghostboard/matching",
   "@ghostboard/scraping",
   "@ghostboard/autofill",

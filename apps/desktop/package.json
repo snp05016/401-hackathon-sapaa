@@ -15,6 +15,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@ghostboard/autofill": "*",
     "@ghostboard/database": "*",
+    "@ghostboard/extension-messaging": "*",
     "@ghostboard/matching": "*",
     "@ghostboard/resume": "*",
     "@ghostboard/scraping": "*",
@@ -25,7 +26,8 @@
     "latex.js": "^0.12.6",
     "lucide-react": "^0.445.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.2.0",
