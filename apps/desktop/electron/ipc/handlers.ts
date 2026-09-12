@@ -60,6 +60,14 @@ export function registerIpcHandlers(db: GhostboardDb): void {
     }
   );
 
+  ipcMain.handle(IPC_CHANNELS.deleteApplication, async (_event, applicationId: unknown) => {
+    if (typeof applicationId !== "string" || !applicationId) throw new Error("invalid application id");
+    await db.transaction(async (tx) => {
+      await tx.delete(applicationEvents).where(eq(applicationEvents.applicationId, applicationId));
+      await tx.delete(applications).where(eq(applications.id, applicationId));
+    });
+  });
+
   ipcMain.handle(IPC_CHANNELS.getProfile, () => {
     return readProfile();
   });
