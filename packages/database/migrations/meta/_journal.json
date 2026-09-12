@@ -28,6 +28,8 @@
       "version": "6",
       "when": 1789241634808,
       "tag": "0003_powerful_ego",
+      "when": 1789230623337,
+      "tag": "0002_wide_captain_universe",
       "breakpoints": true
     }
   ]

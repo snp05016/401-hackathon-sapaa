@@ -3,7 +3,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createDb, runMigrations, type GhostboardDb } from "@ghostboard/database";
-import type { Profile, ProfileField } from "@ghostboard/shared";
+import type { Profile, ProfileField, MasterResume } from "@ghostboard/shared";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -57,4 +57,19 @@ export function writeProfile(fields: ProfileField[]): Profile {
   const profile: Profile = { id: "local", fields, updatedAt: new Date().toISOString() };
   fs.writeFileSync(profilePath(), JSON.stringify(profile, null, 2));
   return profile;
+}
+
+function masterResumePath(): string {
+  return path.join(app.getPath("userData"), "master-resume.json");
+}
+
+/** Read-only: nothing currently persists a master resume from the UI, so this seeds an empty placeholder on first read. */
+export function readMasterResume(): MasterResume {
+  const file = masterResumePath();
+  if (!fs.existsSync(file)) {
+    const seeded: MasterResume = { id: "local", latex: "", updatedAt: new Date().toISOString() };
+    fs.writeFileSync(file, JSON.stringify(seeded, null, 2));
+    return seeded;
+  }
+  return JSON.parse(fs.readFileSync(file, "utf-8")) as MasterResume;
 }

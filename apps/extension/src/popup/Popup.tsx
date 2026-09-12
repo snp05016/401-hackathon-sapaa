@@ -32,20 +32,25 @@ export function Popup() {
   const [justSaved, setJustSaved] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [port, setPort] = useState("4173");
-  const [token, setToken] = useState("");
   const [bridgeOk, setBridgeOk] = useState<boolean | null>(null);
 
   useEffect(() => {
     getBridgeSettings().then((s) => {
       setPort(String(s.port));
-      setToken(s.token);
     });
     checkBridgeHealth().then(setBridgeOk);
 
     chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
       if (!tab?.id) return;
-      chrome.runtime.sendMessage({ type: "get-detected-job", tabId: tab.id }, (response) => {
-        if (response?.job) setJob(response.job as JobPosting);
+      chrome.tabs.sendMessage(tab.id, { type: "get-current-job" }, (liveResponse) => {
+        if (liveResponse?.job) {
+          setJob(liveResponse.job as JobPosting);
+          return;
+        }
+        void chrome.runtime.lastError;
+        chrome.runtime.sendMessage({ type: "get-detected-job", tabId: tab.id }, (cachedResponse) => {
+          if (cachedResponse?.job) setJob(cachedResponse.job as JobPosting);
+        });
       });
     });
   }, []);
@@ -67,7 +72,7 @@ export function Popup() {
   }, [job]);
 
   async function handleSaveSettings() {
-    await saveBridgeSettings({ port: Number(port), token });
+    await saveBridgeSettings({ port: Number(port) });
     setBridgeOk(await checkBridgeHealth());
   }
 
@@ -130,11 +135,6 @@ export function Popup() {
           Bridge {bridgeOk === null ? "" : bridgeOk ? "🟢 connected" : "🔴 unreachable"}
         </div>
         <input placeholder="Port (default 4173)" value={port} onChange={(e) => setPort(e.target.value)} />
-        <input
-          placeholder="Token (copy from desktop app's Profile page)"
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
-        />
         <button onClick={handleSaveSettings}>Save Settings</button>
       </div>
     </div>

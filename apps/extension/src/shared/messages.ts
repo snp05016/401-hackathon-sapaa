@@ -7,5 +7,4 @@ export type ExtensionMessage =
 
 export interface BridgeSettings {
   port: number;
-  token: string;
 }

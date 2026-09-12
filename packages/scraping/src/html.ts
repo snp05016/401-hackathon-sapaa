@@ -64,6 +64,12 @@ function tagText(html: string, tag: string): string | null {
   return match ? normalizeInline(htmlToText(match[1])) || null : null;
 }
 
+export function greenhouseCompanyFromPageTitle(value: string | null | undefined): string | null {
+  const title = normalizeInline(value);
+  const match = title.match(/^Job Application for .+\s+at\s+(.+)$/i);
+  return normalizeInline(match?.[1]) || null;
+}
+
 function flattenJsonLd(value: unknown): Record<string, unknown>[] {
   if (Array.isArray(value)) return value.flatMap(flattenJsonLd);
   if (!value || typeof value !== "object") return [];
@@ -202,7 +208,8 @@ export function draftFromHtml(html: string, url: string, visibleText?: string): 
     source: provider,
     sourceJobId: extractSourceJobId(url, provider),
     url,
-    company: site || (documentTitle?.split(/\s[-|·]\s/).at(-1) ?? null),
+    company: site || (provider === "greenhouse" ? greenhouseCompanyFromPageTitle(documentTitle) : null)
+      || (documentTitle?.split(/\s[-|·]\s/).at(-1) ?? null),
     title,
     location: metaContent(html, ["job:location", "geo.placename"]),
     salaryRange: metaContent(html, ["job:salary"]),

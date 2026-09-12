@@ -16,6 +16,7 @@ function pageSnapshot(url: string): JobPageSnapshot {
     document.querySelector('[itemprop="description"]'),
     document.querySelector('[data-automation-id="jobPostingDescription"]'),
     document.querySelector("#jobDescriptionText"),
+    document.querySelector(".job__description"),
     document.querySelector(".jobs-description__content"),
     document.querySelector("main"),
   ].filter((element): element is Element => !!element)
@@ -84,4 +85,10 @@ export function startDetection(): void {
   debounced();
   const observer = new MutationObserver(debounced);
   observer.observe(document.body, { childList: true, subtree: true });
+
+  chrome.runtime.onMessage.addListener((message: { type?: string }, _sender, sendResponse) => {
+    if (message.type !== "get-current-job") return;
+    const result = genericScraper.scrape(window.location.href, document);
+    sendResponse(result ? { job: result.posting, confidence: result.confidence } : null);
+  });
 }

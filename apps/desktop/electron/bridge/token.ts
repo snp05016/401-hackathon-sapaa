@@ -12,11 +12,22 @@ function bridgeFilePath(): string {
   return path.join(app.getPath("userData"), "bridge.json");
 }
 
-/** Generates (or reuses, within a run) the bridge auth token and persists port+token to disk. */
+function savedToken(file: string): string | null {
+  try {
+    const value = JSON.parse(fs.readFileSync(file, "utf-8")) as Partial<BridgeFile>;
+    return typeof value.token === "string" && /^[0-9a-f-]{36}$/i.test(value.token) ? value.token : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Reuses the local pairing token across restarts and updates the configured port. */
 export function getOrCreateBridgeToken(port: number): BridgeFile {
-  const token = crypto.randomUUID();
+  const filePath = bridgeFilePath();
+  const token = savedToken(filePath) ?? crypto.randomUUID();
   const file: BridgeFile = { port, token };
-  fs.writeFileSync(bridgeFilePath(), JSON.stringify(file, null, 2));
+  fs.writeFileSync(filePath, JSON.stringify(file, null, 2), { mode: 0o600 });
+  fs.chmodSync(filePath, 0o600);
   return file;
 }
 

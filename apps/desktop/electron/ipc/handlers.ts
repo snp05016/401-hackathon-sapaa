@@ -1,3 +1,4 @@
+import { registerGmailHandlers } from "../gmail";
 import { ipcMain } from "electron";
 import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
@@ -12,6 +13,7 @@ import { IPC_CHANNELS } from "./channels";
 import { updateApplicationDeadline } from "../db/deadlines";
 
 export function registerIpcHandlers(db: GhostboardDb): void {
+  registerGmailHandlers(db);
   ipcMain.handle(IPC_CHANNELS.updateDeadline, (_event, applicationId: unknown, deadline: unknown) => {
     return updateApplicationDeadline(db, applicationId, deadline);
   });
@@ -73,6 +75,7 @@ export function registerIpcHandlers(db: GhostboardDb): void {
     }
   );
 
+
   ipcMain.handle(IPC_CHANNELS.dismissFollowUp, async (_event, applicationId: unknown): Promise<Application> => {
     if (typeof applicationId !== "string") throw new Error("application id is required");
     const now = new Date().toISOString();
@@ -83,6 +86,13 @@ export function registerIpcHandlers(db: GhostboardDb): void {
     const [updated] = await db.select().from(applications).where(eq(applications.id, applicationId));
     if (!updated) throw new Error("application not found");
     return updated;
+  });
+  ipcMain.handle(IPC_CHANNELS.deleteApplication, async (_event, applicationId: unknown) => {
+    if (typeof applicationId !== "string" || !applicationId) throw new Error("invalid application id");
+    await db.transaction(async (tx) => {
+      await tx.delete(applicationEvents).where(eq(applicationEvents.applicationId, applicationId));
+      await tx.delete(applications).where(eq(applications.id, applicationId));
+    });
   });
 
   ipcMain.handle(IPC_CHANNELS.getProfile, () => {
