@@ -5,12 +5,18 @@ export function Discover() {
   // TODO(team)[matching]: fetch real jobs and call calculateJobSimilarity per-job.
   const placeholder: JobPosting = {
     id: "placeholder",
+    fingerprint: "placeholder",
+    contentFingerprint: null,
+    sourceJobId: null,
     company: "—",
     title: "—",
     location: null,
     jobUrl: "",
     jobDescription: "",
     source: "none",
+    employmentType: null,
+    requirements: [],
+    keywords: [],
     postedAt: null,
     salaryRange: null,
     scrapedAt: new Date().toISOString(),

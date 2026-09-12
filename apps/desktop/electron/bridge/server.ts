@@ -1,7 +1,7 @@
 import http from "node:http";
 import type { GhostboardDb } from "@ghostboard/database";
 import type { BridgeErrorResponse, HealthResponse } from "@ghostboard/shared";
-import { handleGetProfile, handleCreateJob, handleUpsertApplication, handlePageContext } from "./routes";
+import { handleGetProfile, handleCreateJob, handleIngestJob, handleUpsertApplication, handlePageContext } from "./routes";
 
 const BRIDGE_VERSION = "0.1.0";
 const LOOPBACK_ADDRESSES = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
@@ -69,6 +69,12 @@ export function createBridgeServer(db: GhostboardDb, token: string, port: number
         if (req.method === "POST" && url.pathname === "/jobs") {
           const body = await readBody(req);
           sendJson(res, 200, await handleCreateJob(db, body as never), origin);
+          return;
+        }
+
+        if (req.method === "POST" && url.pathname === "/job-intelligence/ingest") {
+          const body = await readBody(req);
+          sendJson(res, 200, await handleIngestJob(body as never), origin);
           return;
         }
 

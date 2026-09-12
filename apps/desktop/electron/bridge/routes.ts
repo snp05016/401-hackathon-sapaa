@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
 import { applications, type GhostboardDb } from "@ghostboard/database";
+import { ingestJob } from "@ghostboard/scraping";
 import type {
   CreateJobRequest,
   CreateJobResponse,
@@ -10,6 +11,8 @@ import type {
   PageContextResponse,
   ProfileResponse,
   JobPosting,
+  IngestJobRequest,
+  IngestJobResponse,
 } from "@ghostboard/shared";
 import { readProfile } from "../db/index";
 
@@ -19,17 +22,24 @@ export function handleGetProfile(): ProfileResponse {
 
 export async function handleCreateJob(db: GhostboardDb, body: CreateJobRequest): Promise<CreateJobResponse> {
   const now = new Date().toISOString();
+  const intelligenceId = body.id ?? body.fingerprint ?? crypto.randomUUID();
   const job: JobPosting = {
-    id: crypto.randomUUID(),
+    id: intelligenceId,
+    fingerprint: body.fingerprint ?? intelligenceId,
+    contentFingerprint: body.contentFingerprint ?? null,
+    sourceJobId: body.sourceJobId ?? null,
     company: body.company,
     title: body.title,
     location: body.location,
     jobUrl: body.jobUrl,
     jobDescription: body.jobDescription,
     source: body.source,
+    employmentType: body.employmentType ?? null,
+    requirements: body.requirements ?? [],
+    keywords: body.keywords ?? [],
     postedAt: body.postedAt,
     salaryRange: body.salaryRange,
-    scrapedAt: now,
+    scrapedAt: body.scrapedAt ?? now,
   };
 
   const applicationId = crypto.randomUUID();
@@ -53,6 +63,16 @@ export async function handleCreateJob(db: GhostboardDb, body: CreateJobRequest):
   });
 
   return { job, applicationId };
+}
+
+/** Read-only intelligence boundary: no application or lifecycle state is written. */
+export async function handleIngestJob(body: IngestJobRequest): Promise<IngestJobResponse> {
+  return ingestJob({
+    url: body.snapshot?.url ?? body.url,
+    html: body.html,
+    visibleText: body.visibleText,
+    snapshot: body.snapshot,
+  });
 }
 
 export async function handleUpsertApplication(

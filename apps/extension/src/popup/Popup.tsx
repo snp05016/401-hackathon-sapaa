@@ -35,14 +35,22 @@ export function Popup() {
     setStatus("Saving…");
     try {
       await postJson<CreateJobResponse>("/jobs", {
+        id: job.id,
+        fingerprint: job.fingerprint,
+        contentFingerprint: job.contentFingerprint,
         company: job.company,
         title: job.title,
         location: job.location,
         jobUrl: job.jobUrl,
         jobDescription: job.jobDescription,
-        source: "extension",
+        source: job.source,
+        sourceJobId: job.sourceJobId,
+        employmentType: job.employmentType,
+        requirements: job.requirements,
+        keywords: job.keywords,
         postedAt: job.postedAt,
         salaryRange: job.salaryRange,
+        scrapedAt: job.scrapedAt,
       });
       setStatus("Saved to Ghostboard!");
     } catch (err) {
