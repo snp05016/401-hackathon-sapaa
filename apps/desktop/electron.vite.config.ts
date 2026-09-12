@@ -12,6 +12,7 @@ const WORKSPACE_PACKAGES = [
   "@ghostboard/scraping",
   "@ghostboard/autofill",
   "@ghostboard/resume",
+  "@ghostboard/scraping",
   "@ghostboard/tracking",
   "@ghostboard/ai",
 ];
