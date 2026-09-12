@@ -12,7 +12,6 @@ const WORKSPACE_PACKAGES = [
   "@ghostboard/scraping",
   "@ghostboard/autofill",
   "@ghostboard/resume",
-  "@ghostboard/scraping",
   "@ghostboard/tracking",
   "@ghostboard/ai",
 ];
@@ -37,6 +36,9 @@ export default defineConfig({
   },
   renderer: {
     plugins: [react()],
+    server: {
+      strictPort: true,
+    },
     resolve: {
       alias: {
         "latex.js": fileURLToPath(new URL("../../node_modules/latex.js/dist/latex.js", import.meta.url)),
