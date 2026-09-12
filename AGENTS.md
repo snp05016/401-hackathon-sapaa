@@ -7,6 +7,40 @@
 - Add functionality to existing files unless it represents a genuinely new component. Avoid creating many small files.
 - Do not add unrequested features or speculative abstractions.
 
+## Canonical Project Context and Indexing
+
+`docs/HACKATHON_PROJECT.md` is the canonical index for the project's vision,
+goals, feature behavior, architecture, contracts, privacy constraints, team model,
+priorities, milestones, success criteria, risks, decisions, and terminology.
+
+Before planning or implementing product work:
+
+1. Read the document map and executive summary in
+   `docs/HACKATHON_PROJECT.md`.
+2. Read every indexed section relevant to the task.
+3. For broad planning, shared-contract changes, integration reviews, or ambiguous
+   requests, read the entire document.
+4. Build a task context index containing:
+   - applicable product and user goals;
+   - non-negotiable invariants;
+   - relevant feature behavior;
+   - affected architecture and trust boundaries;
+   - existing or proposed shared contracts;
+   - priority level and protected demo impact;
+   - relevant non-goals;
+   - human ownership and coordination needs;
+   - success and verification criteria.
+5. Use that context index to constrain the plan, implementation, and final report.
+
+The project brief is context, not blanket authorization. Do not implement adjacent
+roadmap features unless the current task requests them. If the current task, code,
+and project brief disagree materially, surface the conflict instead of silently
+choosing a new product direction.
+
+Explicit user instructions and applicable `AGENTS.md` rules take precedence over
+the brief. Durable human decisions should update the brief so future teammates and
+agents do not rely on stale context.
+
 ## Error Handling
 
 - Avoid operations that can panic or crash. Prefer mechanisms that propagate errors to the caller.
