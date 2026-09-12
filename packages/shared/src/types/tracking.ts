@@ -47,6 +47,7 @@ export interface GmailState {
   connected: boolean;
   account: string | null;
   automaticChecks: boolean;
+  recentOnly: boolean;
   lastCheckedAt: string | null;
   hasMore: boolean;
   busy: boolean;

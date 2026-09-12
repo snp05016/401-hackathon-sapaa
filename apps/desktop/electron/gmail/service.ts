@@ -109,7 +109,8 @@ export function createGmailService(db: GhostboardDb, dependencies: GmailDependen
     })).sort((left, right) => right.receivedAt.localeCompare(left.receivedAt)).slice(0, 20);
     return {
       configured: !!current?.credentials, connected: !!current?.tokens, account,
-      automaticChecks: current?.automaticChecks ?? false, lastCheckedAt: sync?.lastCheckedAt ?? null,
+      automaticChecks: current?.automaticChecks ?? false, recentOnly: current?.recentOnly ?? false,
+      lastCheckedAt: sync?.lastCheckedAt ?? null,
       hasMore: !!sync?.pageToken || !!sync?.pendingIds.length
         || stored.some((record) => record.decision !== "dismissed" && !record.suggestion.action),
       busy, error, notice, suggestions,
@@ -135,7 +136,8 @@ export function createGmailService(db: GhostboardDb, dependencies: GmailDependen
     const jobs = await db.select().from(applications);
     const account = current.account;
     const [savedSync] = await db.select().from(gmailSync).where(eq(gmailSync.account, account));
-    const legacyRecords = (await db.select().from(gmailSuggestions).where(eq(gmailSuggestions.account, account)))
+    const storedRecords = await db.select().from(gmailSuggestions).where(eq(gmailSuggestions.account, account));
+    const legacyRecords = storedRecords
       .filter((record) => record.decision !== "dismissed" && !record.suggestion.action);
     const legacyMessageIds = legacyRecords.map((record) => record.messageId);
     let cursor = savedSync?.historyId ?? null;
@@ -169,12 +171,19 @@ export function createGmailService(db: GhostboardDb, dependencies: GmailDependen
       const profile = await request<GmailProfile>("https://gmail.googleapis.com/gmail/v1/users/me/profile");
       nextCursor = historyId(profile.historyId);
       const initialUrl = new URL("https://gmail.googleapis.com/gmail/v1/users/me/messages");
-      initialUrl.search = new URLSearchParams({ q: "in:inbox newer_than:90d -category:promotions -category:social", maxResults: "50", includeSpamTrash: "false" }).toString();
+      initialUrl.search = new URLSearchParams({ q: "in:inbox newer_than:90d -category:promotions -category:social", maxResults: current.recentOnly ? "10" : "50", includeSpamTrash: "false" }).toString();
       const listed = await request<{ messages?: Array<{ id: string }> }>(initialUrl);
       pending = messageIds((listed.messages ?? []).map((message) => message.id));
       notice ??= "Checked up to 50 recent inbox messages. Future checks follow new mail; attachments are not read.";
     }
-    const batch = [...new Set([...legacyMessageIds, ...pending])].slice(0, 5);
+    if (current.recentOnly) {
+      pending = pending.slice(0, 10);
+      pageToken = null;
+    }
+    const eligibleLegacyIds = current.recentOnly
+      ? legacyMessageIds.filter((messageId) => pending.includes(messageId))
+      : legacyMessageIds;
+    const batch = [...new Set([...eligibleLegacyIds, ...pending])].slice(0, current.recentOnly ? 10 : 5);
     const provider = createEmailStatusProvider({
       getAccessToken: () => accessToken(), messageIds: batch, lookbackDays: 90, now,
       provider: dependencies.provider,
@@ -194,13 +203,41 @@ export function createGmailService(db: GhostboardDb, dependencies: GmailDependen
     const updates = await provider.checkForUpdates(jobs);
     const processedIds = new Set(batch);
     pending = pending.filter((messageId) => !processedIds.has(messageId));
-    const remainingLegacy = legacyMessageIds.filter((messageId) => !processedIds.has(messageId));
+    const remainingLegacy = eligibleLegacyIds.filter((messageId) => !processedIds.has(messageId));
     const finished = !pending.length && !pageToken;
     const checkedAt = now().toISOString();
     let moved = 0;
     let created = 0;
     let noticed = 0;
     await db.transaction(async (transaction) => {
+      for (const record of storedRecords) {
+        const saved = record.suggestion;
+        if (record.decision !== "applied" || !saved.newStatus || saved.confidence < AUTOMATIC_UPDATE_CONFIDENCE
+          || !["moved", "created"].includes(saved.action ?? "") || saved.candidates.length !== 1) continue;
+        const candidate = saved.candidates[0];
+        const [application] = await transaction.select().from(applications).where(eq(applications.id, candidate.applicationId));
+        if (!application || !canMoveForward(application.status, saved.newStatus)) continue;
+        const restoredAt = now().toISOString();
+        const restoreKey = createHash("sha256").update(application.updatedAt).digest("hex").slice(0, 16);
+        await transaction.insert(applicationEvents).values({
+          id: `gmail:${record.id}:restore:${restoreKey}`,
+          applicationId: application.id,
+          type: "stage_changed",
+          title: `Restored to ${saved.newStatus}`,
+          description: "Restored from a previously confirmed high-confidence Gmail update",
+          occurredAt: restoredAt,
+          metadata: { source: "gmail", messageId: saved.messageId, threadId: saved.threadId, gmailReceivedAt: saved.receivedAt, automatic: true, fromStage: application.status, toStage: saved.newStatus },
+        }).onConflictDoNothing();
+        await transaction.update(applications).set({
+          status: saved.newStatus,
+          updatedAt: restoredAt,
+          dateApplied: application.dateApplied ?? saved.receivedAt,
+          lastActivityAt: Date.parse(application.lastActivityAt) > Date.parse(saved.receivedAt) ? application.lastActivityAt : saved.receivedAt,
+        }).where(eq(applications.id, application.id));
+        const index = jobs.findIndex((job) => job.id === application.id);
+        if (index >= 0) jobs[index] = { ...application, status: saved.newStatus, updatedAt: restoredAt };
+        moved++;
+      }
       for (const update of updates) {
         const id = createHash("sha256").update(`${account}\0${update.messageId}`).digest("hex");
         let candidates = update.candidates;
@@ -338,6 +375,13 @@ export function createGmailService(db: GhostboardDb, dependencies: GmailDependen
       const current = await load();
       if (!current?.tokens) throw new Error("Connect Gmail first.");
       await save({ ...current, automaticChecks: enabled });
+    }),
+    setRecentOnly: (enabled: unknown) => run(async () => {
+      if (typeof enabled !== "boolean") throw new Error("Choose whether Gmail should check only the 10 newest messages.");
+      const current = await load();
+      if (!current?.tokens) throw new Error("Connect Gmail first.");
+      await save({ ...current, recentOnly: enabled });
+      notice = enabled ? "Gmail checks are limited to the 10 newest queued messages." : "Gmail checks will continue through the full queued inbox scan.";
     }),
     disconnect: () => run(async () => {
       const current = await load();

@@ -42,6 +42,7 @@ export function registerGmailHandlers(db: GhostboardDb): void {
     [IPC_CHANNELS.gmailConnect, () => service.connect()],
     [IPC_CHANNELS.gmailCheck, () => service.check()],
     [IPC_CHANNELS.gmailAutomatic, (enabled) => service.setAutomaticChecks(enabled)],
+    [IPC_CHANNELS.gmailRecentOnly, (enabled) => service.setRecentOnly(enabled)],
     [IPC_CHANNELS.gmailDisconnect, () => service.disconnect()],
     [IPC_CHANNELS.gmailDismiss, (id) => service.dismiss(id)],
     [IPC_CHANNELS.gmailApply, (id, applicationId, updatedAt) => service.apply(id, applicationId, updatedAt)],

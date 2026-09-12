@@ -20,6 +20,7 @@ export interface GhostboardApi {
   connectGmail(): Promise<GmailState>;
   checkGmail(): Promise<GmailState>;
   setGmailAutomaticChecks(enabled: boolean): Promise<GmailState>;
+  setGmailRecentOnly(enabled: boolean): Promise<GmailState>;
   disconnectGmail(): Promise<GmailState>;
   dismissGmailSuggestion(id: string): Promise<GmailState>;
   applyGmailSuggestion(id: string, applicationId: string, expectedUpdatedAt: string): Promise<GmailState>;
@@ -38,6 +39,7 @@ const api: GhostboardApi = {
   connectGmail: () => ipcRenderer.invoke(IPC_CHANNELS.gmailConnect),
   checkGmail: () => ipcRenderer.invoke(IPC_CHANNELS.gmailCheck),
   setGmailAutomaticChecks: (enabled) => ipcRenderer.invoke(IPC_CHANNELS.gmailAutomatic, enabled),
+  setGmailRecentOnly: (enabled) => ipcRenderer.invoke(IPC_CHANNELS.gmailRecentOnly, enabled),
   disconnectGmail: () => ipcRenderer.invoke(IPC_CHANNELS.gmailDisconnect),
   dismissGmailSuggestion: (id) => ipcRenderer.invoke(IPC_CHANNELS.gmailDismiss, id),
   applyGmailSuggestion: (id, applicationId, updatedAt) => ipcRenderer.invoke(IPC_CHANNELS.gmailApply, id, applicationId, updatedAt),

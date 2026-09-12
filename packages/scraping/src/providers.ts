@@ -21,7 +21,7 @@ export function extractSourceJobId(rawUrl: string, provider = detectProvider(raw
   let url: URL;
   try { url = new URL(rawUrl); } catch { return null; }
   const parts = pathParts(url);
-  if (provider === "greenhouse") return url.searchParams.get("gh_jid") || parts.at(-1)?.match(/^\d+$/)?.[0] || null;
+  if (provider === "greenhouse") return url.searchParams.get("gh_jid") || url.searchParams.get("token") || parts.at(-1)?.match(/^\d+$/)?.[0] || null;
   if (provider === "lever" || provider === "ashby") return parts[1] ?? null;
   if (provider === "workday") return parts.at(-1)?.match(/(?:_|-)([A-Za-z]?\d{5,})$/)?.[1] || parts.at(-1) || null;
   if (provider === "linkedin") return url.searchParams.get("currentJobId") || parts.at(-1)?.match(/(\d{6,})$/)?.[1] || null;
@@ -55,7 +55,7 @@ const greenhouse: JobProvider = {
   async fetch(url, context) {
     const parts = pathParts(url);
     const boardIndex = parts.findIndex((part) => part === "jobs");
-    const board = boardIndex > 0 ? parts[boardIndex - 1] : parts[0];
+    const board = url.searchParams.get("for") || (boardIndex > 0 ? parts[boardIndex - 1] : parts[0]);
     const id = this.sourceJobId(url);
     if (!board || !id || !/^\d+$/.test(id)) return null;
     const endpoint = `https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(board)}/jobs/${encodeURIComponent(id)}`;

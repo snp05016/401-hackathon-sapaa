@@ -128,6 +128,23 @@ test("processed messages stay idempotent across rechecks", async () => {
   } finally { await context.cleanup(); }
 });
 
+test("a processed high-confidence update restores a card that was manually moved backward", async () => {
+  const context = await fixture();
+  try {
+    context.setConfidence(0.9);
+    await context.service.check();
+    await context.db.update(applications).set({ status: "found", updatedAt: "2026-09-12T12:30:00Z" });
+
+    const state = await context.service.check();
+    assert.equal(state.error, null);
+    assert.equal((await context.db.select().from(applications))[0].status, "interviewing");
+    assert.match(state.notice ?? "", /moved 1 job/);
+    const events = await context.db.select().from(applicationEvents);
+    assert.equal(events.length, 3);
+    assert.ok(events.some((event) => event.title === "Restored to interviewing"));
+  } finally { await context.cleanup(); }
+});
+
 test("an older pipeline status cannot move an application backward", async () => {
   const context = await fixture();
   try {
@@ -199,5 +216,24 @@ test("connection requests only identify the account until the user checks emails
     const result = await context.service.connect();
     assert.equal(result.connected, true); assert.equal(result.automaticChecks, false);
     assert.equal(context.calls.length, 1); assert.ok(context.calls[0].pathname.endsWith("/profile"));
+  } finally { await context.cleanup(); }
+});
+
+test("recent-only mode persists and limits the initial scan to ten messages in one check", async () => {
+  const context = await fixture();
+  try {
+    context.setMock((url) => {
+      if (url.pathname.endsWith("/profile")) return Response.json({ emailAddress: "test@example.com", historyId: "100" });
+      if (url.pathname.endsWith("/messages")) return Response.json({ messages: Array.from({ length: 12 }, (_, index) => ({ id: `m${index + 1}` })) });
+      return Response.json(message(url.pathname.split("/").at(-1)!));
+    });
+    let state = await context.service.setRecentOnly(true);
+    assert.equal(state.recentOnly, true);
+    state = await context.service.check();
+    assert.equal(state.error, null);
+    assert.equal(state.suggestions.length, 10);
+    assert.equal(state.hasMore, false);
+    assert.equal(context.calls.find((url) => url.pathname.endsWith("/messages"))?.searchParams.get("maxResults"), "10");
+    assert.equal((await context.store.load())?.recentOnly, true);
   } finally { await context.cleanup(); }
 });

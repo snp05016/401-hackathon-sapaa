@@ -72,7 +72,7 @@ test("credential store encrypts, survives reopen, detects corruption, and refuse
     decrypt: (buffer: Buffer) => { const cipher = createDecipheriv("aes-256-gcm", key, buffer.subarray(0, 12)); cipher.setAuthTag(buffer.subarray(12, 28)); return Buffer.concat([cipher.update(buffer.subarray(28)), cipher.final()]).toString("utf8"); },
   };
   const store = createGmailStore(directory, secrets);
-  const value = { credentials, tokens: { accessToken: "private-token", refreshToken: "private-refresh", expiresAt: Date.now() + 3600000 }, account: "test@example.com", automaticChecks: false };
+  const value = { credentials, tokens: { accessToken: "private-token", refreshToken: "private-refresh", expiresAt: Date.now() + 3600000 }, account: "test@example.com", automaticChecks: false, recentOnly: false };
   try {
     assert.equal(await store.load(), null);
     await store.save(value);

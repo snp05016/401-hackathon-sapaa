@@ -4,6 +4,7 @@ export const IPC_CHANNELS = {
   gmailConnect: "gmail:connect",
   gmailCheck: "gmail:check",
   gmailAutomatic: "gmail:automatic",
+  gmailRecentOnly: "gmail:recent-only",
   gmailDisconnect: "gmail:disconnect",
   gmailDismiss: "gmail:dismiss",
   gmailApply: "gmail:apply",

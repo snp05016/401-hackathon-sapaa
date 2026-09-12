@@ -88,6 +88,10 @@ export function GmailPanel({ onUpdated, heading = "Gmail status updates" }: { on
           <input type="checkbox" checked={state.automaticChecks} disabled={busy} onChange={(event) => { const enabled = event.target.checked; void perform(() => ipc().setGmailAutomaticChecks(enabled)); }} />
           Check automatically every 5 minutes while the app is running
         </label>}
+        {state.connected && <label className="mt-2 flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={state.recentOnly} disabled={busy} onChange={(event) => { const enabled = event.target.checked; void perform(() => ipc().setGmailRecentOnly(enabled)); }} />
+          Only check the 10 newest emails
+        </label>}
         {state.lastCheckedAt && <p className="mt-2 text-xs text-slate-500">Last successful batch: {new Date(state.lastCheckedAt).toLocaleString()}</p>}
         {state.connected && !state.suggestions.length && <p className="mt-3 text-sm text-slate-600">No recruiter activity found yet. Click Check Gmail to look for updates.</p>}
         {!!state.suggestions.length && <>
