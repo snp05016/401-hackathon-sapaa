@@ -1,7 +1,8 @@
 import { app, BrowserWindow } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { BRIDGE_DEFAULT_PORT } from "@ghostboard/shared";
+import { BRIDGE_DEFAULT_PORT, isExtensionConnectRequest } from "@ghostboard/shared";
+import { createExtensionMessageServer } from "@ghostboard/extension-messaging";
 import { initDb } from "./db/index";
 import { createBridgeServer } from "./bridge/server";
 import { getOrCreateBridgeToken } from "./bridge/token";
@@ -58,6 +59,14 @@ if (!hasSingleInstanceLock) {
     const port = Number(process.env.GHOSTBOARD_BRIDGE_PORT) || BRIDGE_DEFAULT_PORT;
     const { token } = getOrCreateBridgeToken(port);
     createBridgeServer(db, token, port);
+    const extensionMessageServer = createExtensionMessageServer({});
+    extensionMessageServer.onJsonMessage((message, client) => {
+      if (!isExtensionConnectRequest(message)) return;
+      extensionMessageServer.sendJsonTo(client, { type: "bridge-authentication", port, token });
+    });
+    app.once("before-quit", () => {
+      void extensionMessageServer.close();
+    });
 
     createWindow();
 

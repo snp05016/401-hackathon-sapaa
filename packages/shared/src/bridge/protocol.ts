@@ -4,7 +4,41 @@ import type { Profile } from "../types/profile";
 import type { DetectedFormField } from "../types/form";
 
 export const BRIDGE_DEFAULT_PORT = 4173;
+export const BRIDGE_EXTENSION_MESSAGES_DEFAULT_PORT = 4174;
+export const BRIDGE_EXTENSION_MESSAGES_PATH = "/extension-messages";
 export const BRIDGE_TOKEN_HEADER = "authorization";
+
+export interface ExtensionConnectRequest {
+  type: "extension-connect";
+}
+
+export interface ExtensionAuthenticationMessage {
+  type: "bridge-authentication";
+  port: number;
+  token: string;
+}
+
+export function isExtensionConnectRequest(message: unknown): message is ExtensionConnectRequest {
+  return (
+    typeof message === "object" &&
+    message !== null &&
+    (message as { type?: unknown }).type === "extension-connect"
+  );
+}
+
+export function isExtensionAuthenticationMessage(message: unknown): message is ExtensionAuthenticationMessage {
+  if (typeof message !== "object" || message === null) return false;
+  const candidate = message as { type?: unknown; port?: unknown; token?: unknown };
+  return (
+    candidate.type === "bridge-authentication" &&
+    typeof candidate.port === "number" &&
+    Number.isInteger(candidate.port) &&
+    candidate.port > 0 &&
+    candidate.port <= 65_535 &&
+    typeof candidate.token === "string" &&
+    candidate.token.length > 0
+  );
+}
 
 export interface BridgeErrorResponse {
   error: string;

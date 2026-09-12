@@ -1,9 +1,11 @@
 import type { ExtensionMessage } from "../shared/messages";
 import type { IngestJobResponse, JobPosting } from "@ghostboard/shared";
-import { postJson } from "./bridgeClient";
+import { postJson, startBridgeMessageReceiver } from "./bridgeClient";
 
 // ponytail: in-memory per-tab state, resets on service-worker restart — fine for a hackathon popup
 const detectedJobByTab = new Map<number, { job: JobPosting; confidence: number }>();
+
+startBridgeMessageReceiver();
 
 chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendResponse) => {
   const tabId = sender.tab?.id;
