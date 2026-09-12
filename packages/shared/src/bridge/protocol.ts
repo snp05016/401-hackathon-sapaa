@@ -20,19 +20,56 @@ export interface ProfileResponse {
 }
 
 export interface CreateJobRequest {
+  id?: string;
+  fingerprint?: string;
+  contentFingerprint?: string | null;
   company: string;
   title: string;
   location: string | null;
   jobUrl: string;
   jobDescription: string;
   source: string;
+  sourceJobId?: string | null;
+  employmentType?: string | null;
+  requirements?: JobPosting["requirements"];
+  keywords?: JobPosting["keywords"];
   postedAt: string | null;
   salaryRange: string | null;
+  scrapedAt?: string;
 }
 
 export interface CreateJobResponse {
   job: JobPosting;
   applicationId: string;
+}
+
+/** A serialization-safe page capture produced by the Chromium extension. */
+export interface JobPageSnapshot {
+  url: string;
+  pageTitle?: string;
+  html?: string;
+  visibleText?: string;
+  selectedContent?: string[];
+  metadata?: Record<string, string>;
+  capturedAt?: string;
+}
+
+export interface IngestJobRequest {
+  url: string;
+  html?: string;
+  visibleText?: string;
+  snapshot?: JobPageSnapshot;
+}
+
+export type JobDetectionOutcome = "job" | "not_job" | "uncertain";
+
+export interface IngestJobResponse {
+  outcome: JobDetectionOutcome;
+  confidence: number;
+  posting?: JobPosting;
+  evidence: string[];
+  warnings: string[];
+  cached: boolean;
 }
 
 export interface UpsertApplicationRequest {
@@ -56,6 +93,7 @@ export interface PageContextRequest {
   pageType: "job_posting" | "application_form" | "unknown";
   detectedJob?: Partial<JobPosting>;
   detectedFields?: DetectedFormField[];
+  snapshot?: JobPageSnapshot;
 }
 
 export interface PageContextResponse {

@@ -19,18 +19,10 @@ returns, so the app runs end-to-end without crashing. Grab a task, ship it.
 
 ## Intermediate
 
-- **Keyword extraction + resume comparison** — `packages/matching/src/keywords.ts`,
-  `extractKeywords()` and `compareResumeToJob()`. Both return empty results.
-  Implement TF-IDF, RAKE, or an LLM-based extractor (there's already a
-  working `@ghostboard/ai` provider to call).
 - **`moveApplication` persistence** — `apps/desktop/src/components/kanban/moveApplication.ts`.
   Currently always throws (`KanbanBoard.tsx` already does a real optimistic
   local move + reverts on this throw, showing a banner). Wire it to an IPC
   call that updates the DB and inserts a `stage_changed` `ApplicationEvent`.
-- **Site-specific scraping adapters** — `packages/scraping/src/adapters/README.md`.
-  Only `genericScraper.ts` exists. Add LinkedIn / Greenhouse / Lever adapters
-  implementing the `JobScraper` interface (`packages/scraping/src/types.ts`)
-  with higher confidence than the 0.4 generic fallback.
 - **Extension `host_permissions` scoping** — `apps/extension/manifest.json`.
   Currently `<all_urls>` content-script + `http://127.0.0.1/*` host
   permission, which is broader than needed. Scope the content script to
@@ -38,9 +30,6 @@ returns, so the app runs end-to-end without crashing. Grab a task, ship it.
 
 ## Advanced
 
-- **Job similarity embeddings** — `packages/matching/src/similarity.ts`,
-  `calculateJobSimilarity()`. Currently returns `[]`. Implement embedding
-  cosine similarity (or keyword-overlap fallback) across `JobPosting`s.
 - **Resume LaTeX tailoring** — `packages/resume/src/customizeResume.ts` +
   `latex.ts`. Provider plumbing (`getProvider()` from `@ghostboard/ai`) is
   real and wired but unused — the function just echoes the input LaTeX back.
@@ -54,3 +43,13 @@ returns, so the app runs end-to-end without crashing. Grab a task, ship it.
   write values into form fields. Once `matchFormField` is real, add a
   content-script action that fills matched fields on `application_form`
   pages.
+
+## Completed: Job Intelligence & Ingestion
+
+- Canonical URL/HTML/live-page ingestion with JSON-LD-first extraction.
+- Greenhouse, Lever, Workday, and Ashby public API paths; LinkedIn/Indeed
+  snapshot-aware fallback; cleaned generic HTML extraction.
+- Deterministic categorized keyword ranking and resume comparison (no LLM).
+- Stable identity/content fingerprints, duplicate helpers, and explainable
+  weighted job similarity.
+- Extension snapshots sent to `POST /job-intelligence/ingest`.

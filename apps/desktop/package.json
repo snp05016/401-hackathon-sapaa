@@ -17,6 +17,7 @@
     "@ghostboard/database": "*",
     "@ghostboard/matching": "*",
     "@ghostboard/resume": "*",
+    "@ghostboard/scraping": "*",
     "@ghostboard/shared": "*",
     "@ghostboard/tracking": "*",
     "drizzle-orm": "^0.33.0",

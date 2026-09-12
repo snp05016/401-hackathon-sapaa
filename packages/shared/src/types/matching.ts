@@ -3,6 +3,7 @@ export interface KeywordResult {
   score: number;
   foundInResume: boolean;
   frequency: number;
+  category?: import("./job").KeywordCategory;
 }
 
 export interface JobSimilarityResult {
@@ -10,4 +11,5 @@ export interface JobSimilarityResult {
   similarJobId: string;
   score: number;
   sharedKeywords: string[];
+  reasons: string[];
 }
