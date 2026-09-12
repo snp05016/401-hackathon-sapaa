@@ -24,6 +24,12 @@ function firstText(document: Document, selectors: string[]): string | null {
   return null;
 }
 
+/** Strips a trailing " | SiteName" (or " - "/" · " separated) segment from a raw <title>. */
+function titleWithoutSiteSuffix(rawTitle: string): string | null {
+  const parts = rawTitle.split(/\s[-|·]\s/).map(normalizeInline).filter(Boolean);
+  return parts[0] || null;
+}
+
 function meta(document: Document, names: string[]): string | null {
   for (const name of names) {
     const element = document.querySelector(`meta[property="${name}"], meta[name="${name}"]`);
@@ -55,7 +61,7 @@ export function draftFromDocument(url: string, document: Document): { draft: Job
     source: provider,
     sourceJobId: extractSourceJobId(url, provider),
     url,
-    title: firstText(document, ["h1", '[data-automation-id="jobPostingHeader"]']) || meta(document, ["og:title", "twitter:title"]) || normalizeInline(document.title),
+    title: firstText(document, ["h1", '[data-automation-id="jobPostingHeader"]']) || meta(document, ["og:title", "twitter:title"]) || titleWithoutSiteSuffix(document.title),
     company: firstText(document, ["[itemprop='hiringOrganization']", ".company-name", '[data-automation-id="company"]'])
       || meta(document, ["og:site_name", "application-name"])
       || (provider === "greenhouse" ? greenhouseCompanyFromPageTitle(document.title) : null),
