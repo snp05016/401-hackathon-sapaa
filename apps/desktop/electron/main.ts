@@ -8,6 +8,7 @@ import { getOrCreateBridgeToken } from "./bridge/token";
 import { registerIpcHandlers } from "./ipc/handlers";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -40,21 +41,32 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(async () => {
-  const db = await initDb();
-  registerIpcHandlers(db);
-
-  const port = Number(process.env.GHOSTBOARD_BRIDGE_PORT) || BRIDGE_DEFAULT_PORT;
-  const { token } = getOrCreateBridgeToken(port);
-  createBridgeServer(db, token, port);
-
-  createWindow();
-
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+if (!hasSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    const existingWindow = BrowserWindow.getAllWindows()[0];
+    if (!existingWindow) return;
+    if (existingWindow.isMinimized()) existingWindow.restore();
+    existingWindow.focus();
   });
-});
 
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
-});
+  app.whenReady().then(async () => {
+    const db = await initDb();
+    registerIpcHandlers(db);
+
+    const port = Number(process.env.GHOSTBOARD_BRIDGE_PORT) || BRIDGE_DEFAULT_PORT;
+    const { token } = getOrCreateBridgeToken(port);
+    createBridgeServer(db, token, port);
+
+    createWindow();
+
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
+  });
+
+  app.on("window-all-closed", () => {
+    if (process.platform !== "darwin") app.quit();
+  });
+}
