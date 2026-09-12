@@ -18,7 +18,8 @@
         "https://*.myworkdayjobs.com/*",
         "https://jobs.ashbyhq.com/*",
         "https://*.linkedin.com/*",
-        "https://*.indeed.com/*"
+        "https://*.indeed.com/*",
+        "https://www.getjobber.com/*"
       ],
       "js": ["src/content/index.ts"],
       "run_at": "document_idle"

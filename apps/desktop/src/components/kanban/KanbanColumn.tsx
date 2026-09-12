@@ -18,10 +18,12 @@ export function KanbanColumn({
   stage,
   applications,
   index,
+  onOpen,
 }: {
   stage: ApplicationStage;
   applications: Application[];
   index: number;
+  onOpen: (application: Application) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage });
   const subtitle = STAGE_SUBTITLES[stage];
@@ -47,7 +49,7 @@ export function KanbanColumn({
           <SortableContext items={applications.map((a) => a.id)} strategy={verticalListSortingStrategy}>
             <div className="min-h-[44px]">
               {applications.map((app) => (
-                <KanbanCard key={app.id} application={app} stage={stage} />
+                <KanbanCard key={app.id} application={app} stage={stage} onOpen={onOpen} />
               ))}
               {applications.length === 0 && emptyLine && (
                 <p className="pt-1 text-[11px] italic text-ink-3">{emptyLine}</p>
