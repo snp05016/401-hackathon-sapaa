@@ -10,7 +10,7 @@
     "dev": "npm run dev --workspace=apps/desktop",
     "dev:extension": "npm run dev --workspace=apps/extension",
     "build": "npm run build --workspaces --if-present",
-    "test": "tsx --test packages/scraping/src/*.test.ts packages/matching/src/*.test.ts packages/autofill/src/*.test.ts packages/resume/src/*.test.ts packages/tracking/src/*.test.ts packages/tracking/src/statusProviders/*.test.ts packages/extension-messaging/src/*.test.ts apps/desktop/electron/db/*.test.ts apps/desktop/electron/gmail/*.test.ts",
+  "test": "tsx --test packages/scraping/src/*.test.ts packages/matching/src/*.test.ts packages/autofill/src/*.test.ts packages/tracking/src/*.test.ts packages/tracking/src/statusProviders/*.test.ts packages/extension-messaging/src/*.test.ts apps/desktop/electron/db/*.test.ts apps/desktop/electron/gmail/*.test.ts packages/resume/src/*.test.ts apps/desktop/electron/resume/*.test.ts",
     "db:generate": "npm run db:generate --workspace=@ghostboard/database",
     "db:seed": "tsx fixtures/seed-data.ts",
     "typecheck": "for d in packages/shared packages/database packages/ai packages/scraping packages/matching packages/autofill packages/resume packages/tracking packages/extension-messaging apps/desktop apps/extension; do echo \"== $d ==\" && tsc --noEmit -p $d || exit 1; done",

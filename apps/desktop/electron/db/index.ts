@@ -3,8 +3,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createDb, runMigrations, type GhostboardDb } from "@ghostboard/database";
-import type { Profile, ProfileField, MasterResume } from "@ghostboard/shared";
-import { parseResumeReference } from "@ghostboard/resume";
+import type { ExperienceEntry, MasterResume, Profile, ProfileField, TailoredResumeRecord } from "@ghostboard/shared";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -98,34 +97,98 @@ function masterResumePath(): string {
   return path.join(app.getPath("userData"), "master-resume.json");
 }
 
-export function readMasterResume(): MasterResume {
-  const file = masterResumePath();
+function experienceBankPath(): string {
+  return path.join(app.getPath("userData"), "experience-bank.json");
+}
+
+function tailoredResumesPath(): string {
+  return path.join(app.getPath("userData"), "tailored-resumes.json");
+}
+
+function isMasterResume(value: unknown): value is MasterResume {
+  return !!value && typeof value === "object" && typeof (value as { id?: unknown }).id === "string";
+}
+
+function isExperienceEntry(value: unknown): value is ExperienceEntry {
+  if (!value || typeof value !== "object") return false;
+  const entry = value as Record<string, unknown>;
+  return typeof entry.id === "string"
+    && typeof entry.role === "string"
+    && typeof entry.employer === "string"
+    && Array.isArray(entry.bullets) && entry.bullets.every((bullet) => typeof bullet === "string")
+    && Array.isArray(entry.skills) && entry.skills.every((skill) => typeof skill === "string");
+}
+
+function isExperienceBankFile(value: unknown): value is { version: 1; entries: ExperienceEntry[] } {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as { version?: unknown; entries?: unknown };
+  return candidate.version === 1 && Array.isArray(candidate.entries) && candidate.entries.every(isExperienceEntry);
+}
+
+function isTailoredResumeRecord(value: unknown): value is TailoredResumeRecord {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  return typeof record.id === "string" && typeof record.latex === "string";
+}
+
+function isTailoredResumeFile(value: unknown): value is { version: 1; records: TailoredResumeRecord[] } {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as { version?: unknown; records?: unknown };
+  return candidate.version === 1 && Array.isArray(candidate.records) && candidate.records.every(isTailoredResumeRecord);
+}
+
+/**
+ * Seed a fresh JSON file on first read and fall back to a seeded value on
+ * corrupt content so main never crashes on a hand-edited or partial file.
+ */
+function readJsonFile<T>(file: string, isWellFormed: (value: unknown) => value is T, seed: () => T): T {
   if (!fs.existsSync(file)) {
-    const seeded: MasterResume = { id: "local", latex: "", reference: parseResumeReference(""), updatedAt: new Date().toISOString() };
-    fs.writeFileSync(file, JSON.stringify(seeded, null, 2));
-    return seeded;
+    const value = seed();
+    fs.writeFileSync(file, JSON.stringify(value, null, 2));
+    return value;
   }
-  const parsed = JSON.parse(fs.readFileSync(file, "utf-8")) as MasterResume;
-  const latex = typeof parsed.latex === "string" ? parsed.latex : "";
-  const resume: MasterResume = {
-    id: "local",
-    latex,
-    reference: parseResumeReference(latex),
-    updatedAt: parsed.updatedAt ?? new Date().toISOString(),
-  };
-  if (JSON.stringify(parsed) !== JSON.stringify(resume)) {
-    fs.writeFileSync(file, JSON.stringify(resume, null, 2));
+  try {
+    const parsed: unknown = JSON.parse(fs.readFileSync(file, "utf-8"));
+    if (isWellFormed(parsed)) return parsed;
+  } catch {
+    return seed();
   }
-  return resume;
+  return seed();
+}
+
+/** Read-only: nothing currently persists a master resume from the UI, so this seeds an empty placeholder on first read. */
+export function readMasterResume(): MasterResume {
+  return readJsonFile(masterResumePath(), isMasterResume, () => ({ id: "local", latex: "", updatedAt: new Date().toISOString() }));
 }
 
 export function writeMasterResume(latex: string): MasterResume {
-  const resume: MasterResume = {
-    id: "local",
-    latex,
-    reference: parseResumeReference(latex),
-    updatedAt: new Date().toISOString(),
-  };
-  fs.writeFileSync(masterResumePath(), JSON.stringify(resume, null, 2));
-  return resume;
+  const master: MasterResume = { id: "local", latex, updatedAt: new Date().toISOString() };
+  fs.writeFileSync(masterResumePath(), JSON.stringify(master, null, 2));
+  return master;
+}
+
+export function readExperienceBank(): ExperienceEntry[] {
+  return readJsonFile(
+    experienceBankPath(),
+    isExperienceBankFile,
+    (): { version: 1; entries: ExperienceEntry[] } => ({ version: 1, entries: [] }),
+  ).entries;
+}
+
+export function writeExperienceBank(entries: ExperienceEntry[]): ExperienceEntry[] {
+  fs.writeFileSync(experienceBankPath(), JSON.stringify({ version: 1, entries }, null, 2));
+  return entries;
+}
+
+export function readTailoredResumes(): TailoredResumeRecord[] {
+  return readJsonFile(
+    tailoredResumesPath(),
+    isTailoredResumeFile,
+    (): { version: 1; records: TailoredResumeRecord[] } => ({ version: 1, records: [] }),
+  ).records;
+}
+
+export function writeTailoredResumes(records: TailoredResumeRecord[]): TailoredResumeRecord[] {
+  fs.writeFileSync(tailoredResumesPath(), JSON.stringify({ version: 1, records }, null, 2));
+  return records;
 }
