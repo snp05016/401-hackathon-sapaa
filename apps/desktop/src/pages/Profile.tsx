@@ -111,7 +111,7 @@ export function Profile() {
           {saved && <span role="status" className="text-[12px] text-verdigris">Profile saved.</span>}
         </div>
 
-        {bridge && <section className="mt-12 border-t border-hairline pt-7" aria-labelledby="extension-bridge-heading">
+        {/*{bridge && <section className="mt-12 border-t border-hairline pt-7" aria-labelledby="extension-bridge-heading">
           <h2 id="extension-bridge-heading" className="font-display text-[28px] text-ink">Browser extension</h2>
           <p className="mt-2 text-[12px] leading-relaxed text-ink-2">Paste this port and token into the Ghostboard browser extension settings.</p>
           <label className="mt-5 block text-[12px] text-ink-2" htmlFor="bridge-port">Port</label>
@@ -122,7 +122,7 @@ export function Profile() {
             <Button variant="outline" onClick={() => { void navigator.clipboard.writeText(bridge.token).then(() => setCopied(true)); }}>Copy token</Button>
             {copied && <span role="status" className="text-[12px] text-verdigris">Token copied.</span>}
           </div>
-        </section>}
+        </section>}*/}
       </div>
     </div>
   );

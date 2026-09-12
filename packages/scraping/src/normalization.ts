@@ -98,7 +98,6 @@ export function fingerprintJob(draft: JobExtractionDraft): string {
     identityText(draft.company),
     identityText(draft.title),
     identityText(draft.location),
-    identityText(draft.employmentType),
   ].join("|"));
 }
 
