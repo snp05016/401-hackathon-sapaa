@@ -649,6 +649,11 @@ export function Resumes() {
       setUsingSample(false);
       setMasterSaveState("saved");
       playSound("success");
+
+      const parsedEntries = await ipc().extractExperienceEntries(submitted);
+      const updatedEntries = await ipc().importExperienceEntries(parsedEntries);
+      setExperienceEntries(updatedEntries);
+      setExperienceError(null);
     } catch (error) {
       setMasterSaveState("error");
       setMasterSaveError(errorMessage(error, "Could not save the master resume."));
