@@ -30,6 +30,8 @@ const MAIN_ENVIRONMENT_KEYS = [
   "JOBSPY_URL",
   "GOOGLE_CLIENT_ID",
   "GOOGLE_CLIENT_SECRET",
+  "AGY_PATH",
+  "AGY_MODEL",
 ] as const;
 
 export default defineConfig(({ mode }) => {

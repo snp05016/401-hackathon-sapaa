@@ -94,6 +94,18 @@ export interface GemmaJobSummaryRequest {
   description: string;
 }
 
+export interface GemmaFollowUpTailoringRequest {
+  company: string;
+  title: string;
+  jobDescription: string;
+  template: string;
+  kind: "application" | "interview" | "thank_you";
+}
+
+export interface GemmaFollowUpTailoringResult {
+  body: string;
+}
+
 export interface GhostboardApi {
   getGmailState(): Promise<GmailState>;
   importGmailCredentials(): Promise<GmailState>;
@@ -109,6 +121,7 @@ export interface GhostboardApi {
   searchDiscoveredJobs(request: DiscoverSearchRequest): Promise<DiscoverSearchResponse>;
   predictJobTitle(prompt: string): Promise<GemmaPrediction>;
   summarizeJobDescription(request: GemmaJobSummaryRequest): Promise<GemmaJobSummary>;
+  tailorFollowUpMessage(request: GemmaFollowUpTailoringRequest): Promise<GemmaFollowUpTailoringResult>;
   saveDiscoveredJob(job: DiscoveredJob): Promise<SaveDiscoveredJobResult>;
   visitDiscoveredJob(job: DiscoveredJob, targetUrl?: string): Promise<SaveDiscoveredJobResult>;
   updateDeadline(applicationId: string, deadline: string | null): Promise<Application>;
@@ -152,6 +165,7 @@ const api: GhostboardApi = {
   searchDiscoveredJobs: (request) => ipcRenderer.invoke(IPC_CHANNELS.searchDiscoveredJobs, request),
   predictJobTitle: (prompt) => ipcRenderer.invoke(IPC_CHANNELS.predictJobTitle, prompt),
   summarizeJobDescription: (request) => ipcRenderer.invoke(IPC_CHANNELS.summarizeJobDescription, request),
+  tailorFollowUpMessage: (request) => ipcRenderer.invoke(IPC_CHANNELS.tailorFollowUpMessage, request),
   saveDiscoveredJob: (job) => ipcRenderer.invoke(IPC_CHANNELS.saveDiscoveredJob, job),
   visitDiscoveredJob: (job, targetUrl) => ipcRenderer.invoke(IPC_CHANNELS.visitDiscoveredJob, job, targetUrl),
   updateDeadline: (applicationId, deadline) => ipcRenderer.invoke(IPC_CHANNELS.updateDeadline, applicationId, deadline),
