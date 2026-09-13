@@ -392,7 +392,7 @@ export function SkillsGraph() {
               graphData={graphData}
               width={size.width}
               height={size.height}
-              backgroundColor="transparent"  
+              backgroundColor="transparent"    
               nodeId="id"
               nodeVal={(node: any) => Math.pow((node as NodeData).size / 4, 2)}
               nodeCanvasObjectMode="replace"
