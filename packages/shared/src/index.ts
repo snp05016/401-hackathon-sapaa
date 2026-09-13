@@ -6,4 +6,5 @@ export * from "./types/form";
 export * from "./types/matching";
 export * from "./types/tracking";
 export * from "./bridge/protocol";
+export * from "./bridge/syncProtocol";
 export * from "./constants";

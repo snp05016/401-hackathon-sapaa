@@ -18,10 +18,16 @@ import type {
 } from "../preload";
 import { readMasterResume, readProfile, writeMasterResume, writeProfile } from "../db/index";
 import { readBridgeFile } from "../bridge/token";
+import { readSyncPairingInfo } from "../sync/info";
 import { IPC_CHANNELS } from "./channels";
 import { updateApplicationDeadline } from "../db/deadlines";
+import type { GemmaCompletionService } from "../gemma/service";
 
-export function registerIpcHandlers(db: GhostboardDb, ensureJobSpyReady: () => Promise<void> = async () => undefined): void {
+export function registerIpcHandlers(
+  db: GhostboardDb,
+  ensureJobSpyReady: () => Promise<void> = async () => undefined,
+  gemmaCompletionService?: GemmaCompletionService,
+): void {
   registerGmailHandlers(db);
   registerResumeHandlers();
   ipcMain.handle(IPC_CHANNELS.updateDeadline, (_event, applicationId: unknown, deadline: unknown) => {
@@ -38,6 +44,10 @@ export function registerIpcHandlers(db: GhostboardDb, ensureJobSpyReady: () => P
       throw new Error(`Job discovery could not start: ${detail}`);
     }
     return searchDiscoveredJobs(request);
+  });
+  ipcMain.handle(IPC_CHANNELS.predictJobTitle, (_event, prompt: unknown) => {
+    if (!gemmaCompletionService) throw new Error("Local title predictions are unavailable.");
+    return gemmaCompletionService.predict(prompt);
   });
   ipcMain.handle(IPC_CHANNELS.saveDiscoveredJob, (_event, job: DiscoveredJob) => {
     return saveDiscoveredJob(db, job);
@@ -146,6 +156,10 @@ export function registerIpcHandlers(db: GhostboardDb, ensureJobSpyReady: () => P
 
   ipcMain.handle(IPC_CHANNELS.bridgeInfo, () => {
     return readBridgeFile();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.syncInfo, () => {
+    return readSyncPairingInfo();
   });
 }
 

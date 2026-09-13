@@ -72,6 +72,18 @@ export interface MoveApplicationResult {
   event: ApplicationEvent | null;
 }
 
+export interface SyncPairingInfo {
+  enabled: boolean;
+  port: number;
+  addresses: string[];
+  token: string;
+  error: string | null;
+}
+
+export interface GemmaPrediction {
+  completion: string;
+}
+
 export interface GhostboardApi {
   getGmailState(): Promise<GmailState>;
   importGmailCredentials(): Promise<GmailState>;
@@ -85,6 +97,7 @@ export interface GhostboardApi {
   cancelGmail(): Promise<void>;
   listApplications(): Promise<Application[]>;
   searchDiscoveredJobs(request: DiscoverSearchRequest): Promise<DiscoverSearchResponse>;
+  predictJobTitle(prompt: string): Promise<GemmaPrediction>;
   saveDiscoveredJob(job: DiscoveredJob): Promise<SaveDiscoveredJobResult>;
   visitDiscoveredJob(job: DiscoveredJob, targetUrl?: string): Promise<SaveDiscoveredJobResult>;
   updateDeadline(applicationId: string, deadline: string | null): Promise<Application>;
@@ -95,6 +108,7 @@ export interface GhostboardApi {
   getProfile(): Promise<Profile>;
   saveProfile(fields: ProfileField[]): Promise<Profile>;
   getBridgeInfo(): Promise<{ port: number; token: string } | null>;
+  getSyncInfo(): Promise<SyncPairingInfo>;
   getMasterResume(): Promise<MasterResume>;
   saveMasterResume(latex: string): Promise<MasterResume>;
   listExperienceEntries(): Promise<ExperienceEntry[]>;
@@ -125,6 +139,7 @@ const api: GhostboardApi = {
   cancelGmail: () => ipcRenderer.invoke(IPC_CHANNELS.gmailCancel),
   listApplications: () => ipcRenderer.invoke(IPC_CHANNELS.listApplications),
   searchDiscoveredJobs: (request) => ipcRenderer.invoke(IPC_CHANNELS.searchDiscoveredJobs, request),
+  predictJobTitle: (prompt) => ipcRenderer.invoke(IPC_CHANNELS.predictJobTitle, prompt),
   saveDiscoveredJob: (job) => ipcRenderer.invoke(IPC_CHANNELS.saveDiscoveredJob, job),
   visitDiscoveredJob: (job, targetUrl) => ipcRenderer.invoke(IPC_CHANNELS.visitDiscoveredJob, job, targetUrl),
   updateDeadline: (applicationId, deadline) => ipcRenderer.invoke(IPC_CHANNELS.updateDeadline, applicationId, deadline),
@@ -135,6 +150,7 @@ const api: GhostboardApi = {
   getProfile: () => ipcRenderer.invoke(IPC_CHANNELS.getProfile),
   saveProfile: (fields) => ipcRenderer.invoke(IPC_CHANNELS.saveProfile, fields),
   getBridgeInfo: () => ipcRenderer.invoke(IPC_CHANNELS.bridgeInfo),
+  getSyncInfo: () => ipcRenderer.invoke(IPC_CHANNELS.syncInfo),
   getMasterResume: () => ipcRenderer.invoke(IPC_CHANNELS.resumeMasterGet),
   saveMasterResume: (latex) => ipcRenderer.invoke(IPC_CHANNELS.resumeMasterSave, latex),
   listExperienceEntries: () => ipcRenderer.invoke(IPC_CHANNELS.resumeExperienceList),
