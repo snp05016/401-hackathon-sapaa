@@ -34,11 +34,13 @@ function useApplicationsData(): ApplicationsState {
     void load();
     const refresh = () => { void load(); };
     window.addEventListener("focus", refresh);
+    const unsubscribe = ipc().onApplicationsChanged(refresh);
     // Refresh jobs saved by the extension and roll deadline counts over at midnight.
     const interval = window.setInterval(refresh, 60_000);
     return () => {
       active = false;
       window.removeEventListener("focus", refresh);
+      unsubscribe();
       window.clearInterval(interval);
     };
   }, [revision]);

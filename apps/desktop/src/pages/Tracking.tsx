@@ -285,7 +285,13 @@ export function Tracking() {
                     <td className="min-w-[170px] max-w-xs break-words px-3 py-5 pl-0">
                       <div className="flex items-start gap-2">
                         <div className="font-semibold text-ink">{application.company}</div>
-                        {isGhosting && <GhostBadge days={staleness.daysSinceLastActivity} className="mt-0.5" />}
+                        {isGhosting && (
+                          <GhostBadge
+                            days={staleness.daysSinceLastActivity}
+                            className="mt-0.5"
+                            imageClassName="grayscale"
+                          />
+                        )}
                       </div>
                       <div className="mt-0.5 text-ink-2">{application.title}</div>
                       {mixedKeysByApplicationId.has(application.id) && (

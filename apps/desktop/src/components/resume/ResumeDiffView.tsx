@@ -157,7 +157,7 @@ export function ResumeDiffView({
             </div>
             <div className="flex items-center gap-2 px-3.5 py-2 text-verdigris">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-verdigris" />
-              <span>After (Antigravity)</span>
+              <span>After (Casper)</span>
             </div>
           </div>
 

@@ -6,7 +6,15 @@ import { cn } from "../../lib/utils";
  * staleness threshold (see @ghostboard/tracking evaluateApplicationStaleness).
  * Subtle by design per the product brief: a small drifting ghost, not a banner.
  */
-export function GhostBadge({ days, className }: { days: number; className?: string }) {
+export function GhostBadge({
+  days,
+  className,
+  imageClassName,
+}: {
+  days: number;
+  className?: string;
+  imageClassName?: string;
+}) {
   const label = `Possibly ghosted — no response in ${days} day${days === 1 ? "" : "s"}`;
 
   return (
@@ -22,7 +30,7 @@ export function GhostBadge({ days, className }: { days: number; className?: stri
         alt=""
         width={22}
         height={22}
-        className="animate-haunt drop-shadow-[0_2px_3px_rgba(23,23,19,0.35)]"
+        className={cn("animate-haunt drop-shadow-[0_2px_3px_rgba(23,23,19,0.35)]", imageClassName)}
       />
     </span>
   );
