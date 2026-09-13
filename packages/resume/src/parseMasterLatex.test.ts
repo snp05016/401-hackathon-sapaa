@@ -1,6 +1,6 @@
 import { test, describe, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { parseMasterLatex, type ParsedExperienceEntry } from "./parseMasterLatex";
+import { parseMasterLatex, parseSkillList, type ParsedExperienceEntry } from "./parseMasterLatex";
 
 const SAMPLE_LATEX = String.raw`
 \documentclass{article}
@@ -373,5 +373,30 @@ describe("parseMasterLatex", () => {
     assert.equal(entries.length, 1);
     assert.equal(entries[0].startDate, "2022-01-01");
     assert.equal(entries[0].endDate, "2023-12-01");
+  });
+});
+
+describe("parseSkillList", () => {
+  test("flattens every category into one list, whatever the layout", () => {
+    const nested = String.raw`
+\begin{itemize}[leftmargin=0.15in, label={}, itemsep=-3pt]
+  \small{
+    \item{\textbf{Languages:}}{ Python (AsyncIO), TypeScript, C/C++ }
+    \item{\textbf{Cloud \& Infrastructure:}}{ Docker, AWS (Lambda, S3), Git }
+  }
+\end{itemize}`;
+    // Category labels and itemize options are dropped; a parenthesised list stays one skill.
+    assert.deepEqual(parseSkillList(nested), ["Python (AsyncIO)", "TypeScript", "C/C++", "Docker", "AWS (Lambda, S3)", "Git"]);
+  });
+
+  test("handles labels with the colon outside the braces, and de-duplicates", () => {
+    const inline = String.raw`
+\textbf{Languages:} C++, Python \\[2pt]
+\textbf{Tools}: Git, Docker, python`;
+    assert.deepEqual(parseSkillList(inline), ["C++", "Python", "Git", "Docker"]);
+  });
+
+  test("returns an empty list for a section with no skills", () => {
+    assert.deepEqual(parseSkillList("   \n  "), []);
   });
 });
