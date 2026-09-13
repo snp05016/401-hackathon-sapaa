@@ -27,8 +27,8 @@ export function Badge({ className, variant = "default", children, ...props }: Ba
         editorial
           ? "inline-flex items-center whitespace-nowrap rounded-sm border px-2 py-0.5 text-[11px]"
           : "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-        variant === "default" && "bg-slate-100 text-slate-700",
-        variant === "outline" && "border border-slate-300 text-slate-600",
+        variant === "default" && "border border-hairline bg-paper-raised text-ink",
+        variant === "outline" && "border border-hairline text-ink-2",
         variant === "warning" && "bg-amber-100 text-amber-800",
         variant === "danger" && "bg-red-100 text-red-800",
         variant === "ink" && "border-hairline text-ink",

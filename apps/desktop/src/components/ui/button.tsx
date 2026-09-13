@@ -33,9 +33,9 @@ export function Button({ className, variant = "default", silent = false, onClick
       transition={SPRING.hover}
       className={cn(
         "inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none",
-        variant === "default" && "bg-slate-900 text-white hover:bg-slate-700",
-        variant === "outline" && "border border-slate-300 bg-white hover:bg-slate-50",
-        variant === "ghost" && "hover:bg-slate-100",
+        variant === "default" && "bg-ink text-paper hover:bg-oxblood",
+        variant === "outline" && "border border-hairline bg-paper-raised text-ink hover:bg-paper hover:border-ink",
+        variant === "ghost" && "text-ink hover:bg-paper hover:text-ink",
         variant === "ink" && "rounded-sm bg-ink px-6 py-3 text-[13px] font-normal text-paper-raised hover:bg-oxblood",
         variant === "rule" &&
           "rounded-sm border border-hairline bg-transparent px-4 py-2 text-[12px] font-normal text-ink hover:border-ink hover:bg-paper-raised",

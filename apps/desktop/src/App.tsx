@@ -62,7 +62,7 @@ export function App() {
         >
           {phase !== "intro" && <Page />}
         </AppShell>
-        {phase === "intro" && <GhostScatter />}
+        {phase !== "done" && <GhostScatter />}
         {phase !== "done" && (
           <SplashScreen exiting={phase === "revealing"} onSkip={() => setPhase("revealing")} />
         )}

@@ -12,6 +12,23 @@ import { AnimatedNumber, DrawRule, Reveal, Sheen } from "../components/motion";
 import { DISTANCE, DURATION, SPRING, STAGGER, TRANSITION, modalBackdrop, modalPanel } from "../lib/motion";
 import { playSound } from "../lib/sound";
 
+const ACTIVITY_CALENDAR_THEME = {
+  light: [
+    "rgb(var(--paper-rail))",
+    "color-mix(in oklab, rgb(var(--paper-rail)) 72%, rgb(var(--oxblood)))",
+    "color-mix(in oklab, rgb(var(--paper-rail)) 48%, rgb(var(--oxblood)))",
+    "color-mix(in oklab, rgb(var(--paper-rail)) 24%, rgb(var(--oxblood)))",
+    "rgb(var(--oxblood))",
+  ],
+  dark: [
+    "rgb(var(--paper-rail))",
+    "color-mix(in oklab, rgb(var(--paper-rail)) 72%, rgb(var(--oxblood)))",
+    "color-mix(in oklab, rgb(var(--paper-rail)) 48%, rgb(var(--oxblood)))",
+    "color-mix(in oklab, rgb(var(--paper-rail)) 24%, rgb(var(--oxblood)))",
+    "rgb(var(--oxblood))",
+  ],
+};
+
 function SettledTick({ delay }: { delay: number }) {
   return (
     <motion.svg
@@ -210,6 +227,7 @@ export function Today() {
             </h2>
             <div className="relative mt-8">
               <ActivityCalendar
+                className="text-ink-2"
                 data={(() => {
                   const counts = new Map<string, number>();
                   for (const app of applications ?? []) {
@@ -255,6 +273,7 @@ export function Today() {
                 }}
                 minLevel={0}
                 maxLevel={4}
+                theme={ACTIVITY_CALENDAR_THEME}
               />
               <Sheen play={heatmapSheen} />
             </div>

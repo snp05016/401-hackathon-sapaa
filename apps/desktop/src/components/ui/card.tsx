@@ -14,7 +14,7 @@ export interface CardProps extends NativeDivProps {
 }
 
 export function Card({ className, interactive = false, ...props }: CardProps) {
-  const base = "rounded-lg border border-slate-200 bg-white shadow-sm";
+  const base = "rounded-lg border border-hairline bg-paper-raised text-ink shadow-sm";
 
   if (!interactive) {
     // CSS raise keeps static cards free of a motion node.
@@ -36,7 +36,7 @@ export function CardHeader({ className, ...props }: HTMLAttributes<HTMLDivElemen
 }
 
 export function CardTitle({ className, ...props }: HTMLAttributes<HTMLHeadingElement>) {
-  return <h3 className={cn("text-sm font-semibold text-slate-900", className)} {...props} />;
+  return <h3 className={cn("text-sm font-semibold text-ink", className)} {...props} />;
 }
 
 export function CardContent({ className, ...props }: HTMLAttributes<HTMLDivElement>) {

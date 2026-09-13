@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { GmailState, GmailSuggestion } from "@ghostboard/shared";
-import { AlertCircle, ArrowRight, CheckCircle2, Clock3, Inbox, LoaderCircle, Mail, RefreshCw, ShieldCheck, Unplug, UserRoundSearch } from "lucide-react";
+import { AlertCircle, ArrowRight, CheckCircle2, Clock3, Inbox, LoaderCircle, Mail, RefreshCw, Unplug, UserRoundSearch } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ipc } from "../lib/ipc";
 import { Badge, type BadgeProps } from "./ui/badge";
@@ -188,8 +188,8 @@ export function GmailPanel({ onUpdated, heading = "Gmail status updates" }: { on
 
   return (
     <section aria-labelledby="gmail-heading" className="mt-7">
-      <div className="grid border-y border-hairline lg:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="px-0 py-7 lg:border-r lg:border-hairline lg:pr-9">
+      <div className={cn("grid border-y border-hairline", state?.connected && "lg:grid-cols-[minmax(0,1fr)_340px]")}>
+        <div className={cn("px-0 py-7", state?.connected && "lg:border-r lg:border-hairline lg:pr-9")}>
           <div className="flex flex-wrap items-start justify-between gap-5">
             <div>
               <div className="flex h-4 items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-ink-3">
@@ -237,13 +237,12 @@ export function GmailPanel({ onUpdated, heading = "Gmail status updates" }: { on
           )}
         </div>
 
-        <aside className="bg-paper-raised/50 px-0 py-7 lg:px-7" aria-label="Inbox privacy and preferences">
-          <div className="flex items-start gap-3"><ShieldCheck size={17} className="mt-0.5 shrink-0 text-verdigris" /><div><h3 className="text-[12px] font-medium text-ink">Private by default</h3><p className="mt-1 text-[11px] leading-relaxed text-ink-2">The initial check reads recent messages only. Attachments are never downloaded and access can be removed at any time.</p></div></div>
-          {state?.connected && <div className="mt-5 border-t border-hairline">
+        {state?.connected && (
+          <aside className="bg-paper-raised/50 px-0 py-7 lg:px-7" aria-label="Inbox preferences">
             <Toggle checked={state.automaticChecks} disabled={busy} label="Check every 5 minutes" onChange={(enabled) => { void perform(() => ipc().setGmailAutomaticChecks(enabled)); }} />
             <Toggle checked={state.recentOnly} disabled={busy} label="Only check 10 newest emails" onChange={(enabled) => { void perform(() => ipc().setGmailRecentOnly(enabled)); }} />
-          </div>}
-        </aside>
+          </aside>
+        )}
       </div>
 
       {state?.connected && !state.suggestions.length && (

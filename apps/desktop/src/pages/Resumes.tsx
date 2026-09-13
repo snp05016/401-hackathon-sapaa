@@ -50,7 +50,7 @@ interface ExperienceDraft {
 const EXPERIENCE_SOURCES = ["experience", "project", "skill", "education", "volunteer", "custom"] as const;
 
 const TEXTAREA_CLASSES =
-  "w-full resize-y rounded-md border border-slate-300 bg-slate-50 p-3 font-mono text-xs leading-5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400";
+  "w-full resize-y rounded-md border border-hairline bg-paper p-3 font-mono text-xs leading-5 text-ink placeholder:text-ink-3 focus:border-oxblood focus:outline-none focus:ring-1 focus:ring-oxblood";
 
 const SAMPLE_MASTER_LATEX = String.raw`
 \documentclass{article}
@@ -122,12 +122,9 @@ function entryDateRange(entry: ExperienceEntry): string | null {
   return `${start} – ${end}`;
 }
 
-// The Resumes surface is pinned to the slate palette by AppShell's existing
-// page exception, so rules here need an explicit slate tone rather than the
-// theme hairline used by the shared DrawRule primitive.
 function DrawnRule({
   delay = 0,
-  tone = "bg-slate-200",
+  tone = "bg-hairline",
   className,
 }: {
   delay?: number;
@@ -168,7 +165,7 @@ function GhostGlyph({ className }: { className?: string }) {
 function PagePlaceholder() {
   return (
     <div className="flex justify-center p-3">
-      <div className="w-[460px] max-w-full rounded-sm border border-slate-200 bg-white p-8">
+      <div className="w-[460px] max-w-full rounded-sm border border-hairline bg-paper-raised p-8">
         <Shimmer lines={1} height={20} />
         <div className="mt-5">
           <Shimmer lines={5} height={8} />
@@ -302,12 +299,12 @@ function LatexPdfPreview({
 
   return (
     <motion.div className="relative" animate={riseControls}>
-      <div className={cn("relative overflow-auto rounded-md border border-slate-200 bg-slate-100", minHeight)}>
+      <div className={cn("relative overflow-auto rounded-md border border-hairline bg-paper", minHeight)}>
         {visibleError ? (
           <motion.div
             key={visibleError}
             role="alert"
-            className="p-3 text-[12px] leading-relaxed text-red-700"
+            className="p-3 text-[12px] leading-relaxed text-oxblood"
             initial={{ opacity: 0, y: DISTANCE.rise }}
             animate={{ opacity: 1, y: 0, x: [0, -4, 4, -3, 0] }}
             transition={{
@@ -319,12 +316,12 @@ function LatexPdfPreview({
           </motion.div>
         ) : pdfSource ? (
           <>
-            <div className="sticky top-0 z-10 flex items-center justify-end gap-1 border-b border-slate-200 bg-slate-100/95 p-2">
+            <div className="sticky top-0 z-10 flex items-center justify-end gap-1 border-b border-hairline bg-paper/95 p-2">
               <motion.button
                 type="button"
                 onClick={() => changeZoom(-0.1)}
                 disabled={zoom <= 0.6}
-                className="rounded-md p-1.5 text-slate-700 hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-md p-1.5 text-ink-2 hover:bg-paper-raised disabled:cursor-not-allowed disabled:opacity-40"
                 aria-label="Zoom out preview"
                 title="Zoom out"
                 whileHover={zoom <= 0.6 ? undefined : { scale: 1.08, transition: SPRING.hover }}
@@ -336,13 +333,13 @@ function LatexPdfPreview({
                 value={Math.round(zoom * 100)}
                 duration={DURATION.base}
                 format={(n) => `${Math.round(n)}%`}
-                className="tnum min-w-12 text-center text-[11px] text-slate-600"
+                className="tnum min-w-12 text-center text-[11px] text-ink-2"
               />
               <motion.button
                 type="button"
                 onClick={() => changeZoom(0.1)}
                 disabled={zoom >= 1.6}
-                className="rounded-md p-1.5 text-slate-700 hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-md p-1.5 text-ink-2 hover:bg-paper-raised disabled:cursor-not-allowed disabled:opacity-40"
                 aria-label="Zoom in preview"
                 title="Zoom in"
                 whileHover={zoom >= 1.6 ? undefined : { scale: 1.08, transition: SPRING.hover }}
@@ -355,8 +352,8 @@ function LatexPdfPreview({
               file={pdfSource}
               onLoadSuccess={({ numPages }) => setPageCount(numPages)}
               onLoadError={(error) => setDisplayError(errorMessage(error, "Could not display the compiled PDF."))}
-              loading={<p className="p-3 text-[12px] text-slate-500">Loading PDF…</p>}
-              error={<p role="alert" className="p-3 text-[12px] text-red-700">Could not display the compiled PDF.</p>}
+              loading={<p className="p-3 text-[12px] text-ink-3">Loading PDF…</p>}
+              error={<p role="alert" className="p-3 text-[12px] text-oxblood">Could not display the compiled PDF.</p>}
               className="flex min-w-fit justify-center p-3"
             >
               <div className="space-y-3">
@@ -369,12 +366,12 @@ function LatexPdfPreview({
         ) : compiling ? (
           <div className="flex h-full min-h-96 flex-col items-center justify-center">
             <PagePlaceholder />
-            <p role="status" className="p-3 text-center text-[12px] text-slate-500">
+            <p role="status" className="p-3 text-center text-[12px] text-ink-3">
               Compiling with pdflatex…
             </p>
           </div>
         ) : (
-          <div className="flex h-full min-h-96 items-center justify-center p-3 text-center text-[12px] text-slate-500">
+          <div className="flex h-full min-h-96 items-center justify-center p-3 text-center text-[12px] text-ink-3">
             PDF preview appears here after compilation.
           </div>
         )}
@@ -398,7 +395,7 @@ function ChangeLine({ line, index }: { line: string; index: number }) {
         aria-hidden="true"
         className={cn(
           "mt-px inline-block origin-left select-none font-semibold",
-          added ? "text-verdigris" : removed ? "text-oxblood" : "text-slate-500",
+          added ? "text-verdigris" : removed ? "text-oxblood" : "text-ink-3",
         )}
         initial={{ scaleX: 0 }}
         animate={{ scaleX: 1 }}
@@ -410,7 +407,7 @@ function ChangeLine({ line, index }: { line: string; index: number }) {
       >
         {added ? "+" : removed ? "–" : "·"}
       </motion.span>
-      <span className={cn(added ? "text-verdigris" : removed ? "text-oxblood" : "text-slate-700")}>{line}</span>
+      <span className={cn(added ? "text-verdigris" : removed ? "text-oxblood" : "text-ink-2")}>{line}</span>
     </motion.li>
   );
 }
@@ -439,7 +436,7 @@ function LatexSourceEditor({
   return (
     <div className="grid gap-4 xl:grid-cols-2">
       <div>
-        <label htmlFor={latexId} className="mb-1.5 block text-[12px] font-medium text-slate-700">
+        <label htmlFor={latexId} className="mb-1.5 block text-[12px] font-medium text-ink-2">
           LaTeX source
         </label>
         <div className="relative overflow-hidden rounded-md">
@@ -493,7 +490,7 @@ function LatexSourceEditor({
         </div>
       </div>
       <div>
-        <p className="mb-1.5 text-[12px] font-medium text-slate-700">Preview</p>
+        <p className="mb-1.5 text-[12px] font-medium text-ink-2">Preview</p>
         <LatexPdfPreview pdf={pdf} compileError={compileError} compiling={compiling} minHeight={minHeight} />
       </div>
     </div>
@@ -1194,8 +1191,8 @@ export function Resumes() {
       <StaggerItem>
        <header>
         <div className="flex items-baseline justify-between gap-8 pb-3">
-          <h1 className="font-display text-[40px] leading-[0.95] tracking-[-0.015em] text-slate-900">Resumes</h1>
-          <p className="max-w-[300px] text-right text-[12px] leading-relaxed text-slate-600">
+          <h1 className="font-display text-[40px] leading-[0.95] tracking-[-0.015em] text-ink">Resumes</h1>
+          <p className="max-w-[300px] text-right text-[12px] leading-relaxed text-ink-2">
             Your master resume stays on this computer — tailored copies are reviewed here before they are saved.
           </p>
         </div>
@@ -1209,17 +1206,17 @@ export function Resumes() {
           <CardHeader>
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <h2 id="master-resume-heading" className="font-display text-[24px] leading-none text-slate-900">
+                <h2 id="master-resume-heading" className="font-display text-[24px] leading-none text-ink">
                   Master resume
                 </h2>
                 <DrawnRule className="mt-2 max-w-[132px]" tone="bg-oxblood/70" delay={0.24} />
-                <p className="mt-1.5 text-[12px] text-slate-600">
+                <p className="mt-1.5 text-[12px] text-ink-2">
                   The single source of truth for tailoring — tailoring never edits this document.
                 </p>
               </div>
               {usingSample && (
                 <div className="flex items-center gap-3">
-                  <p role="status" className="text-[12px] text-slate-600">
+                  <p role="status" className="text-[12px] text-ink-2">
                     You are editing sample text.
                   </p>
                   <Button variant="ghost" onClick={clearSample}>
@@ -1235,7 +1232,7 @@ export function Resumes() {
                 <motion.p
                   key="master-loading"
                   role="status"
-                  className="pulse-soft mb-3 text-[12px] text-slate-600"
+                  className="pulse-soft mb-3 text-[12px] text-ink-2"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0, transition: TRANSITION.exit }}
@@ -1248,7 +1245,7 @@ export function Resumes() {
                 <motion.div
                   key="master-error"
                   role="alert"
-                  className="mb-4 flex flex-wrap items-center gap-3 border-l-2 border-oxblood pl-3 text-[12px] text-slate-700"
+                  className="mb-4 flex flex-wrap items-center gap-3 border-l-2 border-oxblood pl-3 text-[12px] text-ink-2"
                   initial={{ opacity: 0, y: DISTANCE.rise }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -6, transition: TRANSITION.exit }}
@@ -1263,17 +1260,17 @@ export function Resumes() {
             </AnimatePresence>
             {!masterLoading && !masterError && !masterLatex.trim() && (
               <motion.div
-                className="mb-4 flex flex-wrap items-start gap-5 rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-5"
+                className="mb-4 flex flex-wrap items-start gap-5 rounded-md border border-dashed border-hairline bg-paper px-4 py-5"
                 initial={{ opacity: 0, y: DISTANCE.rise }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={TRANSITION.slow}
               >
                 <GhostDrift className="shrink-0">
-                  <GhostGlyph className="h-11 w-11 text-slate-400" />
+                  <GhostGlyph className="h-11 w-11 text-ink-3" />
                 </GhostDrift>
                 <div className="min-w-[240px] flex-1">
-                  <p className="text-[13px] font-medium text-slate-800">No master resume yet.</p>
-                  <p className="mt-1 text-[12px] leading-relaxed text-slate-600">
+                  <p className="text-[13px] font-medium text-ink">No master resume yet.</p>
+                  <p className="mt-1 text-[12px] leading-relaxed text-ink-2">
                     Write your LaTeX resume below, and it is stored only on this computer. Use the sample
                     to preview the flow with placeholder text.
                   </p>
@@ -1285,12 +1282,12 @@ export function Resumes() {
                 </div>
               </motion.div>
             )}
-            <div className="mb-4 rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+            <div className="mb-4 rounded-md border border-hairline bg-paper px-4 py-3">
               <div className="flex flex-wrap items-center gap-3">
                 <label
                   htmlFor="resume-tex-upload"
                   className={cn(
-                    "inline-flex cursor-pointer items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-[12px] font-medium text-slate-800 hover:bg-slate-100",
+                    "inline-flex cursor-pointer items-center gap-2 rounded-md border border-hairline bg-paper-raised px-3 py-2 text-[12px] font-medium text-ink hover:bg-paper",
                     resumeImporting && "cursor-not-allowed opacity-60",
                   )}
                 >
@@ -1305,7 +1302,7 @@ export function Resumes() {
                   disabled={resumeImporting}
                   className="sr-only"
                 />
-                <p className="text-[12px] text-slate-600">
+                <p className="text-[12px] text-ink-2">
                   Upload your LaTeX file to save it as the master resume and add detected experience entries automatically.
                 </p>
               </div>
@@ -1358,7 +1355,7 @@ export function Resumes() {
                   <motion.p
                     key="master-dirty"
                     role="status"
-                    className="flex items-center gap-2 text-[12px] text-slate-600"
+                    className="flex items-center gap-2 text-[12px] text-ink-2"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0, transition: TRANSITION.exit }}
@@ -1413,17 +1410,17 @@ export function Resumes() {
           <CardHeader>
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <h2 id="experience-bank-heading" className="font-display text-[24px] leading-none text-slate-900">
+                <h2 id="experience-bank-heading" className="font-display text-[24px] leading-none text-ink">
                   Experience bank
                 </h2>
                 <DrawnRule className="mt-2 max-w-[132px]" tone="bg-oxblood/70" delay={0.3} />
-                <p className="mt-1.5 text-[12px] text-slate-600">
+                <p className="mt-1.5 text-[12px] text-ink-2">
                   Structured roles, projects, and education that tailoring can draw from.
                 </p>
               </div>
               <div className="flex items-center gap-3">
                 {experienceEntries && (
-                  <div className="tnum flex items-center gap-1 text-[12px] text-slate-600">
+                  <div className="tnum flex items-center gap-1 text-[12px] text-ink-2">
                     <AnimatedNumber value={experienceEntries.length} duration={DURATION.slow} className="tnum" />
                     {experienceEntries.length === 1 ? "entry" : "entries"}
                   </div>
@@ -1443,7 +1440,7 @@ export function Resumes() {
                 <motion.p
                   key="experience-loading"
                   role="status"
-                  className="pulse-soft text-[12px] text-slate-600"
+                  className="pulse-soft text-[12px] text-ink-2"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0, transition: TRANSITION.exit }}
@@ -1456,7 +1453,7 @@ export function Resumes() {
                 <motion.div
                   key="experience-error"
                   role="alert"
-                  className="flex flex-wrap items-center gap-3 border-l-2 border-oxblood pl-3 text-[12px] text-slate-700"
+                  className="flex flex-wrap items-center gap-3 border-l-2 border-oxblood pl-3 text-[12px] text-ink-2"
                   initial={{ opacity: 0, y: DISTANCE.rise }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -6, transition: TRANSITION.exit }}
@@ -1471,15 +1468,15 @@ export function Resumes() {
             </AnimatePresence>
             {experienceEntries && experienceEntries.length === 0 && !draft && (
               <motion.div
-                className="flex flex-wrap items-center gap-5 border-y border-dashed border-slate-300 py-6"
+                className="flex flex-wrap items-center gap-5 border-y border-dashed border-hairline py-6"
                 initial={{ opacity: 0, y: DISTANCE.rise }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={TRANSITION.slow}
               >
                 <GhostDrift className="shrink-0">
-                  <GhostGlyph className="h-11 w-11 text-slate-400" />
+                  <GhostGlyph className="h-11 w-11 text-ink-3" />
                 </GhostDrift>
-                <p className="min-w-[240px] flex-1 font-display text-[18px] leading-snug text-slate-600">
+                <p className="min-w-[240px] flex-1 font-display text-[18px] leading-snug text-ink-2">
                   No experience entries yet. Add roles, projects, or education so tailoring has more to draw from.
                 </p>
               </motion.div>
@@ -1489,7 +1486,7 @@ export function Resumes() {
               <motion.form
                 key="experience-draft"
                 onSubmit={(event) => void handleUpsertEntry(event)}
-                className="rounded-md border border-slate-200 bg-slate-50 p-4"
+                className="rounded-md border border-hairline bg-paper p-4"
                 initial={{ opacity: 0, y: DISTANCE.rise }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6, transition: TRANSITION.exit }}
@@ -1497,7 +1494,7 @@ export function Resumes() {
               >
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label htmlFor="exp-role" className="mb-1.5 block text-[12px] font-medium text-slate-700">
+                    <label htmlFor="exp-role" className="mb-1.5 block text-[12px] font-medium text-ink-2">
                       {draft.source === "skill" ? "Skill category" : draft.source === "project" ? "Project name" : "Role title"}
                     </label>
                     <Input
@@ -1516,7 +1513,7 @@ export function Resumes() {
                   </div>
                   {draft.source !== "skill" && (
                     <div>
-                      <label htmlFor="exp-employer" className="mb-1.5 block text-[12px] font-medium text-slate-700">
+                      <label htmlFor="exp-employer" className="mb-1.5 block text-[12px] font-medium text-ink-2">
                         {draft.source === "project" ? "Project or organization" : "Employer"}
                       </label>
                       <Input
@@ -1535,14 +1532,14 @@ export function Resumes() {
                     </div>
                   )}
                   <div>
-                    <label htmlFor="exp-source" className="mb-1.5 block text-[12px] font-medium text-slate-700">
+                    <label htmlFor="exp-source" className="mb-1.5 block text-[12px] font-medium text-ink-2">
                       Source
                     </label>
                     <select
                       id="exp-source"
                       value={draft.source}
                       onChange={(event) => changeDraftSource(event.target.value)}
-                      className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400"
+                      className="w-full rounded-md border border-hairline bg-paper-raised px-3 py-2 text-sm text-ink focus:border-oxblood focus:outline-none focus:ring-1 focus:ring-oxblood"
                     >
                       {EXPERIENCE_SOURCES.map((source) => (
                         <option key={source} value={source}>
@@ -1552,15 +1549,15 @@ export function Resumes() {
                     </select>
                   </div>
                   {draft.source !== "skill" && <div>
-                    <label htmlFor="exp-dates-note" className="mb-1.5 block text-[12px] font-medium text-slate-700">
+                    <label htmlFor="exp-dates-note" className="mb-1.5 block text-[12px] font-medium text-ink-2">
                       Dates
                     </label>
-                    <p id="exp-dates-note" className="text-[11px] leading-relaxed text-slate-500">
+                    <p id="exp-dates-note" className="text-[11px] leading-relaxed text-ink-3">
                       Leave the end date empty for a current role.
                     </p>
                   </div>}
                   {draft.source !== "skill" && <div>
-                    <label htmlFor="exp-start-date" className="mb-1.5 block text-[12px] font-medium text-slate-700">
+                    <label htmlFor="exp-start-date" className="mb-1.5 block text-[12px] font-medium text-ink-2">
                       Start date
                     </label>
                     <Input
@@ -1573,7 +1570,7 @@ export function Resumes() {
                     />
                   </div>}
                   {draft.source !== "skill" && <div>
-                    <label htmlFor="exp-end-date" className="mb-1.5 block text-[12px] font-medium text-slate-700">
+                    <label htmlFor="exp-end-date" className="mb-1.5 block text-[12px] font-medium text-ink-2">
                       End date
                     </label>
                     <Input
@@ -1589,14 +1586,14 @@ export function Resumes() {
 
                 <div className="mt-4">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-[12px] font-medium text-slate-700">Bullets</p>
+                    <p className="text-[12px] font-medium text-ink-2">Bullets</p>
                     <Button type="button" variant="ghost" onClick={addBullet}>
                       <Plus size={13} />
                       Add bullet
                     </Button>
                   </div>
                   {draft.bullets.length === 0 ? (
-                    <p className="mt-1.5 text-[11px] text-slate-500">No bullets yet. Add a few concrete accomplishments.</p>
+                    <p className="mt-1.5 text-[11px] text-ink-3">No bullets yet. Add a few concrete accomplishments.</p>
                   ) : (
                     <ul className="mt-2 space-y-2">
                       {draft.bullets.map((bullet, index) => (
@@ -1665,13 +1662,13 @@ export function Resumes() {
                       </AnimatePresence>
                     </span>
                     {recordingState === "recording" && (
-                      <p role="status" className="tnum flex items-center gap-2 text-[12px] text-slate-700">
+                      <p role="status" className="tnum flex items-center gap-2 text-[12px] text-ink-2">
                         <LevelBars />
                         Recording {formatClock(recordingSeconds)} / {formatClock(MAX_RECORDING_SECONDS)}
                       </p>
                     )}
                     {recordingState === "transcribing" && (
-                      <p role="status" className="pulse-soft text-[12px] text-slate-600">
+                      <p role="status" className="pulse-soft text-[12px] text-ink-2">
                         Transcribing… this may take a moment.
                       </p>
                     )}
@@ -1707,7 +1704,7 @@ export function Resumes() {
                 </div>
 
                 <div className="mt-4">
-                  <label htmlFor="exp-skills" className="mb-1.5 block text-[12px] font-medium text-slate-700">
+                  <label htmlFor="exp-skills" className="mb-1.5 block text-[12px] font-medium text-ink-2">
                     Skills
                   </label>
                   <Input
@@ -1718,7 +1715,7 @@ export function Resumes() {
                     placeholder="Leadership, React, Public speaking"
                     aria-describedby="exp-skills-hint"
                   />
-                  <p id="exp-skills-hint" className="mt-1 text-[11px] text-slate-500">
+                  <p id="exp-skills-hint" className="mt-1 text-[11px] text-ink-3">
                     Comma separated. Optional.
                   </p>
                 </div>
@@ -1762,7 +1759,7 @@ export function Resumes() {
                   return (
                     <motion.li
                       key={entry.id}
-                      className="rounded-md border border-slate-200 p-4"
+                      className="rounded-md border border-hairline bg-paper-raised p-4"
                       initial={{ opacity: 0, y: DISTANCE.rise }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, x: 10, scale: SCALE.exit, transition: TRANSITION.exit }}
@@ -1776,11 +1773,11 @@ export function Resumes() {
                       <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="text-[14px] font-semibold text-slate-900">{entry.role}</h3>
+                            <h3 className="text-[14px] font-semibold text-ink">{entry.role}</h3>
                             {entry.source && <Badge>{entry.source}</Badge>}
                           </div>
-                          <p className="mt-0.5 text-[12px] text-slate-600">{entry.employer}</p>
-                          {dateRange && <p className="tnum mt-0.5 text-[12px] text-slate-500">{dateRange}</p>}
+                          <p className="mt-0.5 text-[12px] text-ink-2">{entry.employer}</p>
+                          {dateRange && <p className="tnum mt-0.5 text-[12px] text-ink-3">{dateRange}</p>}
                         </div>
                         <div className="flex shrink-0 items-center gap-1">
                           <AnimatePresence mode="wait" initial={false}>
@@ -1845,7 +1842,7 @@ export function Resumes() {
                         </div>
                       </div>
                       {entry.bullets.length > 0 && (
-                        <ul className="mt-2 list-disc space-y-0.5 pl-4 text-[12px] leading-relaxed text-slate-700">
+                        <ul className="mt-2 list-disc space-y-0.5 pl-4 text-[12px] leading-relaxed text-ink-2">
                           {entry.bullets.map((bullet, index) => (
                             <li key={index}>{bullet}</li>
                           ))}
@@ -1892,11 +1889,11 @@ export function Resumes() {
           <CardHeader>
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <h2 id="tailor-heading" className="font-display text-[24px] leading-none text-slate-900">
+                <h2 id="tailor-heading" className="font-display text-[24px] leading-none text-ink">
                   Tailor to a job
                 </h2>
                 <DrawnRule className="mt-2 max-w-[132px]" tone="bg-oxblood/70" delay={0.18} />
-                <p className="mt-1.5 text-[12px] text-slate-600">
+                <p className="mt-1.5 text-[12px] text-ink-2">
                   Pick a saved application or paste a description, then review everything before it is saved.
                 </p>
               </div>
@@ -1905,16 +1902,16 @@ export function Resumes() {
           <CardContent>
             <div className="grid gap-4 lg:grid-cols-2">
               <div>
-                <label htmlFor="job-select" className="mb-1.5 block text-[12px] font-medium text-slate-700">
+                <label htmlFor="job-select" className="mb-1.5 block text-[12px] font-medium text-ink-2">
                   Select a saved application
                 </label>
                 {applicationsLoading && (
-                  <p role="status" className="pulse-soft text-[12px] text-slate-600">
+                  <p role="status" className="pulse-soft text-[12px] text-ink-2">
                     Loading saved applications…
                   </p>
                 )}
                 {applicationsError && (
-                  <div role="alert" className="flex flex-wrap items-center gap-3 border-l-2 border-oxblood pl-3 text-[12px] text-slate-700">
+                  <div role="alert" className="flex flex-wrap items-center gap-3 border-l-2 border-oxblood pl-3 text-[12px] text-ink-2">
                     <span>{applicationsError}</span>
                     <Button variant="quiet" onClick={() => void loadApplications()}>
                       Retry
@@ -1927,7 +1924,7 @@ export function Resumes() {
                     value={selectedApplicationId}
                     onChange={(event) => handleSelectApplication(event.target.value)}
                     disabled={!applications || applications.length === 0 || isTailoring}
-                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:bg-slate-50 disabled:text-slate-400"
+                    className="w-full rounded-md border border-hairline bg-paper-raised px-3 py-2 text-sm text-ink focus:border-oxblood focus:outline-none focus:ring-1 focus:ring-oxblood disabled:bg-paper disabled:text-ink-3"
                   >
                     <option value="">
                       {applications && applications.length > 0 ? "Choose a saved application…" : "No saved applications yet"}
@@ -1940,12 +1937,12 @@ export function Resumes() {
                   </select>
                 )}
                 {applications && applications.length === 0 && !applicationsError && (
-                  <p className="mt-1.5 text-[11px] leading-relaxed text-slate-600">
+                  <p className="mt-1.5 text-[11px] leading-relaxed text-ink-2">
                     Save a job from the browser extension, or paste a description below instead.
                   </p>
                 )}
                 {selectedApplication && (
-                  <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2.5 text-[12px] leading-relaxed text-slate-700">
+                  <div className="mt-3 rounded-md border border-hairline bg-paper px-3 py-2.5 text-[12px] leading-relaxed text-ink-2">
                     <p>
                       <span className="font-medium">
                         {selectedApplication.company} — {selectedApplication.title}
@@ -1959,32 +1956,32 @@ export function Resumes() {
                             href={selectedApplication.jobUrl}
                             target="_blank"
                             rel="noreferrer"
-                            className="underline underline-offset-2 hover:text-slate-950"
+                            className="underline underline-offset-2 hover:text-ink"
                           >
                             posting
                           </a>
                         </>
                       ) : null}
                     </p>
-                    <p className="mt-0.5 text-slate-500">
+                    <p className="mt-0.5 text-ink-3">
                       This saved application fills in the job details used for the tailored version.
                     </p>
                   </div>
                 )}
                 {selectedApplication && !jobDescription.trim() && (
-                  <p role="status" className="mt-2 border-l-2 border-brass pl-3 text-[11px] leading-relaxed text-slate-700">
+                  <p role="status" className="mt-2 border-l-2 border-brass pl-3 text-[11px] leading-relaxed text-ink-2">
                     This saved job has no description saved yet. Paste the job text below and it will be used instead.
                   </p>
                 )}
               </div>
 
               <div>
-                <p className="text-[12px] text-slate-600">
+                <p className="text-[12px] text-ink-2">
                   Or paste a job description manually — company, title, and URL are optional.
                 </p>
                 <div className="mt-2 grid gap-3 sm:grid-cols-3">
                   <div>
-                    <label htmlFor="job-company" className="mb-1.5 block text-[12px] font-medium text-slate-700">
+                    <label htmlFor="job-company" className="mb-1.5 block text-[12px] font-medium text-ink-2">
                       Company
                     </label>
                     <Input
@@ -1996,7 +1993,7 @@ export function Resumes() {
                     />
                   </div>
                   <div>
-                    <label htmlFor="job-title" className="mb-1.5 block text-[12px] font-medium text-slate-700">
+                    <label htmlFor="job-title" className="mb-1.5 block text-[12px] font-medium text-ink-2">
                       Title
                     </label>
                     <Input
@@ -2008,7 +2005,7 @@ export function Resumes() {
                     />
                   </div>
                   <div>
-                    <label htmlFor="job-url" className="mb-1.5 block text-[12px] font-medium text-slate-700">
+                    <label htmlFor="job-url" className="mb-1.5 block text-[12px] font-medium text-ink-2">
                       Job posting URL
                     </label>
                     <Input
@@ -2022,7 +2019,7 @@ export function Resumes() {
                     />
                   </div>
                 </div>
-                <label htmlFor="job-description" className="mt-4 mb-1.5 block text-[12px] font-medium text-slate-700">
+                <label htmlFor="job-description" className="mt-4 mb-1.5 block text-[12px] font-medium text-ink-2">
                   Job description
                 </label>
                 <textarea
@@ -2032,12 +2029,12 @@ export function Resumes() {
                   onChange={(event) => updateJobField(setJobDescription, event.target.value)}
                   disabled={isTailoring}
                   placeholder="Paste the responsibilities, requirements, and anything the employer emphasized."
-                  className="w-full resize-y rounded-md border border-slate-300 bg-white p-3 text-[13px] leading-5 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:bg-slate-50"
+                  className="w-full resize-y rounded-md border border-hairline bg-paper-raised p-3 text-[13px] leading-5 text-ink placeholder:text-ink-3 focus:border-oxblood focus:outline-none focus:ring-1 focus:ring-oxblood disabled:bg-paper"
                 />
               </div>
             </div>
 
-            <div className="mt-6 flex flex-wrap items-center gap-4 border-t border-slate-200 pt-5">
+            <div className="mt-6 flex flex-wrap items-center gap-4 border-t border-hairline pt-5">
               <Button variant="ink" silent onClick={() => void handleTailor()} disabled={!canTailor}>
                 {isTailoring ? "Tailoring…" : "Tailor resume to this job"}
               </Button>
@@ -2046,7 +2043,7 @@ export function Resumes() {
                   <motion.p
                     key="tailoring"
                     role="status"
-                    className="pulse-soft text-[12px] text-slate-600"
+                    className="pulse-soft text-[12px] text-ink-2"
                     initial={{ opacity: 0, y: DISTANCE.riseSmall }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, transition: TRANSITION.exit }}
@@ -2070,7 +2067,7 @@ export function Resumes() {
                 )}
               </AnimatePresence>
               {!tailoredResult && !isTailoring && !tailorError && (
-                <p className="text-[12px] leading-relaxed text-slate-600">
+                <p className="text-[12px] leading-relaxed text-ink-2">
                   {!masterReady
                     ? "Write a master resume above before tailoring."
                     : !jobReady
@@ -2082,20 +2079,20 @@ export function Resumes() {
 
             {tailoredResult && (
               <motion.div
-                className="mt-8 border-t border-slate-200 pt-6"
+                className="mt-8 border-t border-hairline pt-6"
                 initial={{ opacity: 0, y: DISTANCE.riseLarge }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={TRANSITION.slow}
               >
                 <div className="flex flex-wrap items-baseline justify-between gap-4">
-                  <h3 className="font-display text-[20px] text-slate-900">Review the tailored resume</h3>
-                  <p className="text-[12px] text-slate-600">Your master resume is never modified.</p>
+                  <h3 className="font-display text-[20px] text-ink">Review the tailored resume</h3>
+                  <p className="text-[12px] text-ink-2">Your master resume is never modified.</p>
                 </div>
 
                 <div className="mt-5">
-                  <h4 className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Changes</h4>
+                  <h4 className="text-[11px] font-medium uppercase tracking-wide text-ink-3">Changes</h4>
                   {tailoredResult.changesSummary.length === 0 ? (
-                    <p className="mt-2 text-[12px] text-slate-600">
+                    <p className="mt-2 text-[12px] text-ink-2">
                       No line-level changes were detected. This version may reword or reorder without removing content.
                     </p>
                   ) : (
@@ -2195,7 +2192,7 @@ export function Resumes() {
                     <motion.p
                       key="pdf-cancel"
                       role="status"
-                      className="mt-2 text-[12px] text-slate-600"
+                      className="mt-2 text-[12px] text-ink-2"
                       initial={{ opacity: 0, y: DISTANCE.riseSmall }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, transition: TRANSITION.exit }}
@@ -2234,7 +2231,7 @@ export function Resumes() {
                     <motion.p
                       key="export-cancel"
                       role="status"
-                      className="mt-2 text-[12px] text-slate-600"
+                      className="mt-2 text-[12px] text-ink-2"
                       initial={{ opacity: 0, y: DISTANCE.riseSmall }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, transition: TRANSITION.exit }}
