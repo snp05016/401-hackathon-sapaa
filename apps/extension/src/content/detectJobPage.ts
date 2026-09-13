@@ -89,6 +89,6 @@ export function startDetection(): void {
   chrome.runtime.onMessage.addListener((message: { type?: string }, _sender, sendResponse) => {
     if (message.type !== "get-current-job") return;
     const result = genericScraper.scrape(window.location.href, document);
-    sendResponse(result ? { job: result.posting, confidence: result.confidence } : null);
+    sendResponse(result ? { job: result.posting, confidence: result.confidence, url: window.location.href } : null);
   });
 }

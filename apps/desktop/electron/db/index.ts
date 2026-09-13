@@ -3,6 +3,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createDb, runMigrations, type GhostboardDb } from "@ghostboard/database";
+import { parseResumeReference } from "@ghostboard/resume";
 import type { ExperienceEntry, MasterResume, Profile, ProfileField, TailoredResumeRecord } from "@ghostboard/shared";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -15,9 +16,14 @@ const DEFAULT_PROFILE_FIELDS: ProfileField[] = [
   { key: "email", label: "Email", value: "", category: "contact" },
   { key: "phone", label: "Phone", value: "", category: "contact" },
   { key: "address", label: "Address", value: "", category: "personal" },
+  { key: "city", label: "City", value: "", category: "personal" },
+  { key: "region", label: "State / province / region", value: "", category: "personal" },
+  { key: "postalCode", label: "Postal code", value: "", category: "personal" },
   { key: "country", label: "Country", value: "", category: "personal" },
   { key: "linkedin", label: "LinkedIn URL", value: "", category: "links" },
   { key: "github", label: "GitHub URL", value: "", category: "links" },
+  { key: "workAuthorization", label: "Work authorization", value: "", category: "custom" },
+  { key: "sponsorship", label: "Sponsorship needs", value: "", category: "custom" },
   { key: "veteranStatus", label: "Veteran status", value: "", category: "eeo" },
   { key: "gender", label: "Gender", value: "", category: "eeo" },
 ];
@@ -156,13 +162,43 @@ function readJsonFile<T>(file: string, isWellFormed: (value: unknown) => value i
   return seed();
 }
 
-/** Read-only: nothing currently persists a master resume from the UI, so this seeds an empty placeholder on first read. */
+function normalizeMasterResume(value: MasterResume): MasterResume {
+  const latex = typeof value.latex === "string" ? value.latex : "";
+  const updatedAt = typeof value.updatedAt === "string" && value.updatedAt ? value.updatedAt : new Date().toISOString();
+  return {
+    id: "local",
+    latex,
+    reference: parseResumeReference(latex),
+    updatedAt,
+  };
+}
+
 export function readMasterResume(): MasterResume {
-  return readJsonFile(masterResumePath(), isMasterResume, () => ({ id: "local", latex: "", updatedAt: new Date().toISOString() }));
+  const file = masterResumePath();
+  const stored = readJsonFile(file, isMasterResume, (): MasterResume => ({ id: "local", latex: "", updatedAt: new Date().toISOString() }));
+  const master = normalizeMasterResume(stored);
+
+  // Older files only contained the raw LaTeX. Persist the parsed reference as
+  // soon as it is read so the extension can use the same autofill contract
+  // after a desktop restart, without requiring the user to save the resume.
+  if (
+    stored.id !== master.id
+    || stored.latex !== master.latex
+    || stored.updatedAt !== master.updatedAt
+    || JSON.stringify(stored.reference) !== JSON.stringify(master.reference)
+  ) {
+    fs.writeFileSync(file, JSON.stringify(master, null, 2));
+  }
+  return master;
 }
 
 export function writeMasterResume(latex: string): MasterResume {
-  const master: MasterResume = { id: "local", latex, updatedAt: new Date().toISOString() };
+  const master: MasterResume = {
+    id: "local",
+    latex,
+    reference: parseResumeReference(latex),
+    updatedAt: new Date().toISOString(),
+  };
   fs.writeFileSync(masterResumePath(), JSON.stringify(master, null, 2));
   return master;
 }

@@ -1,6 +1,7 @@
 export interface ParsedExperienceEntry {
   role: string;
   employer: string;
+  location?: string | null;
   startDate: string | null;
   endDate: string | null;
   bullets: string[];
@@ -50,6 +51,7 @@ function stripComments(latex: string): string {
 function decodeLatexText(text: string): string {
   let result = text;
   result = result.replace(/\\(textbf|textit|emph|texttt|underline)\{([^{}]*)\}/g, (_m, _cmd, inner) => inner);
+  result = result.replace(/\\(?:Huge|huge|LARGE|Large|large|normalsize|small|footnotesize|scriptsize|tiny|scshape|bfseries|itshape|rmfamily|sffamily|mdseries|upshape)\b/g, " ");
   result = result.replace(/\\\\/g, " ");
   result = result.replace(/\\hfill/g, " ");
   result = result.replace(/\\vspace\{[^}]*\}/g, " ");
@@ -95,6 +97,18 @@ const DATE_RANGE_PATTERN = new RegExp(
   String.raw`(${DATE_TOKEN_PATTERN})\s*(?:[–—]|-{1,2}|to)\s*(present|current|now|today|${DATE_TOKEN_PATTERN})`,
   "i",
 );
+
+function looksLikeDateArgument(value: string): boolean {
+  return /\b(?:19|20)(?:\d{2}|xx)\b|\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b|\b(?:present|current|now|today)\b/i.test(value);
+}
+
+function inferRoleAndEmployer(first: string, third: string): { role: string; employer: string } {
+  const roleSignal = /\b(?:engineer|developer|intern|assistant|researcher|manager|analyst|designer|scientist|architect|consultant|professor|coordinator|director|specialist|administrator|lead|teacher|instructor)\b/i;
+  const organizationSignal = /\b(?:inc\.?|corp\.?|llc|ltd\.?|university|college|lab|laborator(?:y|ies)|technolog(?:y|ies)|company|marketplace|studio|group|school|institute)\b/i;
+  if (roleSignal.test(first) && !roleSignal.test(third)) return { role: first, employer: third };
+  if (organizationSignal.test(first) && roleSignal.test(third)) return { role: third, employer: first };
+  return { role: third, employer: first };
+}
 
 function extractDateRange(text: string): { start: string | null; end: string | null } {
   const normalized = text.replace(/\\\\/g, " ").replace(/\s+/g, " ");
@@ -197,7 +211,7 @@ function extractMacroBullets(body: string): string[] {
   return bullets;
 }
 
-function parseResumeSubheadingFormat(sectionBody: string): ParsedExperienceEntry[] {
+export function parseResumeSubheadingEntries(sectionBody: string): ParsedExperienceEntry[] {
   const entries: ParsedExperienceEntry[] = [];
   const command = "\\resumeSubheading";
   let cursor = 0;
@@ -209,11 +223,35 @@ function parseResumeSubheadingFormat(sectionBody: string): ParsedExperienceEntry
 
     const bodyEnd = sectionBody.indexOf(command, arguments_.nextIndex);
     const body = sectionBody.slice(arguments_.nextIndex, bodyEnd < 0 ? sectionBody.length : bodyEnd);
-    const employer = decodeLatexText(arguments_.values[0]).slice(0, 200);
-    const role = decodeLatexText(arguments_.values[2]).slice(0, 200);
-    const { start, end } = extractDateRange(decodeLatexText(arguments_.values[3]));
+    const firstArgument = decodeLatexText(arguments_.values[0]).slice(0, 200);
+    const thirdArgument = decodeLatexText(arguments_.values[2]).slice(0, 200);
+    const { role, employer } = inferRoleAndEmployer(firstArgument, thirdArgument);
+    // Jake-style templates conventionally use either {company}{location}
+    // {role}{dates} or {company}{dates}{role}{location}. Accept both forms;
+    // the sample resume and several real templates use the latter ordering.
+    const secondArgument = decodeLatexText(arguments_.values[1]);
+    const fourthArgument = decodeLatexText(arguments_.values[3]);
+    const fourthRange = extractDateRange(fourthArgument);
+    const secondIsDate = looksLikeDateArgument(secondArgument);
+    const fourthIsDate = Boolean(fourthRange.start || fourthRange.end) || looksLikeDateArgument(fourthArgument);
+    // Prefer the argument that visibly looks like a date. When neither does,
+    // retain the conventional company/location/role/dates ordering.
+    const dateIsFourth = fourthIsDate && !secondIsDate;
+    const dateText = dateIsFourth ? fourthArgument : secondIsDate ? secondArgument : fourthArgument;
+    const locationText = dateIsFourth || !secondIsDate ? secondArgument : fourthArgument;
+    const { start, end } = extractDateRange(dateText);
     const bullets = extractMacroBullets(body);
-    if (role || employer) entries.push({ role, employer, startDate: start, endDate: end, bullets, source: "experience" });
+    if (role || employer) {
+      entries.push({
+        role,
+        employer,
+        location: decodeLatexText(locationText).slice(0, 200) || null,
+        startDate: start,
+        endDate: end,
+        bullets,
+        source: "experience",
+      });
+    }
     cursor = arguments_.nextIndex;
   }
   return entries;
@@ -370,7 +408,7 @@ export function parseMasterLatex(masterLatex: string): ParsedExperienceEntry[] {
   const sectionBody = findSection(latex, "(?:experience|employment)");
   let entries: ParsedExperienceEntry[] = [];
 
-  const resumeSubheadingEntries = sectionBody ? parseResumeSubheadingFormat(sectionBody) : [];
+  const resumeSubheadingEntries = sectionBody ? parseResumeSubheadingEntries(sectionBody) : [];
   if (resumeSubheadingEntries.length > 0) {
     entries = resumeSubheadingEntries;
   } else {

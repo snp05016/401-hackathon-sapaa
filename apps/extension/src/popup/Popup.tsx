@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { JobPosting } from "@ghostboard/shared";
 import type { CreateJobResponse } from "@ghostboard/shared";
+import { jobDetailBadges, jobDetailsOf } from "@ghostboard/shared";
 import { getBridgeSettings, saveBridgeSettings, postJson, checkBridgeHealth } from "../background/bridgeClient";
 
 const SAVED_JOBS_KEY = "ghostboardSavedJobs";
@@ -10,6 +11,22 @@ interface SavedJobMarker {
   title: string;
   company: string;
   savedAt: string;
+}
+
+interface JobCandidateResponse {
+  job?: JobPosting;
+  confidence?: number;
+  url?: string;
+}
+
+function comparableUrl(value: string): string {
+  try {
+    const url = new URL(value);
+    url.hash = "";
+    return url.href;
+  } catch {
+    return value;
+  }
 }
 
 async function readSavedJobs(): Promise<SavedJobMarker[]> {
@@ -56,15 +73,37 @@ export function Popup() {
 
     chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
       if (!tab?.id) return;
-      chrome.tabs.sendMessage(tab.id, { type: "get-current-job" }, (liveResponse) => {
-        if (liveResponse?.job) {
-          setJob(liveResponse.job as JobPosting);
-          return;
+      const activeUrl = tab.url ? comparableUrl(tab.url) : null;
+      let best: { job: JobPosting; confidence: number; descriptionLength: number } | null = null;
+
+      const consider = (response: JobCandidateResponse | null | undefined) => {
+        if (!response?.job) return;
+        if (response.url && activeUrl && comparableUrl(response.url) !== activeUrl) return;
+        const candidate = {
+          job: response.job,
+          confidence: typeof response.confidence === "number" ? response.confidence : 0,
+          descriptionLength: response.job.jobDescription?.length ?? 0,
+        };
+        if (
+          !best
+          || candidate.confidence > best.confidence
+          || (candidate.confidence === best.confidence && candidate.descriptionLength > best.descriptionLength)
+        ) {
+          best = candidate;
+          setJob(candidate.job);
         }
+      };
+
+      // The service worker receives the full bridge/parser result in the
+      // background. Ask for it in parallel with the fast local DOM scrape and
+      // keep whichever same-page result has the stronger evidence.
+      chrome.runtime.sendMessage({ type: "get-detected-job", tabId: tab.id }, (cachedResponse) => {
         void chrome.runtime.lastError;
-        chrome.runtime.sendMessage({ type: "get-detected-job", tabId: tab.id }, (cachedResponse) => {
-          if (cachedResponse?.job) setJob(cachedResponse.job as JobPosting);
-        });
+        consider(cachedResponse as JobCandidateResponse | null | undefined);
+      });
+      chrome.tabs.sendMessage(tab.id, { type: "get-current-job" }, (liveResponse) => {
+        void chrome.runtime.lastError;
+        consider(liveResponse as JobCandidateResponse | null | undefined);
       });
     });
   }, []);
@@ -111,6 +150,15 @@ export function Popup() {
         postedAt: job.postedAt,
         salaryRange: job.salaryRange,
         scrapedAt: job.scrapedAt,
+        workArrangement: job.workArrangement,
+        applicationDeadline: job.applicationDeadline,
+        startDate: job.startDate,
+        termDuration: job.termDuration,
+        responsibilities: job.responsibilities,
+        preferredQualifications: job.preferredQualifications,
+        education: job.education,
+        workAuthorization: job.workAuthorization,
+        clearance: job.clearance,
       });
       await markJobSaved(job);
       setIsSaved(true);
@@ -147,6 +195,15 @@ export function Popup() {
     });
   }
 
+  const detailBadges = jobDetailBadges(job ? jobDetailsOf(job) : null);
+  const counts = job
+    ? [
+        job.requirements.length ? `${job.requirements.length} requirements` : "",
+        job.responsibilities.length ? `${job.responsibilities.length} responsibilities` : "",
+        job.preferredQualifications.length ? `${job.preferredQualifications.length} preferred` : "",
+      ].filter(Boolean)
+    : [];
+
   return (
     <div className="popup">
       <h1>👻 Ghostboard</h1>
@@ -155,6 +212,29 @@ export function Popup() {
         <div className="card">
           <strong>{job.title}</strong>
           <div>{job.company}</div>
+          {(job.location || job.salaryRange) && (
+            <div style={{ marginTop: 2, fontSize: 11, color: "#52525b" }}>
+              {[job.location, job.salaryRange].filter(Boolean).join(" · ")}
+            </div>
+          )}
+          {detailBadges.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
+              {detailBadges.map((badge) => (
+                <span
+                  key={badge}
+                  style={{
+                    background: "#f4f4f5", border: "1px solid #e4e4e7", borderRadius: 3,
+                    padding: "1px 5px", fontSize: 10, color: "#3f3f46", textTransform: "lowercase",
+                  }}
+                >
+                  {badge}
+                </span>
+              ))}
+            </div>
+          )}
+          {counts.length > 0 && (
+            <div style={{ marginTop: 6, fontSize: 10, color: "#71717a" }}>{counts.join(" · ")}</div>
+          )}
           {isSaved ? (
             <div style={{ marginTop: 8, color: "#166534", fontWeight: 600 }}>
               {justSaved ? "Saved job" : "Already saved"}

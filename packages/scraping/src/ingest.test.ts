@@ -65,6 +65,19 @@ test("generic noisy HTML excludes page chrome and extracts job content", async (
   assert.match(result.posting?.jobDescription ?? "", /React and TypeScript/);
 });
 
+test("generic HTML parser uses ATS data attributes for title, company, and location", async () => {
+  const description = "Responsibilities\n- Build reliable services\n- Review production code\nRequirements\n- TypeScript\n- SQL\n" + "Collaborate with a small engineering team. ".repeat(8);
+  const result = await ingestJob({
+    url: "https://jobs.example.com/openings/platform-engineer",
+    html: `<html><head><title>Open role</title></head><body><main><h1 data-testid="job-title">Platform Engineer</h1><div data-testid="company-name">Northstar Labs</div><div data-testid="job-location">Toronto, ON</div><section data-testid="job-description">${description}</section><a data-testid="apply-button" href="#apply">Apply now</a></main></body></html>`,
+  }, { cache: new MemoryJobIngestionCache() });
+  assert.equal(result.outcome, "job");
+  assert.equal(result.posting?.title, "Platform Engineer");
+  assert.equal(result.posting?.company, "Northstar Labs");
+  assert.equal(result.posting?.location, "Toronto, ON");
+  assert.ok(result.posting?.responsibilities.some((item) => item.includes("Build reliable services")));
+});
+
 test("a non-job page is rejected instead of fabricated", async () => {
   const result = await ingestJob({
     url: "https://example.com/about",

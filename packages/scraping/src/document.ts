@@ -12,7 +12,19 @@ const DESCRIPTION_SELECTORS: Record<string, string[]> = {
   ashby: ['[data-testid="job-posting-description"]', ".ashby-job-posting-brief"],
   linkedin: [".jobs-description__content", ".show-more-less-html__markup"],
   indeed: ["#jobDescriptionText"],
-  generic: ["[itemprop='description']", "#job-description", ".job-description", ".jobDescription", "main", "article"],
+  generic: [
+    "[itemprop='description']",
+    "#job-description",
+    ".job-description",
+    ".jobDescription",
+    "[data-testid*='job-description' i]",
+    "[data-testid*='description' i]",
+    "[data-automation-id*='description' i]",
+    "[class*='job-description' i]",
+    "[class*='description' i]",
+    "main",
+    "article",
+  ],
 };
 
 function firstText(document: Document, selectors: string[]): string | null {
@@ -61,14 +73,37 @@ export function draftFromDocument(url: string, document: Document): { draft: Job
     source: provider,
     sourceJobId: extractSourceJobId(url, provider),
     url,
-    title: firstText(document, ["h1", '[data-automation-id="jobPostingHeader"]']) || meta(document, ["og:title", "twitter:title"]) || titleWithoutSiteSuffix(document.title),
-    company: firstText(document, ["[itemprop='hiringOrganization']", ".company-name", '[data-automation-id="company"]'])
+    title: firstText(document, [
+      "h1",
+      '[data-automation-id="jobPostingHeader"]',
+      "[data-testid*='job-title' i]",
+      "[data-automation-id*='jobtitle' i]",
+      "[class*='job-title' i]",
+    ]) || meta(document, ["og:title", "twitter:title", "job:title"]) || titleWithoutSiteSuffix(document.title),
+    company: firstText(document, [
+      "[itemprop='hiringOrganization']",
+      ".company-name",
+      '[data-automation-id="company"]',
+      "[data-testid*='company' i]",
+      "[data-automation-id*='company' i]",
+      "[class*='company-name' i]",
+      "[class*='employer' i]",
+    ])
       || meta(document, ["og:site_name", "application-name"])
       || (provider === "greenhouse" ? greenhouseCompanyFromPageTitle(document.title) : null),
-    location: firstText(document, ["[itemprop='jobLocation']", ".job-location", ".job__location", '[data-automation-id="locations"]', '[data-testid="job-location"]'])
+    location: firstText(document, [
+      "[itemprop='jobLocation']",
+      ".job-location",
+      ".job__location",
+      '[data-automation-id="locations"]',
+      '[data-testid="job-location"]',
+      "[data-testid*='location' i]",
+      "[data-automation-id*='location' i]",
+      "[class*='job-location' i]",
+    ])
       || (provider === "greenhouse" ? meta(document, ["og:description"]) : null),
-    salaryRange: firstText(document, ["[itemprop='baseSalary']", ".salary", '[data-testid="job-salary"]']),
-    employmentType: firstText(document, ["[itemprop='employmentType']", ".employment-type"]),
+    salaryRange: firstText(document, ["[itemprop='baseSalary']", ".salary", '[data-testid="job-salary"]', "[data-testid*='salary' i]"]),
+    employmentType: firstText(document, ["[itemprop='employmentType']", ".employment-type", "[data-testid*='employment-type' i]"]),
     description,
     requirements: extractRequirements(description),
     postedAt: meta(document, ["article:published_time", "date"]),
@@ -76,7 +111,10 @@ export function draftFromDocument(url: string, document: Document): { draft: Job
   const evidence: string[] = [];
   if (structured) evidence.push("schema.org JobPosting structured data");
   if (provider !== "generic") evidence.push(`recognized ${provider} job URL`);
-  if (document.querySelector('a[href*="apply" i], button[id*="apply" i], button[class*="apply" i]')) evidence.push("application control present");
+  if (
+    document.querySelector('a[href*="apply" i], button[id*="apply" i], button[class*="apply" i], [data-testid*="apply" i], [data-automation-id*="apply" i]')
+    || /\b(?:apply now|submit application|apply for this job)\b/i.test(document.body?.innerText ?? "")
+  ) evidence.push("application control present");
   if (description.length >= 200) evidence.push("substantial job-description content");
   return { draft: mergeDrafts(structured, generic), evidence };
 }

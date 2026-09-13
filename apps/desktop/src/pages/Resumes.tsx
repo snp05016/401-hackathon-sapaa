@@ -4,7 +4,7 @@ import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 import type { Application, ExperienceEntry, TailoredResumeRecord } from "@ghostboard/shared";
-import type { ResumeCustomizeResult } from "@ghostboard/resume";
+import { applyBulletEdits, parseBullets, validateLatex, type BulletProposal, type ResumeCustomizeResult } from "@ghostboard/resume";
 import { FileDown, FileUp, FolderDown, Mic, Pencil, Plus, Save, Square, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
 import { ipc } from "../lib/ipc";
 import { cn, formatDate } from "../lib/utils";
@@ -33,6 +33,7 @@ import {
   TRANSITION,
 } from "../lib/motion";
 import { playSound } from "../lib/sound";
+import { BulletProposalPanel } from "../components/resume/BulletProposalPanel";
 
 const MAX_RECORDING_SECONDS = 120;
 
@@ -53,40 +54,148 @@ const EXPERIENCE_SOURCES = ["experience", "project", "skill", "education", "volu
 const TEXTAREA_CLASSES =
   "w-full resize-y rounded-md border border-hairline bg-paper p-3 font-mono text-xs leading-5 text-ink placeholder:text-ink-3 focus:border-oxblood focus:outline-none focus:ring-1 focus:ring-oxblood";
 
+// This is deliberately fictional: it mirrors the compact, macro-driven
+// template users commonly bring in without carrying over a user's identity or
+// work history. Every identity, employer, date, and accomplishment below is
+// fictional mock content and should be replaced before saving.
 const SAMPLE_MASTER_LATEX = String.raw`
-\documentclass{article}
-\pagestyle{empty}
+\documentclass[letterpaper,11pt]{article}
+
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\input{glyphtounicode}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+\addtolength{\oddsidemargin}{-0.75in}
+\addtolength{\evensidemargin}{-0.75in}
+\addtolength{\textwidth}{1.5in}
+\addtolength{\topmargin}{-1.0in}
+\addtolength{\textheight}{1.5in}
+
+\urlstyle{same}
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+\titleformat{\section}{
+  \vspace{-4pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]
+
+\pdfgentounicode=1
+
+\newcommand{\resumeItem}[1]{%
+  \item\small{ {#1 \vspace{-2pt}} }
+}
+\newcommand{\resumeSubheading}[4]{%
+  \vspace{-2pt}\item
+  \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{#1} & #2 \\
+      \textit{\small#3} & \textit{\small #4} \\
+  \end{tabular*}\vspace{-7pt}
+}
+\newcommand{\resumeProjectHeading}[2]{%
+  \item
+  \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \small#1 & #2 \\
+  \end{tabular*}\vspace{-7pt}
+}
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.15in, label={}]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-5pt}}
+
 \begin{document}
 
 \begin{center}
-{\Huge\textbf{Your Name}}
-
-Your City, Province | your.email@example.com | (555) 555-0100
+    \textbf{\Huge \scshape YOUR NAME} \\ \vspace{1pt}
+    \small City, Country $|$ +1 (000)-000-0000 $|$ \href{mailto:you@example.com}{\underline{you@example.com}} $|$
+    \href{https://www.linkedin.com/in/your-handle}{\underline{LinkedIn}} $|$
+    \href{https://github.com/your-handle}{\underline{github.com/your-handle}}
 \end{center}
 
-\section{Professional Summary}
-Write two or three truthful sentences here, for example what you do, who you work with, and what you are known for.
+\section{Education}
+\resumeSubHeadingListStart
+    \resumeSubheading
+      {Example University}{City, Country}
+      {B.Sc. in Your Field}{20XX -- Present}
+        \resumeItemListStart
+            \resumeItem{\textbf{Coursework:} Data Structures, Databases, Systems Programming, Distributed Systems}
+        \resumeItemListEnd
+\resumeSubHeadingListEnd
 
 \section{Experience}
+\resumeSubHeadingListStart
+    \resumeSubheading
+      {Example Technology Company}{20XX -- 20XX}
+      {Software Engineering Intern}{Remote}
+      \resumeItemListStart
+            \resumeItem{Automated a recurring data-entry workflow with Python and REST APIs, reducing manual processing time by 30\% in a team pilot.}
+            \resumeItem{Integrated a service with a SQL database and added validation checks, reducing duplicate records by 25\% during testing.}
+      \resumeItemListEnd
 
-\textbf{Your most recent role} -- Jan 2022 to Present\\
-\textit{Your Employer, Your City}
-\begin{itemize}
-  \item One concrete accomplishment, with a number if you have one.
-  \item A second accomplishment that shows scope or ownership.
+    \resumeSubheading
+      {Example University Lab}{20XX -- 20XX}
+      {Teaching or Research Assistant}{City, Country}
+      \resumeItemListStart
+            \resumeItem{Explained systems programming concepts through labs and debugging sessions, helping a cohort of 40 learners complete weekly assignments.}
+            \resumeItem{Evaluated two implementation approaches with repeatable benchmarks, documenting a 20\% reduction in median runtime for the selected approach.}
+      \resumeItemListEnd
+
+    \resumeSubheading
+      {Independent Project Team}{20XX -- 20XX}
+      {Software Developer}{Remote}
+      \resumeItemListStart
+            \resumeItem{Designed a role-based dashboard for a small project team, using TypeScript and SQLite to track work across three workflow stages.}
+            \resumeItem{Investigated a recurring timeout with structured logs and a local load test, reducing median response time from 900 ms to 420 ms.}
+      \resumeItemListEnd
+\resumeSubHeadingListEnd
+
+\section{Projects}
+\resumeSubHeadingListStart
+    \resumeProjectHeading
+      {\textbf{Workflow Automation Toolkit} \emph{$|$ Python, FastAPI, SQLite, Docker}}{20XX}
+      \resumeItemListStart
+            \resumeItem{Built a Python/FastAPI workflow service with SQLite persistence, turning a manual request queue into a repeatable local workflow.}
+            \resumeItem{Added schema validation, unit tests, and structured logs that caught malformed requests before release.}
+      \resumeItemListEnd
+
+    \resumeProjectHeading
+      {\textbf{Data Quality Dashboard} \emph{$|$ TypeScript, React, PostgreSQL, CI}}{20XX}
+      \resumeItemListStart
+            \resumeItem{Created a TypeScript/React dashboard backed by PostgreSQL, surfacing status and trend data for a small operations team.}
+            \resumeItem{Shipped a CI check for data-quality regressions, reducing repeated review fixes across sample runs by 35\%.}
+      \resumeItemListEnd
+\resumeSubHeadingListEnd
+
+\section{Technical Skills}
+\begin{itemize}[leftmargin=0.15in, label={}]
+  \small{
+    \item{
+      \textbf{Languages}{: C, C++, Python, JavaScript, TypeScript, SQL, Shell}
+    }
+    \item{
+      \textbf{Systems \& tools}{: Linux, Git, Docker, CMake, GDB, CI/CD, REST APIs}
+    }
+    \item{
+      \textbf{Backend \& data}{: FastAPI, Flask, PostgreSQL, SQLite, MongoDB, testing}
+    }
+  }
 \end{itemize}
 
-\textbf{An earlier role} -- Jun 2019 to Dec 2021\\
-\textit{Your Employer, Your City}
-\begin{itemize}
-  \item One concrete accomplishment.
-  \item A second accomplishment.
-\end{itemize}
-
-\section{Education}
-
-\textbf{Your degree} -- Graduation year\\
-\textit{Your University, Your City}
 \end{document}
 `;
 
@@ -555,11 +664,21 @@ export function Resumes() {
   const [exportOutcome, setExportOutcome] = useState<{ kind: "success" | "cancel" | "error"; message: string } | null>(null);
   const [exportStamp, setExportStamp] = useState(false);
   const [tailorErrorNonce, setTailorErrorNonce] = useState(0);
+  const [bulletProposals, setBulletProposals] = useState<BulletProposal[]>([]);
+  const [bulletProposalWarnings, setBulletProposalWarnings] = useState<string[]>([]);
+  const [bulletProposalError, setBulletProposalError] = useState<string | null>(null);
+  const [bulletProposalLoading, setBulletProposalLoading] = useState(false);
+  const [bulletProposalRequested, setBulletProposalRequested] = useState(false);
+  const [acceptedBulletIds, setAcceptedBulletIds] = useState<Set<string>>(new Set());
+  const [rejectedBulletIds, setRejectedBulletIds] = useState<Set<string>>(new Set());
+  const [bulletApplyError, setBulletApplyError] = useState<string | null>(null);
+  const [bulletApplying, setBulletApplying] = useState(false);
 
   const masterRequestRef = useRef(0);
   const experienceRequestRef = useRef(0);
   const applicationsRequestRef = useRef(0);
   const tailorRequestRef = useRef(0);
+  const bulletProposalRequestRef = useRef(0);
   const masterEditorValueRef = useRef("");
 
   const masterPreview = useLatexPdf(masterLatex);
@@ -658,6 +777,15 @@ export function Resumes() {
     tailorRequestRef.current += 1;
     setIsTailoring(false);
     setTailoredResult(null);
+    bulletProposalRequestRef.current += 1;
+    setBulletProposalLoading(false);
+    setBulletProposalRequested(false);
+    setBulletProposals([]);
+    setBulletProposalWarnings([]);
+    setBulletProposalError(null);
+    setAcceptedBulletIds(new Set());
+    setRejectedBulletIds(new Set());
+    setBulletApplyError(null);
   }
 
   async function handleSaveMaster() {
@@ -691,6 +819,22 @@ export function Resumes() {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+
+    // An uploaded master supersedes any in-flight or previously reviewed
+    // proposals. Invalidate them before the async parse/save work begins so a
+    // late response cannot be applied to the new document.
+    tailorRequestRef.current += 1;
+    setIsTailoring(false);
+    setTailoredResult(null);
+    bulletProposalRequestRef.current += 1;
+    setBulletProposalLoading(false);
+    setBulletProposalRequested(false);
+    setBulletProposals([]);
+    setBulletProposalWarnings([]);
+    setBulletProposalError(null);
+    setAcceptedBulletIds(new Set());
+    setRejectedBulletIds(new Set());
+    setBulletApplyError(null);
 
     setResumeImporting(true);
     setResumeImportError(null);
@@ -747,6 +891,15 @@ export function Resumes() {
     tailorRequestRef.current += 1;
     setIsTailoring(false);
     setTailoredResult(null);
+    bulletProposalRequestRef.current += 1;
+    setBulletProposalLoading(false);
+    setBulletProposalRequested(false);
+    setBulletProposals([]);
+    setBulletProposalWarnings([]);
+    setBulletProposalError(null);
+    setAcceptedBulletIds(new Set());
+    setRejectedBulletIds(new Set());
+    setBulletApplyError(null);
   }
 
   function clearSample() {
@@ -757,6 +910,15 @@ export function Resumes() {
     tailorRequestRef.current += 1;
     setIsTailoring(false);
     setTailoredResult(null);
+    bulletProposalRequestRef.current += 1;
+    setBulletProposalLoading(false);
+    setBulletProposalRequested(false);
+    setBulletProposals([]);
+    setBulletProposalWarnings([]);
+    setBulletProposalError(null);
+    setAcceptedBulletIds(new Set());
+    setRejectedBulletIds(new Set());
+    setBulletApplyError(null);
   }
 
   function openAddDraft() {
@@ -1042,6 +1204,15 @@ export function Resumes() {
     setSelectedApplicationId(id);
     setTailorError(null);
     setTailoredResult(null);
+    bulletProposalRequestRef.current += 1;
+    setBulletProposalLoading(false);
+    setBulletProposalRequested(false);
+    setBulletProposals([]);
+    setBulletProposalWarnings([]);
+    setBulletProposalError(null);
+    setAcceptedBulletIds(new Set());
+    setRejectedBulletIds(new Set());
+    setBulletApplyError(null);
     const application = applications?.find((candidate) => candidate.id === id);
     if (application) {
       setJobCompany(application.company);
@@ -1059,6 +1230,15 @@ export function Resumes() {
   function updateJobField(setter: (value: string) => void, value: string) {
     setter(value);
     if (tailoredResult) setTailoredResult(null);
+    bulletProposalRequestRef.current += 1;
+    setBulletProposalLoading(false);
+    setBulletProposalRequested(false);
+    setBulletProposals([]);
+    setBulletProposalWarnings([]);
+    setBulletProposalError(null);
+    setAcceptedBulletIds(new Set());
+    setRejectedBulletIds(new Set());
+    setBulletApplyError(null);
   }
 
   const masterReady = masterLatex.trim().length > 0;
@@ -1091,6 +1271,84 @@ export function Resumes() {
       playSound("error");
     } finally {
       if (requestId === tailorRequestRef.current) setIsTailoring(false);
+    }
+  }
+
+  async function handleSuggestBulletEdits() {
+    if (!masterReady || !jobReady || bulletProposalLoading) return;
+    const requestId = ++bulletProposalRequestRef.current;
+    setBulletProposalRequested(true);
+    setBulletProposalLoading(true);
+    setBulletProposalError(null);
+    setBulletProposalWarnings([]);
+    setBulletProposals([]);
+    setAcceptedBulletIds(new Set());
+    setRejectedBulletIds(new Set());
+    setBulletApplyError(null);
+    try {
+      const result = await ipc().proposeBulletRewrites({ masterLatex, jobDescription: jobDescription.trim() });
+      if (requestId !== bulletProposalRequestRef.current) return;
+      setBulletProposals(result.proposals);
+      setBulletProposalWarnings(result.warnings);
+    } catch (error) {
+      if (requestId !== bulletProposalRequestRef.current) return;
+      setBulletProposalError(errorMessage(error, "Could not suggest bullet edits. Try again."));
+    } finally {
+      if (requestId === bulletProposalRequestRef.current) setBulletProposalLoading(false);
+    }
+  }
+
+  function acceptBulletProposal(id: string) {
+    setBulletApplyError(null);
+    setRejectedBulletIds((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+    setAcceptedBulletIds((current) => {
+      const next = new Set(current);
+      next.add(id);
+      return next;
+    });
+  }
+
+  function rejectBulletProposal(id: string) {
+    setBulletApplyError(null);
+    setAcceptedBulletIds((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+    setRejectedBulletIds((current) => {
+      const next = new Set(current);
+      next.add(id);
+      return next;
+    });
+  }
+
+  function applyAcceptedBulletEdits() {
+    if (bulletApplying || acceptedBulletIds.size === 0) return;
+    setBulletApplying(true);
+    setBulletApplyError(null);
+    try {
+      const bullets = parseBullets(masterLatex);
+      const accepted = bulletProposals.filter((proposal) => acceptedBulletIds.has(proposal.id));
+      const candidate = applyBulletEdits(masterLatex, bullets, accepted.map((proposal) => ({ id: proposal.id, text: proposal.after })));
+      const validation = validateLatex(candidate);
+      if (!validation.valid) throw new Error(`The tailored draft is not valid LaTeX: ${validation.errors.join(" ")}`);
+      setTailoredLatex(candidate);
+      setTailoredResult({
+        latex: candidate,
+        changesSummary: accepted.map((proposal) => `Updated bullet: ${proposal.rationale || proposal.after}`),
+      });
+      setReviewSaving("idle");
+      setReviewSaveError(null);
+      playSound("success");
+    } catch (error) {
+      setBulletApplyError(errorMessage(error, "Could not prepare the tailored draft. The master resume was not changed."));
+      playSound("error");
+    } finally {
+      setBulletApplying(false);
     }
   }
 
@@ -1218,7 +1476,7 @@ export function Resumes() {
               {usingSample && (
                 <div className="flex items-center gap-3">
                   <p role="status" className="text-[12px] text-ink-2">
-                    You are editing sample text.
+                    You are editing a fictional mock resume.
                   </p>
                   <Button variant="ghost" onClick={clearSample}>
                     Clear sample
@@ -2078,6 +2336,23 @@ export function Resumes() {
                 </p>
               )}
             </div>
+
+            <BulletProposalPanel
+              requested={bulletProposalRequested}
+              canRequest={masterReady && jobReady && !isTailoring}
+              proposals={bulletProposals}
+              warnings={bulletProposalWarnings}
+              loading={bulletProposalLoading}
+              error={bulletProposalError}
+              applying={bulletApplying}
+              applyError={bulletApplyError}
+              acceptedIds={acceptedBulletIds}
+              rejectedIds={rejectedBulletIds}
+              onRequest={() => void handleSuggestBulletEdits()}
+              onAccept={acceptBulletProposal}
+              onReject={rejectBulletProposal}
+              onApply={applyAcceptedBulletEdits}
+            />
 
             {tailoredResult && (
               <motion.div

@@ -1,4 +1,5 @@
 import type { ResumeEducation, ResumeExperience, ResumeProject, ResumeReference } from "@ghostboard/shared";
+import { parseMasterLatex, parseResumeSubheadingEntries, type ParsedExperienceEntry } from "./parseMasterLatex";
 
 export type JobExperience = ResumeExperience;
 
@@ -43,6 +44,8 @@ function cleanupLatexText(value: string): string {
   return value
     .replace(/\\documentclass(?:\[[^\]]*\])?\{[^}]*\}/g, "")
     .replace(/\\(?:begin|end)\{[^}]*\}/g, "")
+    .replace(/\\fontsize\{[^}]*\}\{[^}]*\}/g, " ")
+    .replace(/\\(?:vspace|hspace)\{[^}]*\}/g, " ")
     .replace(/\\section\*?\{([^}]*)\}/g, "$1")
     .replace(/\\href\{([^}]*)\}\{([^}]*)\}/g, "$2 ($1)")
     .replace(/\\(?:Huge|huge|LARGE|Large|large|normalsize|small|footnotesize|scriptsize|tiny)\b/g, " ")
@@ -237,19 +240,75 @@ function parseProjects(sectionLatex: string | undefined): ResumeProject[] {
   return projects;
 }
 
+function macroDateRange(entry: ParsedExperienceEntry): string | null {
+  const format = (value: string | null): string | null => {
+    if (!value) return null;
+    const month = value.match(/^\d{4}-(\d{2})/);
+    if (month) return `${month[1]}/${value.slice(0, 4)}`;
+    return value.match(/^\d{4}$/) ? value : null;
+  };
+  const start = format(entry.startDate);
+  const end = format(entry.endDate);
+  if (start && end) return `${start} - ${end}`;
+  if (start) return `${start} - Present`;
+  if (end) return end;
+  return null;
+}
+
+function macroExperienceToReference(entry: ParsedExperienceEntry): ResumeExperience {
+  return {
+    title: entry.role,
+    company: entry.employer,
+    location: entry.location ?? null,
+    dateRange: macroDateRange(entry),
+    bullets: entry.bullets,
+  };
+}
+
+function macroEducationToReference(entry: ParsedExperienceEntry): ResumeEducation {
+  return {
+    school: entry.employer || entry.role,
+    degree: entry.role || null,
+    location: entry.location ?? null,
+    dateRange: macroDateRange(entry),
+    details: entry.bullets,
+  };
+}
+
+function macroProjectToReference(entry: ParsedExperienceEntry): ResumeProject {
+  return {
+    name: entry.role,
+    dateRange: macroDateRange(entry),
+    bullets: entry.bullets,
+  };
+}
+
 export function parseResumeReference(latex: string): ResumeReference {
   const sections = parseSections(latex);
   const summary = findSection(sections, ["summary"])?.text ?? null;
   const skillsSection = findSection(sections, ["skill", "technology", "technical"]);
   const educationSection = findSection(sections, ["education"]);
   const projectSection = findSection(sections, ["project"]);
+  const macroEntries = parseMasterLatex(latex);
+  const parsedExperience = parseJobExperiences(latex);
+  const parsedProjects = parseProjects(projectSection?.latex);
+  const macroEducation = educationSection ? parseResumeSubheadingEntries(educationSection.latex) : [];
+  const macroSkills = macroEntries.flatMap((entry) => entry.source === "skill" ? (entry.skills ?? []) : []);
+  const structuredProjects = macroEntries.filter((entry) => entry.source === "project").map(macroProjectToReference);
+  const parsedEducation = parseEducation(educationSection?.latex);
   return {
     contact: parseContact(latex, sections),
     summary,
-    skills: parseSkills(skillsSection?.latex),
-    experience: parseJobExperiences(latex),
-    education: parseEducation(educationSection?.latex),
-    projects: parseProjects(projectSection?.latex),
+    skills: [...new Set([...parseSkills(skillsSection?.latex), ...macroSkills])],
+    experience: parsedExperience.length
+      ? parsedExperience
+      : macroEntries.filter((entry) => entry.source === "experience").map(macroExperienceToReference),
+    education: macroEducation.length
+      ? macroEducation.map(macroEducationToReference)
+      : parsedEducation,
+    projects: parsedProjects.some((project) => project.bullets.length > 0)
+      ? parsedProjects
+      : structuredProjects.length > 0 ? structuredProjects : parsedProjects,
     sections: sections.map((section) => ({ heading: section.heading, text: section.text })),
     plainText: cleanupLatexText(latex),
   };
