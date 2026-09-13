@@ -1,9 +1,38 @@
 import { useEffect, useRef, useState } from "react";
 import type { GmailState, GmailSuggestion } from "@ghostboard/shared";
 import { AlertCircle, ArrowRight, CheckCircle2, Clock3, Inbox, LoaderCircle, Mail, RefreshCw, ShieldCheck, Unplug, UserRoundSearch } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ipc } from "../lib/ipc";
 import { Badge, type BadgeProps } from "./ui/badge";
 import { Button } from "./ui/button";
+import { GhostDrift } from "./motion";
+import { DISTANCE, DURATION, EASE, SPRING, STAGGER, TRANSITION } from "../lib/motion";
+import { playSound } from "../lib/sound";
+import { cn } from "../lib/utils";
+
+function ConnectedTick() {
+  return (
+    <motion.svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      width={11}
+      height={11}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={4}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="shrink-0 text-verdigris"
+    >
+      <motion.path
+        d="M3 12.5 L9.5 19 L21 5.5"
+        initial={{ pathLength: 0 }}
+        animate={{ pathLength: 1 }}
+        transition={SPRING.overshoot}
+      />
+    </motion.svg>
+  );
+}
 
 const STATUS_PRESENTATION: Record<NonNullable<GmailSuggestion["newStatus"]> | "message", { label: string; variant: BadgeProps["variant"] }> = {
   applied: { label: "Application confirmed", variant: "ink" },
@@ -29,14 +58,20 @@ function formatReceivedAt(value: string): { date: string; time: string } {
   };
 }
 
-function Suggestion({ suggestion }: { suggestion: GmailSuggestion }) {
+function Suggestion({ suggestion, index }: { suggestion: GmailSuggestion; index: number }) {
   const status = suggestionLabel(suggestion);
   const received = formatReceivedAt(suggestion.receivedAt);
   const application = suggestion.candidates.length === 1 ? suggestion.candidates[0] : null;
   const confidence = Math.round(suggestion.confidence * 100);
 
   return (
-    <li className="animate-reveal border-b border-hairline last:border-b-0">
+    <motion.li
+      initial={{ opacity: 0, y: DISTANCE.rise }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ ...TRANSITION.base, delay: Math.min(index, 11) * STAGGER.list }}
+      whileHover={{ y: DISTANCE.liftRow, transition: SPRING.hover }}
+      className="border-b border-hairline last:border-b-0"
+    >
       <article className="grid min-w-0 gap-5 py-6 sm:grid-cols-[42px_minmax(0,1fr)_110px] sm:gap-4">
         <div className="hidden h-10 w-10 items-center justify-center rounded-full border border-hairline bg-paper text-oxblood sm:flex" aria-hidden="true">
           <Mail size={17} strokeWidth={1.6} />
@@ -81,7 +116,7 @@ function Suggestion({ suggestion }: { suggestion: GmailSuggestion }) {
           </div>
         </div>
       </article>
-    </li>
+    </motion.li>
   );
 }
 
@@ -100,6 +135,7 @@ export function GmailPanel({ onUpdated, heading = "Gmail status updates" }: { on
   const [error, setError] = useState<string | null>(null);
   const alive = useRef(true);
   const generation = useRef(0);
+  const prefersReducedMotion = useReducedMotion();
   const busy = working || Boolean(state?.busy);
 
   async function load() {
@@ -122,14 +158,25 @@ export function GmailPanel({ onUpdated, heading = "Gmail status updates" }: { on
   }, []);
 
   async function perform(action: () => Promise<GmailState>) {
+    const wasConnected = Boolean(state?.connected);
     setWorking(true);
     setError(null);
     generation.current++;
     try {
       const result = await action();
-      if (alive.current) { generation.current++; setState(result); onUpdated(); }
+      if (alive.current) {
+        generation.current++;
+        setState(result);
+        onUpdated();
+        // Only a user-initiated action reaches here, so an outcome sound is safe.
+        if (!wasConnected && result.connected) playSound("success");
+        else if (wasConnected && !result.connected) playSound("toggle");
+      }
     } catch {
-      if (alive.current) setError("Could not complete that Gmail action. Try again.");
+      if (alive.current) {
+        setError("Could not complete that Gmail action. Try again.");
+        playSound("error");
+      }
     } finally {
       if (alive.current) setWorking(false);
     }
@@ -145,7 +192,19 @@ export function GmailPanel({ onUpdated, heading = "Gmail status updates" }: { on
         <div className="px-0 py-7 lg:border-r lg:border-hairline lg:pr-9">
           <div className="flex flex-wrap items-start justify-between gap-5">
             <div>
-              <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-ink-3"><span className={`h-1.5 w-1.5 rounded-full ${state?.connected ? "bg-verdigris" : "bg-ink-3"}`} />{state?.connected ? "Connection active" : "Connection required"}</div>
+              <div className="flex h-4 items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-ink-3">
+                <AnimatePresence mode="wait" initial={false}>
+                  {state?.connected ? (
+                    <motion.span key="connected" className="flex items-center gap-2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={TRANSITION.quick}>
+                      <ConnectedTick />Connection active
+                    </motion.span>
+                  ) : (
+                    <motion.span key="disconnected" className="flex items-center gap-2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={TRANSITION.quick}>
+                      <span className="h-1.5 w-1.5 rounded-full bg-ink-3" />Connection required
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </div>
               <h2 id="gmail-heading" className="mt-3 font-display text-[29px] leading-tight text-ink">{state?.connected ? state.account : heading}</h2>
               <p className="mt-2 max-w-[570px] text-[12px] leading-relaxed text-ink-2">{state?.connected ? "Recruiting messages are checked only when you ask, or on the schedule you enable below." : "Connect Gmail to bring confirmations, interviews, offers, and explicit rejections into the same place as your applications."}</p>
             </div>
@@ -163,7 +222,19 @@ export function GmailPanel({ onUpdated, heading = "Gmail status updates" }: { on
             {busy && <Button variant="quiet" onClick={() => { void ipc().cancelGmail().catch(() => setError("Could not cancel. Please wait for the operation to finish.")); }}>Cancel</Button>}
             {error && <Button variant="quiet" onClick={() => { void load(); }}>Retry</Button>}
           </div>
-          {busy && <p role="status" className="mt-4 flex items-center gap-2 text-[11px] text-ink-2"><LoaderCircle size={13} className="animate-spin" />Working… If a sign-in window opened, finish Google consent in your browser.</p>}
+          {busy && (
+            <p role="status" className={cn("mt-4 flex items-center gap-2 text-[11px] text-ink-2", prefersReducedMotion !== true && "pulse-soft")}>
+              <motion.span
+                aria-hidden="true"
+                className="inline-flex text-oxblood"
+                animate={{ y: [0, -2, 0, 2, 0] }}
+                transition={{ duration: DURATION.ambient, ease: EASE.inOut, repeat: Infinity }}
+              >
+                <Mail size={13} strokeWidth={1.8} />
+              </motion.span>
+              Working… If a sign-in window opened, finish Google consent in your browser.
+            </p>
+          )}
         </div>
 
         <aside className="bg-paper-raised/50 px-0 py-7 lg:px-7" aria-label="Inbox privacy and preferences">
@@ -177,7 +248,7 @@ export function GmailPanel({ onUpdated, heading = "Gmail status updates" }: { on
 
       {state?.connected && !state.suggestions.length && (
         <div className="mt-9 flex min-h-[230px] flex-col items-center justify-center border border-dashed border-hairline px-6 text-center">
-          <Inbox size={25} strokeWidth={1.4} className="text-ink-3" />
+          <GhostDrift><Inbox size={25} strokeWidth={1.4} className="text-ink-3" /></GhostDrift>
           <h3 className="mt-4 font-display text-[25px] text-ink">No recruiter updates yet</h3>
           <p className="mt-2 max-w-[430px] text-[11px] leading-relaxed text-ink-2">Run a check when you expect news. Messages that cannot be matched confidently will never change your board.</p>
         </div>
@@ -189,7 +260,7 @@ export function GmailPanel({ onUpdated, heading = "Gmail status updates" }: { on
             <div><p className="text-[10px] uppercase tracking-[0.14em] text-oxblood">Message intelligence</p><h2 className="mt-1 font-display text-[30px] text-ink">Recent activity</h2></div>
             <span className="tnum text-[11px] text-ink-2">{state.suggestions.length} {state.suggestions.length === 1 ? "message" : "messages"}</span>
           </div>
-          <ul>{state.suggestions.map((suggestion) => <Suggestion key={suggestion.id} suggestion={suggestion} />)}</ul>
+          <ul>{state.suggestions.map((suggestion, index) => <Suggestion key={suggestion.id} suggestion={suggestion} index={index} />)}</ul>
         </div>
       )}
     </section>

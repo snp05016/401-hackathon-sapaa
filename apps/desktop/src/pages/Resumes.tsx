@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { AnimatePresence, motion, useAnimationControls } from "framer-motion";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
@@ -11,6 +12,26 @@ import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader } from "../components/ui/card";
 import { Input } from "../components/ui/input";
+import {
+  AnimatedNumber,
+  GhostDrift,
+  RevealOnScroll,
+  Sheen,
+  Shimmer,
+  Stagger,
+  StaggerItem,
+  Stamp,
+} from "../components/motion";
+import {
+  DISTANCE,
+  DURATION,
+  EASE,
+  SCALE,
+  SPRING,
+  STAGGER,
+  TRANSITION,
+} from "../lib/motion";
+import { playSound } from "../lib/sound";
 
 const MAX_RECORDING_SECONDS = 120;
 
@@ -101,6 +122,90 @@ function entryDateRange(entry: ExperienceEntry): string | null {
   return `${start} – ${end}`;
 }
 
+// The Resumes surface is pinned to the slate palette by AppShell's existing
+// page exception, so rules here need an explicit slate tone rather than the
+// theme hairline used by the shared DrawRule primitive.
+function DrawnRule({
+  delay = 0,
+  tone = "bg-slate-200",
+  className,
+}: {
+  delay?: number;
+  tone?: string;
+  className?: string;
+}) {
+  return (
+    <motion.div
+      aria-hidden="true"
+      className={cn("h-px w-full origin-left", tone, className)}
+      initial={{ scaleX: 0 }}
+      animate={{ scaleX: 1 }}
+      transition={{ ...TRANSITION.hero, delay }}
+    />
+  );
+}
+
+function GhostGlyph({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 48 56"
+      aria-hidden="true"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      className={className}
+    >
+      <path
+        d="M24 3C13.5 3 5 11.5 5 22v31l6-5 6 5 7-5 7 5 6-5 6 5V22C43 11.5 34.5 3 24 3Z"
+        strokeLinejoin="round"
+      />
+      <circle cx="17" cy="23" r="2.5" fill="currentColor" stroke="none" />
+      <circle cx="31" cy="23" r="2.5" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function PagePlaceholder() {
+  return (
+    <div className="flex justify-center p-3">
+      <div className="w-[460px] max-w-full rounded-sm border border-slate-200 bg-white p-8">
+        <Shimmer lines={1} height={20} />
+        <div className="mt-5">
+          <Shimmer lines={5} height={8} />
+        </div>
+        <div className="mt-7">
+          <Shimmer lines={1} height={13} />
+        </div>
+        <div className="mt-4">
+          <Shimmer lines={6} height={8} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LevelBars({ className }: { className?: string }) {
+  return (
+    <span aria-hidden="true" className={cn("inline-flex h-4 items-end gap-[3px]", className)}>
+      {[0, 1, 2].map((bar) => (
+        <motion.span
+          key={bar}
+          className="block w-[3px] origin-bottom rounded-sm bg-oxblood"
+          style={{ height: 14 }}
+          animate={{ scaleY: [0.3, 1, 0.4] }}
+          transition={{
+            duration: 0.4,
+            ease: EASE.inOut,
+            repeat: Infinity,
+            repeatType: "mirror",
+            delay: bar * 0.09,
+          }}
+        />
+      ))}
+    </span>
+  );
+}
+
 function useLatexPdf(source: string) {
   const [pdf, setPdf] = useState<Uint8Array | null>(null);
   const [compileError, setCompileError] = useState<string | null>(null);
@@ -153,6 +258,8 @@ function LatexPdfPreview({
   const [pdfSource, setPdfSource] = useState<string | null>(null);
   const [displayError, setDisplayError] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
+  const [sheenPlaying, setSheenPlaying] = useState(false);
+  const riseControls = useAnimationControls();
 
   useEffect(() => {
     setPageCount(0);
@@ -170,74 +277,141 @@ function LatexPdfPreview({
     }
   }, [pdf]);
 
+  // The sheet rises on the wrapper only — never on the react-pdf Page or its
+  // parent, whose text layer assumes an untransformed ancestor chain.
+  useEffect(() => {
+    if (!pdfSource) return;
+    void riseControls.start(
+      { opacity: [0, 1], y: [DISTANCE.slide, 0] },
+      TRANSITION.slow,
+    );
+    setSheenPlaying(true);
+    const timer = window.setTimeout(() => setSheenPlaying(false), 1100);
+    return () => window.clearTimeout(timer);
+  }, [pdfSource, riseControls]);
+
+  const visibleError = compileError ?? displayError;
+
+  function changeZoom(delta: number) {
+    playSound("tap");
+    setZoom((current) => {
+      const next = Number((current + delta).toFixed(1));
+      return Math.min(1.6, Math.max(0.6, next));
+    });
+  }
+
   return (
-    <div className={cn("relative overflow-auto rounded-md border border-slate-200 bg-slate-100", minHeight)}>
-      {compileError || displayError ? (
-        <div role="alert" className="p-3 text-[12px] leading-relaxed text-red-700">
-          {compileError ?? displayError}
-        </div>
-      ) : pdfSource ? (
-        <>
-          <div className="sticky top-0 z-10 flex items-center justify-end gap-1 border-b border-slate-200 bg-slate-100/95 p-2">
-            <button
-              type="button"
-              onClick={() => setZoom((current) => Math.max(0.6, Number((current - 0.1).toFixed(1))))}
-              disabled={zoom <= 0.6}
-              className="rounded-md p-1.5 text-slate-700 hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
-              aria-label="Zoom out preview"
-              title="Zoom out"
-            >
-              <ZoomOut size={15} />
-            </button>
-            <span className="tnum min-w-12 text-center text-[11px] text-slate-600">{Math.round(zoom * 100)}%</span>
-            <button
-              type="button"
-              onClick={() => setZoom((current) => Math.min(1.6, Number((current + 0.1).toFixed(1))))}
-              disabled={zoom >= 1.6}
-              className="rounded-md p-1.5 text-slate-700 hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
-              aria-label="Zoom in preview"
-              title="Zoom in"
-            >
-              <ZoomIn size={15} />
-            </button>
-          </div>
-          <Document
-            file={pdfSource}
-            onLoadSuccess={({ numPages }) => setPageCount(numPages)}
-            onLoadError={(error) => setDisplayError(errorMessage(error, "Could not display the compiled PDF."))}
-            loading={<p className="p-3 text-[12px] text-slate-500">Loading PDF…</p>}
-            error={<p role="alert" className="p-3 text-[12px] text-red-700">Could not display the compiled PDF.</p>}
-            className="flex min-w-fit justify-center p-3"
+    <motion.div className="relative" animate={riseControls}>
+      <div className={cn("relative overflow-auto rounded-md border border-slate-200 bg-slate-100", minHeight)}>
+        {visibleError ? (
+          <motion.div
+            key={visibleError}
+            role="alert"
+            className="p-3 text-[12px] leading-relaxed text-red-700"
+            initial={{ opacity: 0, y: DISTANCE.rise }}
+            animate={{ opacity: 1, y: 0, x: [0, -4, 4, -3, 0] }}
+            transition={{
+              ...TRANSITION.base,
+              x: { duration: DURATION.base, ease: EASE.out },
+            }}
           >
-            <div className="space-y-3">
-              {Array.from({ length: pageCount }, (_, index) => (
-                <Page key={index + 1} pageNumber={index + 1} width={460 * zoom} renderAnnotationLayer renderTextLayer />
-              ))}
+            {visibleError}
+          </motion.div>
+        ) : pdfSource ? (
+          <>
+            <div className="sticky top-0 z-10 flex items-center justify-end gap-1 border-b border-slate-200 bg-slate-100/95 p-2">
+              <motion.button
+                type="button"
+                onClick={() => changeZoom(-0.1)}
+                disabled={zoom <= 0.6}
+                className="rounded-md p-1.5 text-slate-700 hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Zoom out preview"
+                title="Zoom out"
+                whileHover={zoom <= 0.6 ? undefined : { scale: 1.08, transition: SPRING.hover }}
+                whileTap={zoom <= 0.6 ? undefined : { scale: SCALE.press, transition: SPRING.press }}
+              >
+                <ZoomOut size={15} />
+              </motion.button>
+              <AnimatedNumber
+                value={Math.round(zoom * 100)}
+                duration={DURATION.base}
+                format={(n) => `${Math.round(n)}%`}
+                className="tnum min-w-12 text-center text-[11px] text-slate-600"
+              />
+              <motion.button
+                type="button"
+                onClick={() => changeZoom(0.1)}
+                disabled={zoom >= 1.6}
+                className="rounded-md p-1.5 text-slate-700 hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Zoom in preview"
+                title="Zoom in"
+                whileHover={zoom >= 1.6 ? undefined : { scale: 1.08, transition: SPRING.hover }}
+                whileTap={zoom >= 1.6 ? undefined : { scale: SCALE.press, transition: SPRING.press }}
+              >
+                <ZoomIn size={15} />
+              </motion.button>
             </div>
-          </Document>
-        </>
-      ) : (
-        <div className="flex h-full min-h-96 items-center justify-center p-3 text-center text-[12px] text-slate-500">
-          {compiling ? "Compiling with pdflatex…" : "PDF preview appears here after compilation."}
-        </div>
-      )}
-    </div>
+            <Document
+              file={pdfSource}
+              onLoadSuccess={({ numPages }) => setPageCount(numPages)}
+              onLoadError={(error) => setDisplayError(errorMessage(error, "Could not display the compiled PDF."))}
+              loading={<p className="p-3 text-[12px] text-slate-500">Loading PDF…</p>}
+              error={<p role="alert" className="p-3 text-[12px] text-red-700">Could not display the compiled PDF.</p>}
+              className="flex min-w-fit justify-center p-3"
+            >
+              <div className="space-y-3">
+                {Array.from({ length: pageCount }, (_, index) => (
+                  <Page key={index + 1} pageNumber={index + 1} width={460 * zoom} renderAnnotationLayer renderTextLayer />
+                ))}
+              </div>
+            </Document>
+          </>
+        ) : compiling ? (
+          <div className="flex h-full min-h-96 flex-col items-center justify-center">
+            <PagePlaceholder />
+            <p role="status" className="p-3 text-center text-[12px] text-slate-500">
+              Compiling with pdflatex…
+            </p>
+          </div>
+        ) : (
+          <div className="flex h-full min-h-96 items-center justify-center p-3 text-center text-[12px] text-slate-500">
+            PDF preview appears here after compilation.
+          </div>
+        )}
+      </div>
+      <Sheen play={sheenPlaying} className="absolute inset-0 rounded-md" />
+    </motion.div>
   );
 }
 
-function ChangeLine({ line }: { line: string }) {
+function ChangeLine({ line, index }: { line: string; index: number }) {
   const added = line.startsWith("Added");
   const removed = line.startsWith("Removed");
   return (
-    <li className="flex gap-2 text-[12px] leading-relaxed">
-      <span
+    <motion.li
+      className="flex gap-2 text-[12px] leading-relaxed"
+      initial={{ opacity: 0, y: DISTANCE.riseSmall }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ ...TRANSITION.base, delay: Math.min(index, 11) * STAGGER.list }}
+    >
+      <motion.span
         aria-hidden="true"
-        className={cn("mt-px select-none font-semibold", added ? "text-verdigris" : removed ? "text-oxblood" : "text-slate-500")}
+        className={cn(
+          "mt-px inline-block origin-left select-none font-semibold",
+          added ? "text-verdigris" : removed ? "text-oxblood" : "text-slate-500",
+        )}
+        initial={{ scaleX: 0 }}
+        animate={{ scaleX: 1 }}
+        transition={{
+          duration: DURATION.base,
+          ease: EASE.out,
+          delay: Math.min(index, 11) * STAGGER.list + 0.08,
+        }}
       >
         {added ? "+" : removed ? "–" : "·"}
-      </span>
+      </motion.span>
       <span className={cn(added ? "text-verdigris" : removed ? "text-oxblood" : "text-slate-700")}>{line}</span>
-    </li>
+    </motion.li>
   );
 }
 
@@ -249,6 +423,7 @@ function LatexSourceEditor({
   pdf,
   compiling,
   minHeight = "min-h-96",
+  scanning = false,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -257,21 +432,65 @@ function LatexSourceEditor({
   pdf: Uint8Array | null;
   compiling: boolean;
   minHeight?: string;
+  scanning?: boolean;
 }) {
+  const [focused, setFocused] = useState(false);
+
   return (
     <div className="grid gap-4 xl:grid-cols-2">
       <div>
         <label htmlFor={latexId} className="mb-1.5 block text-[12px] font-medium text-slate-700">
           LaTeX source
         </label>
-        <textarea
-          id={latexId}
-          spellCheck={false}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          placeholder={String.raw`\documentclass{article}% start with a LaTeX document…`}
-          className={cn(TEXTAREA_CLASSES, minHeight)}
-        />
+        <div className="relative overflow-hidden rounded-md">
+          <motion.textarea
+            id={latexId}
+            spellCheck={false}
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            placeholder={String.raw`\documentclass{article}% start with a LaTeX document…`}
+            className={cn(TEXTAREA_CLASSES, minHeight)}
+            animate={{ opacity: scanning ? 0.75 : 1 }}
+            transition={{ duration: DURATION.quick, ease: EASE.subtle }}
+          />
+          <motion.span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 rounded-md ring-1 ring-inset ring-oxblood"
+            initial={false}
+            animate={{ opacity: focused ? 1 : 0 }}
+            transition={{ duration: DURATION.quick, ease: EASE.subtle }}
+          />
+          <AnimatePresence>
+            {scanning && (
+              <motion.span
+                key="scanline"
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-x-0 top-0 bottom-1.5 overflow-hidden rounded-md"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0, transition: TRANSITION.exit }}
+                transition={{ duration: DURATION.quick, ease: EASE.subtle }}
+              >
+                <motion.span
+                  className="absolute inset-x-0 top-0 block h-1/2"
+                  style={{
+                    background:
+                      "linear-gradient(to bottom, rgb(var(--oxblood) / 0) 0%, rgb(var(--oxblood) / 0.14) 82%, rgb(var(--oxblood) / 0.3) 100%)",
+                    borderBottom: "2px solid rgb(var(--oxblood) / 0.75)",
+                  }}
+                  animate={{ y: ["-100%", "200%"] }}
+                  transition={{
+                    duration: DURATION.ambient,
+                    ease: EASE.inOut,
+                    repeat: Infinity,
+                  }}
+                />
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
       <div>
         <p className="mb-1.5 text-[12px] font-medium text-slate-700">Preview</p>
@@ -284,11 +503,13 @@ function LatexSourceEditor({
 export function Resumes() {
   const [masterId, setMasterId] = useState("");
   const [masterLatex, setMasterLatex] = useState("");
+  const [persistedLatex, setPersistedLatex] = useState("");
   const [masterLoading, setMasterLoading] = useState(true);
   const [masterError, setMasterError] = useState<string | null>(null);
   const [masterSaving, setMasterSaving] = useState(false);
   const [masterSaveState, setMasterSaveState] = useState<"idle" | "saved" | "error">("idle");
   const [masterSaveError, setMasterSaveError] = useState<string | null>(null);
+  const [masterSaveNonce, setMasterSaveNonce] = useState(0);
   const [usingSample, setUsingSample] = useState(false);
   const [resumeImporting, setResumeImporting] = useState(false);
   const [resumeImportError, setResumeImportError] = useState<string | null>(null);
@@ -334,6 +555,8 @@ export function Resumes() {
   const [pdfOutcome, setPdfOutcome] = useState<{ kind: "success" | "cancel" | "error"; message: string } | null>(null);
   const [exportBusy, setExportBusy] = useState(false);
   const [exportOutcome, setExportOutcome] = useState<{ kind: "success" | "cancel" | "error"; message: string } | null>(null);
+  const [exportStamp, setExportStamp] = useState(false);
+  const [tailorErrorNonce, setTailorErrorNonce] = useState(0);
 
   const masterRequestRef = useRef(0);
   const experienceRequestRef = useRef(0);
@@ -355,6 +578,7 @@ export function Resumes() {
       setMasterId(resume.id);
       masterEditorValueRef.current = resume.latex;
       setMasterLatex(resume.latex);
+      setPersistedLatex(resume.latex);
     } catch (error) {
       if (request !== masterRequestRef.current) return;
       setMasterError(errorMessage(error, "Could not load your master resume."));
@@ -451,11 +675,15 @@ export function Resumes() {
         masterEditorValueRef.current = saved.latex;
         setMasterLatex(saved.latex);
       }
+      setPersistedLatex(saved.latex);
       setUsingSample(false);
       setMasterSaveState("saved");
+      playSound("success");
     } catch (error) {
       setMasterSaveState("error");
       setMasterSaveError(errorMessage(error, "Could not save the master resume."));
+      setMasterSaveNonce((nonce) => nonce + 1);
+      playSound("error");
     } finally {
       setMasterSaving(false);
     }
@@ -496,14 +724,17 @@ export function Resumes() {
       setMasterId(savedMaster.id);
       masterEditorValueRef.current = savedMaster.latex;
       setMasterLatex(savedMaster.latex);
+      setPersistedLatex(savedMaster.latex);
       setUsingSample(false);
       setMasterSaveState("saved");
       setMasterSaveError(null);
       setExperienceEntries(updatedEntries);
       setExperienceError(null);
       setResumeImportResult({ added, skipped: parsedEntries.length - added });
+      playSound("success");
     } catch (error) {
       setResumeImportError(errorMessage(error, "Could not import the LaTeX resume."));
+      playSound("error");
     } finally {
       setResumeImporting(false);
     }
@@ -646,8 +877,10 @@ export function Resumes() {
       setDraft(null);
       setDraftValidation(null);
       setEntrySaved(true);
+      playSound("success");
     } catch (error) {
       setExperienceActionError(errorMessage(error, "Could not save the entry."));
+      playSound("error");
     } finally {
       setEntrySaving(false);
     }
@@ -661,8 +894,10 @@ export function Resumes() {
       const updatedList = await ipc().deleteExperienceEntry(id);
       setExperienceEntries(updatedList);
       setConfirmingDeleteId(null);
+      playSound("delete");
     } catch (error) {
       setExperienceActionError(errorMessage(error, "Could not delete the entry."));
+      playSound("error");
     } finally {
       setDeletingEntryId(null);
     }
@@ -850,9 +1085,12 @@ export function Resumes() {
       if (requestId !== tailorRequestRef.current) return;
       setTailoredResult(result);
       setTailoredLatex(result.latex);
+      playSound("success");
     } catch (error) {
       if (requestId !== tailorRequestRef.current) return;
       setTailorError(errorMessage(error, "Could not tailor the resume. Try again."));
+      setTailorErrorNonce((nonce) => nonce + 1);
+      playSound("error");
     } finally {
       if (requestId === tailorRequestRef.current) setIsTailoring(false);
     }
@@ -878,9 +1116,11 @@ export function Resumes() {
     try {
       await ipc().saveTailoredResume(record);
       setReviewSaving("saved");
+      playSound("success");
     } catch (error) {
       setReviewSaving("error");
       setReviewSaveError(errorMessage(error, "Could not save the tailored resume."));
+      playSound("error");
     }
   }
 
@@ -898,11 +1138,13 @@ export function Resumes() {
       const savedPath = await ipc().downloadResumePdf({ pdf, suggestedFileName: suggestedPdfFileName() });
       if (savedPath) {
         setPdfOutcome({ kind: "success", message: `Saved to ${savedPath}.` });
+        playSound("success");
       } else {
         setPdfOutcome({ kind: "cancel", message: "No file saved — you cancelled." });
       }
     } catch (error) {
       setPdfOutcome({ kind: "error", message: errorMessage(error, "Could not create the PDF.") });
+      playSound("error");
     } finally {
       setPdfBusy(false);
     }
@@ -925,11 +1167,14 @@ export function Resumes() {
       });
       if (folderPath) {
         setExportOutcome({ kind: "success", message: `Saved PDF, LaTeX, and change summary to ${folderPath}.` });
+        setExportStamp(true);
+        playSound("success");
       } else {
         setExportOutcome({ kind: "cancel", message: "No file saved — you cancelled." });
       }
     } catch (error) {
       setExportOutcome({ kind: "error", message: errorMessage(error, "Could not export the resume.") });
+      playSound("error");
     } finally {
       setExportBusy(false);
     }
@@ -942,17 +1187,24 @@ export function Resumes() {
   }
 
   const exportDisabled = pdfBusy || exportBusy || reviewSaving === "saving" || tailoredPreview.compiling || tailoredPreview.compileError !== null || !tailoredPreview.pdf;
+  const masterDirty = !masterLoading && !masterError && masterLatex !== persistedLatex;
 
   return (
-    <div className="mx-auto min-w-0 max-w-[1240px]">
-      <header className="animate-reveal flex items-baseline justify-between gap-8 border-b border-slate-200 pb-3">
-        <h1 className="font-display text-[40px] leading-[0.95] tracking-[-0.015em] text-slate-900">Resumes</h1>
-        <p className="max-w-[300px] text-right text-[12px] leading-relaxed text-slate-600">
-          Your master resume stays on this computer — tailored copies are reviewed here before they are saved.
-        </p>
-      </header>
+    <Stagger className="mx-auto min-w-0 max-w-[1240px]" gap={STAGGER.section} lead={STAGGER.lead}>
+      <StaggerItem>
+       <header>
+        <div className="flex items-baseline justify-between gap-8 pb-3">
+          <h1 className="font-display text-[40px] leading-[0.95] tracking-[-0.015em] text-slate-900">Resumes</h1>
+          <p className="max-w-[300px] text-right text-[12px] leading-relaxed text-slate-600">
+            Your master resume stays on this computer — tailored copies are reviewed here before they are saved.
+          </p>
+        </div>
+        <DrawnRule delay={0.12} />
+       </header>
+      </StaggerItem>
 
-      <section className="animate-reveal mt-8" style={{ animationDelay: "80ms" }} aria-labelledby="master-resume-heading">
+      <StaggerItem className="mt-8">
+       <section aria-labelledby="master-resume-heading">
         <Card>
           <CardHeader>
             <div className="flex flex-wrap items-start justify-between gap-4">
@@ -960,6 +1212,7 @@ export function Resumes() {
                 <h2 id="master-resume-heading" className="font-display text-[24px] leading-none text-slate-900">
                   Master resume
                 </h2>
+                <DrawnRule className="mt-2 max-w-[132px]" tone="bg-oxblood/70" delay={0.24} />
                 <p className="mt-1.5 text-[12px] text-slate-600">
                   The single source of truth for tailoring — tailoring never edits this document.
                 </p>
@@ -977,32 +1230,60 @@ export function Resumes() {
             </div>
           </CardHeader>
           <CardContent>
-            {masterLoading && (
-              <p role="status" className="mb-3 text-[12px] text-slate-600">
-                Loading master resume…
-              </p>
-            )}
-            {masterError && (
-              <div role="alert" className="mb-4 flex flex-wrap items-center gap-3 border-l-2 border-oxblood pl-3 text-[12px] text-slate-700">
-                <span>{masterError}</span>
-                <Button variant="quiet" onClick={() => void loadMaster()}>
-                  Retry
-                </Button>
-              </div>
-            )}
-            {!masterLoading && !masterError && !masterLatex.trim() && (
-              <div className="mb-4 rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-5">
-                <p className="text-[13px] font-medium text-slate-800">No master resume yet.</p>
-                <p className="mt-1 text-[12px] leading-relaxed text-slate-600">
-                  Write your LaTeX resume below, and it is stored only on this computer. Use the sample
-                  to preview the flow with placeholder text.
-                </p>
-                <div className="mt-3">
-                  <Button variant="outline" onClick={loadSample}>
-                    Use a sample resume
+            <AnimatePresence initial={false}>
+              {masterLoading && (
+                <motion.p
+                  key="master-loading"
+                  role="status"
+                  className="pulse-soft mb-3 text-[12px] text-slate-600"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0, transition: TRANSITION.exit }}
+                  transition={TRANSITION.base}
+                >
+                  Loading master resume…
+                </motion.p>
+              )}
+              {masterError && (
+                <motion.div
+                  key="master-error"
+                  role="alert"
+                  className="mb-4 flex flex-wrap items-center gap-3 border-l-2 border-oxblood pl-3 text-[12px] text-slate-700"
+                  initial={{ opacity: 0, y: DISTANCE.rise }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6, transition: TRANSITION.exit }}
+                  transition={TRANSITION.base}
+                >
+                  <span>{masterError}</span>
+                  <Button variant="quiet" onClick={() => void loadMaster()}>
+                    Retry
                   </Button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            {!masterLoading && !masterError && !masterLatex.trim() && (
+              <motion.div
+                className="mb-4 flex flex-wrap items-start gap-5 rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-5"
+                initial={{ opacity: 0, y: DISTANCE.rise }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={TRANSITION.slow}
+              >
+                <GhostDrift className="shrink-0">
+                  <GhostGlyph className="h-11 w-11 text-slate-400" />
+                </GhostDrift>
+                <div className="min-w-[240px] flex-1">
+                  <p className="text-[13px] font-medium text-slate-800">No master resume yet.</p>
+                  <p className="mt-1 text-[12px] leading-relaxed text-slate-600">
+                    Write your LaTeX resume below, and it is stored only on this computer. Use the sample
+                    to preview the flow with placeholder text.
+                  </p>
+                  <div className="mt-3">
+                    <Button variant="outline" onClick={loadSample}>
+                      Use a sample resume
+                    </Button>
+                  </div>
                 </div>
-              </div>
+              </motion.div>
             )}
             <div className="mb-4 rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
               <div className="flex flex-wrap items-center gap-3">
@@ -1028,17 +1309,35 @@ export function Resumes() {
                   Upload your LaTeX file to save it as the master resume and add detected experience entries automatically.
                 </p>
               </div>
-              {resumeImportError && (
-                <p role="alert" className="mt-2 text-[12px] text-oxblood">
-                  {resumeImportError}
-                </p>
-              )}
-              {resumeImportResult && (
-                <p role="status" className="mt-2 text-[12px] text-verdigris">
-                  Resume imported. Added {resumeImportResult.added} {resumeImportResult.added === 1 ? "entry" : "entries"}
-                  {resumeImportResult.skipped > 0 ? `; skipped ${resumeImportResult.skipped} duplicate or unsupported ${resumeImportResult.skipped === 1 ? "entry" : "entries"}.` : "."}
-                </p>
-              )}
+              <AnimatePresence initial={false}>
+                {resumeImportError && (
+                  <motion.p
+                    key="import-error"
+                    role="alert"
+                    className="mt-2 text-[12px] text-oxblood"
+                    initial={{ opacity: 0, y: DISTANCE.riseSmall }}
+                    animate={{ opacity: 1, y: 0, x: [0, -4, 4, -3, 0] }}
+                    exit={{ opacity: 0, transition: TRANSITION.exit }}
+                    transition={{ ...TRANSITION.base, x: { duration: DURATION.base, ease: EASE.out } }}
+                  >
+                    {resumeImportError}
+                  </motion.p>
+                )}
+                {resumeImportResult && (
+                  <motion.p
+                    key="import-result"
+                    role="status"
+                    className="mt-2 text-[12px] text-verdigris"
+                    initial={{ opacity: 0, scale: 0.9, y: DISTANCE.riseSmall }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: SCALE.exit, transition: TRANSITION.exit }}
+                    transition={SPRING.overshoot}
+                  >
+                    Resume imported. Added {resumeImportResult.added} {resumeImportResult.added === 1 ? "entry" : "entries"}
+                    {resumeImportResult.skipped > 0 ? `; skipped ${resumeImportResult.skipped} duplicate or unsupported ${resumeImportResult.skipped === 1 ? "entry" : "entries"}.` : "."}
+                  </motion.p>
+                )}
+              </AnimatePresence>
             </div>
             <LatexSourceEditor
               value={masterLatex}
@@ -1047,28 +1346,69 @@ export function Resumes() {
               compileError={masterPreview.compileError}
               pdf={masterPreview.pdf}
               compiling={masterPreview.compiling}
+              scanning={isTailoring}
             />
             <div className="mt-4 flex flex-wrap items-center gap-3">
-              <Button variant="ink" onClick={() => void handleSaveMaster()} disabled={masterSaving || masterLoading || !masterLatex.trim()}>
+              <Button variant="ink" silent onClick={() => void handleSaveMaster()} disabled={masterSaving || masterLoading || !masterLatex.trim()}>
                 <Save size={13} />
                 {masterSaving ? "Saving…" : "Save master resume"}
               </Button>
-              {masterSaveState === "saved" && (
-                <p role="status" className="text-[12px] text-verdigris">
-                  Master resume saved.
-                </p>
-              )}
-              {masterSaveState === "error" && (
-                <p role="alert" className="text-[12px] text-oxblood">
-                  {masterSaveError}
-                </p>
-              )}
+              <AnimatePresence initial={false} mode="wait">
+                {masterDirty && masterSaveState === "idle" && (
+                  <motion.p
+                    key="master-dirty"
+                    role="status"
+                    className="flex items-center gap-2 text-[12px] text-slate-600"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0, transition: TRANSITION.exit }}
+                    transition={{ duration: DURATION.quick, ease: EASE.subtle }}
+                  >
+                    <motion.span
+                      aria-hidden="true"
+                      className="pulse-soft block h-1.5 w-1.5 rounded-full bg-oxblood"
+                      initial={{ scale: 0 }}
+                      animate={{ scale: [0, SCALE.pop, 1] }}
+                      transition={SPRING.overshoot}
+                    />
+                    Unsaved changes.
+                  </motion.p>
+                )}
+                {masterSaveState === "saved" && (
+                  <motion.p
+                    key="master-saved"
+                    role="status"
+                    className="text-[12px] text-verdigris"
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: SCALE.exit, transition: TRANSITION.exit }}
+                    transition={SPRING.overshoot}
+                  >
+                    Master resume saved.
+                  </motion.p>
+                )}
+                {masterSaveState === "error" && (
+                  <motion.p
+                    key={`master-save-error-${masterSaveNonce}`}
+                    role="alert"
+                    className="text-[12px] text-oxblood"
+                    initial={{ opacity: 0, y: DISTANCE.riseSmall }}
+                    animate={{ opacity: 1, y: 0, x: [0, -4, 4, -3, 0] }}
+                    exit={{ opacity: 0, transition: TRANSITION.exit }}
+                    transition={{ ...TRANSITION.base, x: { duration: DURATION.base, ease: EASE.out } }}
+                  >
+                    {masterSaveError}
+                  </motion.p>
+                )}
+              </AnimatePresence>
             </div>
           </CardContent>
         </Card>
-      </section>
+       </section>
+      </StaggerItem>
 
-      <section className="animate-reveal mt-6" style={{ animationDelay: "140ms" }} aria-labelledby="experience-bank-heading">
+      <StaggerItem className="mt-6">
+       <section aria-labelledby="experience-bank-heading">
         <Card>
           <CardHeader>
             <div className="flex flex-wrap items-center justify-between gap-4">
@@ -1076,15 +1416,17 @@ export function Resumes() {
                 <h2 id="experience-bank-heading" className="font-display text-[24px] leading-none text-slate-900">
                   Experience bank
                 </h2>
+                <DrawnRule className="mt-2 max-w-[132px]" tone="bg-oxblood/70" delay={0.3} />
                 <p className="mt-1.5 text-[12px] text-slate-600">
                   Structured roles, projects, and education that tailoring can draw from.
                 </p>
               </div>
               <div className="flex items-center gap-3">
                 {experienceEntries && (
-                  <p className="tnum text-[12px] text-slate-600">
-                    {experienceEntries.length} {experienceEntries.length === 1 ? "entry" : "entries"}
-                  </p>
+                  <div className="tnum flex items-center gap-1 text-[12px] text-slate-600">
+                    <AnimatedNumber value={experienceEntries.length} duration={DURATION.slow} className="tnum" />
+                    {experienceEntries.length === 1 ? "entry" : "entries"}
+                  </div>
                 )}
                 {!draft && (
                   <Button variant="outline" onClick={openAddDraft}>
@@ -1096,26 +1438,63 @@ export function Resumes() {
             </div>
           </CardHeader>
           <CardContent>
-            {experienceLoading && (
-              <p role="status" className="text-[12px] text-slate-600">
-                Loading experience entries…
-              </p>
-            )}
-            {experienceError && (
-              <div role="alert" className="flex flex-wrap items-center gap-3 border-l-2 border-oxblood pl-3 text-[12px] text-slate-700">
-                <span>{experienceError}</span>
-                <Button variant="quiet" onClick={() => void loadExperienceEntries()}>
-                  Retry
-                </Button>
-              </div>
-            )}
+            <AnimatePresence initial={false}>
+              {experienceLoading && (
+                <motion.p
+                  key="experience-loading"
+                  role="status"
+                  className="pulse-soft text-[12px] text-slate-600"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0, transition: TRANSITION.exit }}
+                  transition={TRANSITION.base}
+                >
+                  Loading experience entries…
+                </motion.p>
+              )}
+              {experienceError && (
+                <motion.div
+                  key="experience-error"
+                  role="alert"
+                  className="flex flex-wrap items-center gap-3 border-l-2 border-oxblood pl-3 text-[12px] text-slate-700"
+                  initial={{ opacity: 0, y: DISTANCE.rise }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6, transition: TRANSITION.exit }}
+                  transition={TRANSITION.base}
+                >
+                  <span>{experienceError}</span>
+                  <Button variant="quiet" onClick={() => void loadExperienceEntries()}>
+                    Retry
+                  </Button>
+                </motion.div>
+              )}
+            </AnimatePresence>
             {experienceEntries && experienceEntries.length === 0 && !draft && (
-              <p className="border-y border-dashed border-slate-300 py-6 font-display text-[18px] leading-snug text-slate-600">
-                No experience entries yet. Add roles, projects, or education so tailoring has more to draw from.
-              </p>
+              <motion.div
+                className="flex flex-wrap items-center gap-5 border-y border-dashed border-slate-300 py-6"
+                initial={{ opacity: 0, y: DISTANCE.rise }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={TRANSITION.slow}
+              >
+                <GhostDrift className="shrink-0">
+                  <GhostGlyph className="h-11 w-11 text-slate-400" />
+                </GhostDrift>
+                <p className="min-w-[240px] flex-1 font-display text-[18px] leading-snug text-slate-600">
+                  No experience entries yet. Add roles, projects, or education so tailoring has more to draw from.
+                </p>
+              </motion.div>
             )}
-            {draft && (
-              <form onSubmit={(event) => void handleUpsertEntry(event)} className="rounded-md border border-slate-200 bg-slate-50 p-4">
+            <AnimatePresence mode="wait" initial={false}>
+            {draft ? (
+              <motion.form
+                key="experience-draft"
+                onSubmit={(event) => void handleUpsertEntry(event)}
+                className="rounded-md border border-slate-200 bg-slate-50 p-4"
+                initial={{ opacity: 0, y: DISTANCE.rise }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6, transition: TRANSITION.exit }}
+                transition={TRANSITION.base}
+              >
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <label htmlFor="exp-role" className="mb-1.5 block text-[12px] font-medium text-slate-700">
@@ -1243,54 +1622,88 @@ export function Resumes() {
                     </ul>
                   )}
                   <div className="mt-3 flex flex-wrap items-center gap-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={recordingState === "recording" ? stopActiveRecording : () => void startRecording()}
-                      disabled={recordingState === "transcribing" || entrySaving}
-                      aria-label={
-                        recordingState === "recording"
-                          ? "Stop recording and transcribe"
-                          : recordingState === "transcribing"
-                            ? "Transcribing recording"
-                            : "Record experience from microphone"
-                      }
-                    >
-                      {recordingState === "recording" ? (
-                        <>
-                          <Square size={13} className="fill-current" />
-                          Stop recording
-                        </>
-                      ) : recordingState === "transcribing" ? (
-                        "Transcribing"
-                      ) : (
-                        <>
-                          <Mic size={13} />
-                          Record from microphone
-                        </>
-                      )}
-                    </Button>
+                    <span className="relative inline-flex">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={recordingState === "recording" ? stopActiveRecording : () => void startRecording()}
+                        disabled={recordingState === "transcribing" || entrySaving}
+                        aria-label={
+                          recordingState === "recording"
+                            ? "Stop recording and transcribe"
+                            : recordingState === "transcribing"
+                              ? "Transcribing recording"
+                              : "Record experience from microphone"
+                        }
+                      >
+                        {recordingState === "recording" ? (
+                          <>
+                            <Square size={13} className="fill-current" />
+                            Stop recording
+                          </>
+                        ) : recordingState === "transcribing" ? (
+                          "Transcribing"
+                        ) : (
+                          <>
+                            <Mic size={13} />
+                            Record from microphone
+                          </>
+                        )}
+                      </Button>
+                      <AnimatePresence>
+                        {recordingState === "recording" && (
+                          <motion.span
+                            key="record-ring"
+                            aria-hidden="true"
+                            className="pulse-soft pointer-events-none absolute -inset-1 rounded-md ring-2 ring-oxblood"
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0, transition: SPRING.press }}
+                            transition={SPRING.overshoot}
+                          />
+                        )}
+                      </AnimatePresence>
+                    </span>
                     {recordingState === "recording" && (
-                      <p role="status" className="tnum text-[12px] text-slate-700">
+                      <p role="status" className="tnum flex items-center gap-2 text-[12px] text-slate-700">
+                        <LevelBars />
                         Recording {formatClock(recordingSeconds)} / {formatClock(MAX_RECORDING_SECONDS)}
                       </p>
                     )}
                     {recordingState === "transcribing" && (
-                      <p role="status" className="text-[12px] text-slate-600">
+                      <p role="status" className="pulse-soft text-[12px] text-slate-600">
                         Transcribing… this may take a moment.
                       </p>
                     )}
                   </div>
-                  {recordingError && (
-                    <p role="alert" className="mt-2 text-[11px] leading-relaxed text-oxblood">
-                      {recordingError}
-                    </p>
-                  )}
-                  {recordingSuccess && (
-                    <p role="status" className="mt-2 text-[11px] text-verdigris">
-                      Transcription added as a new bullet.
-                    </p>
-                  )}
+                  <AnimatePresence initial={false}>
+                    {recordingError && (
+                      <motion.p
+                        key="recording-error"
+                        role="alert"
+                        className="mt-2 text-[11px] leading-relaxed text-oxblood"
+                        initial={{ opacity: 0, y: DISTANCE.riseSmall }}
+                        animate={{ opacity: 1, y: 0, x: [0, -4, 4, -3, 0] }}
+                        exit={{ opacity: 0, transition: TRANSITION.exit }}
+                        transition={{ ...TRANSITION.base, x: { duration: DURATION.base, ease: EASE.out } }}
+                      >
+                        {recordingError}
+                      </motion.p>
+                    )}
+                    {recordingSuccess && (
+                      <motion.p
+                        key="recording-success"
+                        role="status"
+                        className="mt-2 text-[11px] text-verdigris"
+                        initial={{ opacity: 0, y: DISTANCE.rise }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, transition: TRANSITION.exit }}
+                        transition={TRANSITION.base}
+                      >
+                        Transcription added as a new bullet.
+                      </motion.p>
+                    )}
+                  </AnimatePresence>
                 </div>
 
                 <div className="mt-4">
@@ -1311,26 +1724,55 @@ export function Resumes() {
                 </div>
 
                 <div className="mt-5 flex flex-wrap items-center gap-3">
-                  <Button type="submit" variant="ink" disabled={entrySaving || recordingState !== "idle"}>
+                  <Button type="submit" variant="ink" silent disabled={entrySaving || recordingState !== "idle"}>
                     {entrySaving ? "Saving…" : draft.isNew ? "Save entry" : "Save changes"}
                   </Button>
                   <Button type="button" variant="outline" onClick={closeDraft} disabled={entrySaving || recordingState !== "idle"}>
                     Cancel
                   </Button>
-                  {experienceActionError && (
-                    <p role="alert" className="text-[12px] text-oxblood">
-                      {experienceActionError}
-                    </p>
-                  )}
+                  <AnimatePresence initial={false}>
+                    {experienceActionError && (
+                      <motion.p
+                        key="entry-action-error"
+                        role="alert"
+                        className="text-[12px] text-oxblood"
+                        initial={{ opacity: 0, y: DISTANCE.riseSmall }}
+                        animate={{ opacity: 1, y: 0, x: [0, -4, 4, -3, 0] }}
+                        exit={{ opacity: 0, transition: TRANSITION.exit }}
+                        transition={{ ...TRANSITION.base, x: { duration: DURATION.base, ease: EASE.out } }}
+                      >
+                        {experienceActionError}
+                      </motion.p>
+                    )}
+                  </AnimatePresence>
                 </div>
-              </form>
-            )}
-            {experienceEntries && experienceEntries.length > 0 && !draft && (
-              <ul className="space-y-3">
-                {experienceEntries.map((entry) => {
+              </motion.form>
+            ) : experienceEntries && experienceEntries.length > 0 ? (
+              <motion.ul
+                key="experience-list"
+                className="space-y-3"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0, transition: TRANSITION.exit }}
+                transition={TRANSITION.base}
+              >
+                <AnimatePresence initial={false}>
+                {experienceEntries.map((entry, entryIndex) => {
                   const dateRange = entryDateRange(entry);
                   return (
-                    <li key={entry.id} className="rounded-md border border-slate-200 p-4">
+                    <motion.li
+                      key={entry.id}
+                      className="rounded-md border border-slate-200 p-4"
+                      initial={{ opacity: 0, y: DISTANCE.rise }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, x: 10, scale: SCALE.exit, transition: TRANSITION.exit }}
+                      transition={{ ...TRANSITION.base, delay: Math.min(entryIndex, 11) * STAGGER.list }}
+                      whileHover={{
+                        y: DISTANCE.liftRow,
+                        boxShadow: "5px 5px 0 0 var(--card-shadow)",
+                        transition: SPRING.hover,
+                      }}
+                    >
                       <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
@@ -1341,10 +1783,19 @@ export function Resumes() {
                           {dateRange && <p className="tnum mt-0.5 text-[12px] text-slate-500">{dateRange}</p>}
                         </div>
                         <div className="flex shrink-0 items-center gap-1">
+                          <AnimatePresence mode="wait" initial={false}>
                           {confirmingDeleteId === entry.id ? (
-                            <>
+                            <motion.span
+                              key="confirm"
+                              className="flex items-center gap-1"
+                              initial={{ opacity: 0, scale: 0.96 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: SCALE.exit, transition: TRANSITION.exit }}
+                              transition={TRANSITION.base}
+                            >
                               <Button
                                 variant="outline"
+                                silent
                                 className="px-2 py-1.5 text-oxblood"
                                 onClick={() => void handleDeleteEntry(entry.id)}
                                 disabled={deletingEntryId !== null}
@@ -1359,9 +1810,16 @@ export function Resumes() {
                               >
                                 Cancel
                               </Button>
-                            </>
+                            </motion.span>
                           ) : (
-                            <>
+                            <motion.span
+                              key="actions"
+                              className="flex items-center gap-1"
+                              initial={{ opacity: 0, scale: 0.96 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: SCALE.exit, transition: TRANSITION.exit }}
+                              transition={TRANSITION.base}
+                            >
                               <Button
                                 variant="ghost"
                                 className="px-2 py-1.5"
@@ -1381,8 +1839,9 @@ export function Resumes() {
                               >
                                 <Trash2 size={14} />
                               </Button>
-                            </>
+                            </motion.span>
                           )}
+                          </AnimatePresence>
                         </div>
                       </div>
                       {entry.bullets.length > 0 && (
@@ -1399,21 +1858,36 @@ export function Resumes() {
                           ))}
                         </div>
                       )}
-                    </li>
+                    </motion.li>
                   );
                 })}
-              </ul>
-            )}
-            {experienceEntries && entrySaved && (
-              <p role="status" className="mt-3 text-[12px] text-verdigris">
-                Entry saved.
-              </p>
-            )}
+                </AnimatePresence>
+              </motion.ul>
+            ) : null}
+            </AnimatePresence>
+            <AnimatePresence initial={false}>
+              {experienceEntries && entrySaved && (
+                <motion.p
+                  key="entry-saved"
+                  role="status"
+                  className="mt-3 text-[12px] text-verdigris"
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: SCALE.exit, transition: TRANSITION.exit }}
+                  transition={SPRING.overshoot}
+                >
+                  Entry saved.
+                </motion.p>
+              )}
+            </AnimatePresence>
           </CardContent>
         </Card>
-      </section>
+       </section>
+      </StaggerItem>
 
-      <section className="animate-reveal mt-6 pb-10" style={{ animationDelay: "200ms" }} aria-labelledby="tailor-heading">
+      <StaggerItem className="mt-6 pb-10">
+       <RevealOnScroll amount={0.02}>
+       <section aria-labelledby="tailor-heading">
         <Card>
           <CardHeader>
             <div className="flex flex-wrap items-start justify-between gap-4">
@@ -1421,6 +1895,7 @@ export function Resumes() {
                 <h2 id="tailor-heading" className="font-display text-[24px] leading-none text-slate-900">
                   Tailor to a job
                 </h2>
+                <DrawnRule className="mt-2 max-w-[132px]" tone="bg-oxblood/70" delay={0.18} />
                 <p className="mt-1.5 text-[12px] text-slate-600">
                   Pick a saved application or paste a description, then review everything before it is saved.
                 </p>
@@ -1434,7 +1909,7 @@ export function Resumes() {
                   Select a saved application
                 </label>
                 {applicationsLoading && (
-                  <p role="status" className="text-[12px] text-slate-600">
+                  <p role="status" className="pulse-soft text-[12px] text-slate-600">
                     Loading saved applications…
                   </p>
                 )}
@@ -1563,19 +2038,37 @@ export function Resumes() {
             </div>
 
             <div className="mt-6 flex flex-wrap items-center gap-4 border-t border-slate-200 pt-5">
-              <Button variant="ink" onClick={() => void handleTailor()} disabled={!canTailor}>
+              <Button variant="ink" silent onClick={() => void handleTailor()} disabled={!canTailor}>
                 {isTailoring ? "Tailoring…" : "Tailor resume to this job"}
               </Button>
-              {isTailoring && (
-                <p role="status" className="text-[12px] text-slate-600">
-                  Generating a tailored draft…
-                </p>
-              )}
-              {tailorError && (
-                <p role="alert" className="text-[12px] leading-relaxed text-oxblood">
-                  {tailorError}
-                </p>
-              )}
+              <AnimatePresence initial={false} mode="wait">
+                {isTailoring && (
+                  <motion.p
+                    key="tailoring"
+                    role="status"
+                    className="pulse-soft text-[12px] text-slate-600"
+                    initial={{ opacity: 0, y: DISTANCE.riseSmall }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, transition: TRANSITION.exit }}
+                    transition={TRANSITION.base}
+                  >
+                    Generating a tailored draft…
+                  </motion.p>
+                )}
+                {tailorError && !isTailoring && (
+                  <motion.p
+                    key={`tailor-error-${tailorErrorNonce}`}
+                    role="alert"
+                    className="text-[12px] leading-relaxed text-oxblood"
+                    initial={{ opacity: 0, y: DISTANCE.riseSmall }}
+                    animate={{ opacity: 1, y: 0, x: [0, -4, 4, -3, 0] }}
+                    exit={{ opacity: 0, transition: TRANSITION.exit }}
+                    transition={{ ...TRANSITION.base, x: { duration: DURATION.base, ease: EASE.out } }}
+                  >
+                    {tailorError}
+                  </motion.p>
+                )}
+              </AnimatePresence>
               {!tailoredResult && !isTailoring && !tailorError && (
                 <p className="text-[12px] leading-relaxed text-slate-600">
                   {!masterReady
@@ -1588,7 +2081,12 @@ export function Resumes() {
             </div>
 
             {tailoredResult && (
-              <div className="mt-8 border-t border-slate-200 pt-6">
+              <motion.div
+                className="mt-8 border-t border-slate-200 pt-6"
+                initial={{ opacity: 0, y: DISTANCE.riseLarge }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={TRANSITION.slow}
+              >
                 <div className="flex flex-wrap items-baseline justify-between gap-4">
                   <h3 className="font-display text-[20px] text-slate-900">Review the tailored resume</h3>
                   <p className="text-[12px] text-slate-600">Your master resume is never modified.</p>
@@ -1603,7 +2101,7 @@ export function Resumes() {
                   ) : (
                     <ul className="mt-2 max-h-56 space-y-1 overflow-y-auto pr-1">
                       {tailoredResult.changesSummary.map((line, index) => (
-                        <ChangeLine key={index} line={line} />
+                        <ChangeLine key={index} line={line} index={index} />
                       ))}
                     </ul>
                   )}
@@ -1621,73 +2119,151 @@ export function Resumes() {
                   />
                 </div>
 
-                <div className="mt-5 flex flex-wrap items-center gap-3">
+                <div className="relative mt-5 flex flex-wrap items-center gap-3">
                   <Button
                     variant="ink"
+                    silent
                     onClick={() => void handleSaveTailored()}
                     disabled={reviewSaving === "saving" || pdfBusy || exportBusy}
                   >
                     {reviewSaving === "saving" ? "Saving…" : "Save tailored resume"}
                   </Button>
-                  <Button variant="outline" onClick={() => void handleDownloadPdf()} disabled={exportDisabled}>
+                  <Button variant="outline" silent onClick={() => void handleDownloadPdf()} disabled={exportDisabled}>
                     <FileDown size={13} />
                     {pdfBusy ? "Generating PDF…" : "Download PDF"}
                   </Button>
-                  <Button variant="outline" onClick={() => void handleExportToFolder()} disabled={exportDisabled}>
+                  <Button variant="outline" silent onClick={() => void handleExportToFolder()} disabled={exportDisabled}>
                     <FolderDown size={13} />
                     {exportBusy ? "Exporting…" : "Export to folder"}
                   </Button>
+                  <Stamp label="EXPORTED" show={exportStamp} tone="ink" onDone={() => setExportStamp(false)} />
                 </div>
-                {tailoredPreview.compileError && (
-                  <p role="alert" className="mt-2 text-[11px] text-oxblood">
-                    Fix the LaTeX errors above before exporting.
-                  </p>
-                )}
-                {reviewSaving === "saved" && (
-                  <p role="status" className="mt-2 text-[12px] text-verdigris">
-                    Tailored resume saved.
-                  </p>
-                )}
-                {reviewSaving === "error" && (
-                  <p role="alert" className="mt-2 text-[12px] text-oxblood">
-                    {reviewSaveError}
-                  </p>
-                )}
-                {pdfOutcome?.kind === "success" && (
-                  <p role="status" className="mt-2 text-[12px] text-verdigris">
-                    {pdfOutcome.message}
-                  </p>
-                )}
-                {pdfOutcome?.kind === "cancel" && (
-                  <p role="status" className="mt-2 text-[12px] text-slate-600">
-                    {pdfOutcome.message}
-                  </p>
-                )}
-                {pdfOutcome?.kind === "error" && (
-                  <p role="alert" className="mt-2 text-[12px] text-oxblood">
-                    {pdfOutcome.message}
-                  </p>
-                )}
-                {exportOutcome?.kind === "success" && (
-                  <p role="status" className="mt-2 text-[12px] text-verdigris">
-                    {exportOutcome.message}
-                  </p>
-                )}
-                {exportOutcome?.kind === "cancel" && (
-                  <p role="status" className="mt-2 text-[12px] text-slate-600">
-                    {exportOutcome.message}
-                  </p>
-                )}
-                {exportOutcome?.kind === "error" && (
-                  <p role="alert" className="mt-2 text-[12px] text-oxblood">
-                    {exportOutcome.message}
-                  </p>
-                )}
-              </div>
+                <AnimatePresence initial={false}>
+                  {tailoredPreview.compileError && (
+                    <motion.p
+                      key="export-blocked"
+                      role="alert"
+                      className="mt-2 text-[11px] text-oxblood"
+                      initial={{ opacity: 0, y: DISTANCE.riseSmall }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, transition: TRANSITION.exit }}
+                      transition={TRANSITION.base}
+                    >
+                      Fix the LaTeX errors above before exporting.
+                    </motion.p>
+                  )}
+                  {reviewSaving === "saved" && (
+                    <motion.p
+                      key="tailored-saved"
+                      role="status"
+                      className="mt-2 text-[12px] text-verdigris"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: SCALE.exit, transition: TRANSITION.exit }}
+                      transition={SPRING.overshoot}
+                    >
+                      Tailored resume saved.
+                    </motion.p>
+                  )}
+                  {reviewSaving === "error" && (
+                    <motion.p
+                      key="tailored-save-error"
+                      role="alert"
+                      className="mt-2 text-[12px] text-oxblood"
+                      initial={{ opacity: 0, y: DISTANCE.riseSmall }}
+                      animate={{ opacity: 1, y: 0, x: [0, -4, 4, -3, 0] }}
+                      exit={{ opacity: 0, transition: TRANSITION.exit }}
+                      transition={{ ...TRANSITION.base, x: { duration: DURATION.base, ease: EASE.out } }}
+                    >
+                      {reviewSaveError}
+                    </motion.p>
+                  )}
+                  {pdfOutcome?.kind === "success" && (
+                    <motion.p
+                      key="pdf-success"
+                      role="status"
+                      className="mt-2 text-[12px] text-verdigris"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: SCALE.exit, transition: TRANSITION.exit }}
+                      transition={SPRING.overshoot}
+                    >
+                      {pdfOutcome.message}
+                    </motion.p>
+                  )}
+                  {pdfOutcome?.kind === "cancel" && (
+                    <motion.p
+                      key="pdf-cancel"
+                      role="status"
+                      className="mt-2 text-[12px] text-slate-600"
+                      initial={{ opacity: 0, y: DISTANCE.riseSmall }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, transition: TRANSITION.exit }}
+                      transition={TRANSITION.base}
+                    >
+                      {pdfOutcome.message}
+                    </motion.p>
+                  )}
+                  {pdfOutcome?.kind === "error" && (
+                    <motion.p
+                      key="pdf-error"
+                      role="alert"
+                      className="mt-2 text-[12px] text-oxblood"
+                      initial={{ opacity: 0, y: DISTANCE.riseSmall }}
+                      animate={{ opacity: 1, y: 0, x: [0, -4, 4, -3, 0] }}
+                      exit={{ opacity: 0, transition: TRANSITION.exit }}
+                      transition={{ ...TRANSITION.base, x: { duration: DURATION.base, ease: EASE.out } }}
+                    >
+                      {pdfOutcome.message}
+                    </motion.p>
+                  )}
+                  {exportOutcome?.kind === "success" && (
+                    <motion.p
+                      key="export-success"
+                      role="status"
+                      className="mt-2 text-[12px] text-verdigris"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: SCALE.exit, transition: TRANSITION.exit }}
+                      transition={SPRING.overshoot}
+                    >
+                      {exportOutcome.message}
+                    </motion.p>
+                  )}
+                  {exportOutcome?.kind === "cancel" && (
+                    <motion.p
+                      key="export-cancel"
+                      role="status"
+                      className="mt-2 text-[12px] text-slate-600"
+                      initial={{ opacity: 0, y: DISTANCE.riseSmall }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, transition: TRANSITION.exit }}
+                      transition={TRANSITION.base}
+                    >
+                      {exportOutcome.message}
+                    </motion.p>
+                  )}
+                  {exportOutcome?.kind === "error" && (
+                    <motion.p
+                      key="export-error"
+                      role="alert"
+                      className="mt-2 text-[12px] text-oxblood"
+                      initial={{ opacity: 0, y: DISTANCE.riseSmall }}
+                      animate={{ opacity: 1, y: 0, x: [0, -4, 4, -3, 0] }}
+                      exit={{ opacity: 0, transition: TRANSITION.exit }}
+                      transition={{ ...TRANSITION.base, x: { duration: DURATION.base, ease: EASE.out } }}
+                    >
+                      {exportOutcome.message}
+                    </motion.p>
+                  )}
+                </AnimatePresence>
+              </motion.div>
             )}
           </CardContent>
         </Card>
-      </section>
-    </div>
+       </section>
+       </RevealOnScroll>
+      </StaggerItem>
+    </Stagger>
   );
 }

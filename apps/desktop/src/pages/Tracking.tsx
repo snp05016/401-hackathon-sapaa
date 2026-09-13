@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import type { Application } from "@ghostboard/shared";
 import { evaluateApplicationStaleness, evaluateDeadline, mixedSourceGroups, redundantApplicationIds } from "@ghostboard/tracking";
 import { ipc } from "../lib/ipc";
@@ -6,6 +7,10 @@ import { useApplications } from "../lib/useApplications";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
+import { Reveal } from "../components/motion";
+import { DISTANCE, DURATION, EASE, SCALE, SPRING, STAGGER, TRANSITION } from "../lib/motion";
+import { playSound } from "../lib/sound";
+import { cn } from "../lib/utils";
 
 const deadlineColors = {
   green: "border-verdigris/35 text-verdigris",
@@ -14,9 +19,23 @@ const deadlineColors = {
   none: "border-hairline text-ink-3",
 };
 
-function DeadlineBadge({ color, children }: { color: keyof typeof deadlineColors; children: ReactNode }) {
+function DeadlineBadge({
+  color,
+  urgent = false,
+  children,
+}: {
+  color: keyof typeof deadlineColors;
+  urgent?: boolean;
+  children: ReactNode;
+}) {
   return (
-    <span className={`inline-flex items-center whitespace-nowrap rounded-sm border px-2 py-0.5 text-[11px] ${deadlineColors[color]}`}>
+    <span
+      className={cn(
+        "inline-flex items-center whitespace-nowrap rounded-sm border px-2 py-0.5 text-[11px]",
+        deadlineColors[color],
+        urgent && "pulse-soft",
+      )}
+    >
       {children}
     </span>
   );
@@ -39,9 +58,11 @@ function DeadlineEditor({ application, onSaved }: { application: Application; on
     try {
       await ipc().updateDeadline(application.id, deadline || null);
       setSaved(true);
+      playSound("success");
       onSaved();
     } catch {
       setError("Could not save the deadline. Check the date and try again.");
+      playSound("error");
     } finally {
       setSaving(false);
     }
@@ -59,22 +80,51 @@ function DeadlineEditor({ application, onSaved }: { application: Application; on
           aria-label={`Deadline for ${application.title} at ${application.company}`}
           aria-describedby={error ? `deadline-error-${application.id}` : undefined}
           aria-invalid={!!error}
+          invalid={!!error}
           value={deadline}
           disabled={saving}
           onChange={(event) => { setDeadline(event.target.value); setSaved(false); setError(null); }}
         />
-        <Button type="submit" variant="rule" disabled={saving || deadline === (application.deadline ?? "")}>
+        <Button type="submit" variant="rule" silent disabled={saving || deadline === (application.deadline ?? "")}>
           {saving ? "Saving…" : "Save"}
         </Button>
       </div>
-      {error && <p id={`deadline-error-${application.id}`} role="alert" className="mt-1.5 text-[11px] text-oxblood">{error}</p>}
-      {saved && <p role="status" className="mt-1.5 text-[11px] text-verdigris">Deadline saved.</p>}
+      <AnimatePresence initial={false}>
+        {error && (
+          <motion.p
+            key="deadline-error"
+            id={`deadline-error-${application.id}`}
+            role="alert"
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0, x: [0, -4, 4, -3, 0] }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: DURATION.base, ease: EASE.out }}
+            className="mt-1.5 text-[11px] text-oxblood"
+          >
+            {error}
+          </motion.p>
+        )}
+        {saved && (
+          <motion.p
+            key="deadline-saved"
+            role="status"
+            initial={{ opacity: 0, scale: SCALE.pop }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: SCALE.exit }}
+            transition={SPRING.overshoot}
+            className="mt-1.5 text-[11px] text-verdigris"
+          >
+            Deadline saved.
+          </motion.p>
+        )}
+      </AnimatePresence>
     </form>
   );
 }
 
 export function Tracking() {
   const { applications, error, now, reload } = useApplications();
+  const prefersReducedMotion = useReducedMotion();
 
   const mixedGroups = useMemo(() => mixedSourceGroups(applications ?? []), [applications]);
   const mixedKeysByApplicationId = useMemo(() => {
@@ -89,6 +139,10 @@ export function Tracking() {
   const redundantSignature = redundantIds.slice().sort().join("|");
   const cleanedSignature = useRef("");
   const [cleanupNotice, setCleanupNotice] = useState<string | null>(null);
+
+  // Re-keying the row list on its signature restages the table after a reload
+  // without ever handing framer a `layout` animation to fight over.
+  const rowSignature = (applications ?? []).map((application) => application.id).join("|");
 
   useEffect(() => {
     if (!redundantSignature || cleanedSignature.current === redundantSignature) return;
@@ -113,18 +167,24 @@ export function Tracking() {
 
   return (
     <div>
-      <header className="animate-reveal flex flex-col gap-3 border-b border-hairline pb-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-10">
+      <Reveal as="header" className="flex flex-col gap-3 border-b border-hairline pb-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-10">
         <h1 className="font-display text-[36px] leading-[0.9] tracking-[-0.015em] text-ink sm:text-[52px]">Tracking</h1>
         <p className="max-w-[320px] text-[12px] leading-relaxed text-ink-2 sm:text-right">
           Set the application deadline from each posting. Clear the date and save to remove it.
         </p>
-      </header>
+      </Reveal>
 
-      <div className="mt-6 flex flex-wrap items-center gap-2" aria-label="Deadline color legend">
+      <motion.div
+        aria-label="Deadline color legend"
+        initial={{ opacity: 0, y: DISTANCE.rise }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ ...TRANSITION.hero, delay: STAGGER.lead }}
+        className="mt-6 flex flex-wrap items-center gap-2"
+      >
         <DeadlineBadge color="green">7+ days</DeadlineBadge>
         <DeadlineBadge color="yellow">2–6 days</DeadlineBadge>
         <DeadlineBadge color="red">Today, tomorrow, or overdue</DeadlineBadge>
-      </div>
+      </motion.div>
 
       {error && (
         <div role="alert" className="mt-8 flex items-center gap-4 border-l-2 border-oxblood pl-4 text-[13px] text-ink">
@@ -140,7 +200,13 @@ export function Tracking() {
       )}
 
       {!!mixedGroups.length && (
-        <div role="status" className="animate-reveal mt-8 max-w-[720px] border-l-2 border-brass pl-4 text-[13px] text-ink">
+        <motion.div
+          role="status"
+          initial={{ opacity: 0, y: DISTANCE.rise }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={TRANSITION.hero}
+          className="mt-8 max-w-[720px] border-l-2 border-brass pl-4 text-[13px] text-ink"
+        >
           <strong className="font-semibold">
             {mixedGroups.length} {mixedGroups.length === 1 ? "job" : "jobs"} saved from more than one website — open each to see where its copies came from.
           </strong>
@@ -165,17 +231,27 @@ export function Tracking() {
               );
             })}
           </ul>
-        </div>
+        </motion.div>
       )}
 
-      {cleanupNotice && (
-        <div role="status" className="animate-reveal mt-8 max-w-[720px] border-l-2 border-verdigris pl-4 text-[13px] text-ink">
-          {cleanupNotice}
-        </div>
-      )}
+      <AnimatePresence initial={false}>
+        {cleanupNotice && (
+          <motion.div
+            key="cleanup-notice"
+            role="status"
+            initial={{ opacity: 0, y: DISTANCE.rise }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6, scale: SCALE.exit }}
+            transition={TRANSITION.base}
+            className="mt-8 max-w-[720px] border-l-2 border-verdigris pl-4 text-[13px] text-ink"
+          >
+            {cleanupNotice}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {!!applications?.length && (
-        <div className="animate-reveal mt-9 overflow-x-auto" style={{ animationDelay: "100ms" }}>
+        <Reveal className="mt-9 overflow-x-auto" delay={STAGGER.section}>
           <table className="w-full min-w-[880px] border-collapse text-left text-[13px]">
             <thead>
               <tr className="border-b border-hairline text-[11px] text-ink-2">
@@ -187,12 +263,19 @@ export function Tracking() {
                 <th scope="col" className="px-3 pb-3 pr-0 font-normal">Staleness</th>
               </tr>
             </thead>
-            <tbody>
-              {applications?.map((application) => {
+            <tbody key={rowSignature}>
+              {applications?.map((application, index) => {
                 const staleness = evaluateApplicationStaleness(application, now);
                 const deadline = evaluateDeadline(application.deadline, now);
                 return (
-                  <tr key={application.id} className="border-b border-hairline transition-colors hover:bg-paper-raised">
+                  <motion.tr
+                    key={application.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ ...TRANSITION.base, delay: Math.min(index, 11) * STAGGER.tight }}
+                    whileHover={{ y: DISTANCE.liftRow, transition: SPRING.hover }}
+                    className="border-b border-hairline transition-colors hover:bg-paper-raised"
+                  >
                     <td className="min-w-[170px] max-w-xs break-words px-3 py-5 pl-0">
                       <div className="font-semibold text-ink">{application.company}</div>
                       <div className="mt-0.5 text-ink-2">{application.title}</div>
@@ -204,17 +287,21 @@ export function Tracking() {
                     </td>
                     <td className="px-3 text-ink-2">{application.status}</td>
                     <td className="px-3"><DeadlineEditor application={application} onSaved={reload} /></td>
-                    <td className="px-3"><DeadlineBadge color={deadline.color}>{deadline.label}</DeadlineBadge></td>
+                    <td className="px-3">
+                      <DeadlineBadge color={deadline.color} urgent={deadline.color === "red" && prefersReducedMotion !== true}>
+                        {deadline.label}
+                      </DeadlineBadge>
+                    </td>
                     <td className="tnum px-3 text-ink-2">{staleness.daysSinceLastActivity}</td>
                     <td className="px-3 pr-0">
                       <Badge variant={staleness.isStale ? "brass" : "mist"}>{staleness.isStale ? "Stale" : "OK"}</Badge>
                     </td>
-                  </tr>
+                  </motion.tr>
                 );
               })}
             </tbody>
           </table>
-        </div>
+        </Reveal>
       )}
     </div>
   );

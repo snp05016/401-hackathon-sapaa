@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { motion } from "framer-motion";
+import { EASE } from "../../lib/motion";
 
 const GHOST_COUNT = 18;
 
@@ -43,7 +44,7 @@ export function GhostScatter() {
   }, []);
 
   return (
-    <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-40 overflow-hidden">
+    <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-[60] overflow-hidden">
       {ghosts.map((ghost) => (
         <motion.span
           key={ghost.id}
@@ -51,8 +52,8 @@ export function GhostScatter() {
           style={{ left: `${ghost.startX}%`, top: `${ghost.startY}%`, fontSize: ghost.size }}
           initial={{ opacity: 0, scale: 0.45, x: 0, y: 0, rotate: 0 }}
           animate={{
-            opacity: [0, 1, 1, 0.9],
-            scale: [0.45, 1.15, 0.95, 0.8],
+            opacity: [0, 1, 0.85, 0],
+            scale: [0.45, 1.15, 0.95, 0.7],
             x: [0, ghost.x * 0.18, ghost.x * 0.55, ghost.x],
             y: [0, ghost.y * 0.22 - 12, ghost.y * 0.58 + 10, ghost.y],
             rotate: [0, -ghost.rotation * 0.25, ghost.rotation * 0.35, ghost.rotation],
@@ -61,7 +62,7 @@ export function GhostScatter() {
             duration: ghost.duration,
             delay: 0.62 + ghost.delay,
             times: [0, 0.18, 0.58, 1],
-            ease: [0.4, 0, 0.2, 1],
+            ease: EASE.out,
           }}
         >
           👻

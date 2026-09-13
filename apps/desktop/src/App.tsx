@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { LayoutGroup } from "framer-motion";
 import { ApplicationsProvider } from "./lib/useApplications";
 import { AppShell } from "./components/layout/AppShell";
 import { SplashScreen } from "./components/layout/SplashScreen";
+import { GhostScatter } from "./components/layout/GhostScatter";
 import { LaunchAlerts } from "./components/layout/LaunchAlerts";
 import type { NavPage } from "./components/layout/Sidebar";
 import { Today } from "./pages/Today";
@@ -51,13 +53,20 @@ export function App() {
 
   return (
     <ApplicationsProvider>
-      <LaunchAlerts />
-      <AppShell page={page} onNavigate={setPage}>
-        {phase !== "intro" && <Page />}
-      </AppShell>
-      {phase !== "done" && (
-        <SplashScreen exiting={phase === "revealing"} onSkip={() => setPhase("revealing")} />
-      )}
+      <LayoutGroup>
+        <LaunchAlerts />
+        <AppShell
+          page={page}
+          onNavigate={setPage}
+          ghostMarkLayoutId={phase === "intro" ? undefined : "ghost-mark"}
+        >
+          {phase !== "intro" && <Page />}
+        </AppShell>
+        {phase === "intro" && <GhostScatter />}
+        {phase !== "done" && (
+          <SplashScreen exiting={phase === "revealing"} onSkip={() => setPhase("revealing")} />
+        )}
+      </LayoutGroup>
     </ApplicationsProvider>
   );
 }

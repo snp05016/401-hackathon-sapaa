@@ -1,15 +1,28 @@
 import type { HTMLAttributes } from "react";
+import { motion } from "framer-motion";
 import { cn } from "../../lib/utils";
+import { SPRING } from "../../lib/motion";
 
-export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
+type NativeSpanProps = Omit<
+  HTMLAttributes<HTMLSpanElement>,
+  "onAnimationStart" | "onAnimationEnd" | "onDrag" | "onDragStart" | "onDragEnd" | "onTransitionEnd"
+>;
+
+export interface BadgeProps extends NativeSpanProps {
   variant?: "default" | "outline" | "warning" | "danger" | "ink" | "oxblood" | "verdigris" | "brass" | "mist";
 }
 
-export function Badge({ className, variant = "default", ...props }: BadgeProps) {
+export function Badge({ className, variant = "default", children, ...props }: BadgeProps) {
   const editorial = ["ink", "oxblood", "verdigris", "brass", "mist"].includes(variant);
+  // Re-pop when the rendered value itself changes, not on every parent render.
+  const popKey = typeof children === "string" || typeof children === "number" ? String(children) : undefined;
 
   return (
-    <span
+    <motion.span
+      key={popKey}
+      initial={{ scale: 0.9, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      transition={SPRING.overshoot}
       className={cn(
         editorial
           ? "inline-flex items-center whitespace-nowrap rounded-sm border px-2 py-0.5 text-[11px]"
@@ -26,6 +39,8 @@ export function Badge({ className, variant = "default", ...props }: BadgeProps) 
         className,
       )}
       {...props}
-    />
+    >
+      {children}
+    </motion.span>
   );
 }
