@@ -280,7 +280,7 @@ export function Tracking() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ ...TRANSITION.base, delay: Math.min(index, 11) * STAGGER.tight }}
                     whileHover={{ y: DISTANCE.liftRow, transition: SPRING.hover }}
-                    className="border-b border-hairline transition-colors hover:bg-paper-raised"
+                    className="border-b border-hairline transition-colors hover:bg-[linear-gradient(to_right,transparent_0%,rgb(var(--paper-raised))_12%,rgb(var(--paper-raised))_88%,transparent_100%)]"
                   >
                     <td className="min-w-[170px] max-w-xs break-words px-3 py-5 pl-0">
                       <div className="flex items-start gap-2">
