@@ -7,7 +7,7 @@ type NativeInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "value" | "o
 export interface PredictiveInputProps extends NativeInputProps {
   value: string;
   onValueChange: (value: string) => void;
-  /** Text sent before the current field value to guide this field's completion. */
+  /** Literal context placed before the value for raw model completion. */
   microPrompt: string;
   variant?: "default" | "rule";
   displayClassName?: string;
