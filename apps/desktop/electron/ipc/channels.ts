@@ -12,6 +12,7 @@ export const IPC_CHANNELS = {
   listApplications: "applications:list",
   searchDiscoveredJobs: "discover:search",
   predictJobTitle: "discover:predict-job-title",
+  summarizeJobDescription: "discover:summarize-job-description",
   saveDiscoveredJob: "discover:save",
   visitDiscoveredJob: "discover:visit",
   updateDeadline: "applications:update-deadline",

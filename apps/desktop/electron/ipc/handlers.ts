@@ -49,6 +49,10 @@ export function registerIpcHandlers(
     if (!gemmaCompletionService) throw new Error("Local title predictions are unavailable.");
     return gemmaCompletionService.predict(prompt);
   });
+  ipcMain.handle(IPC_CHANNELS.summarizeJobDescription, (_event, description: unknown) => {
+    if (!gemmaCompletionService) throw new Error("Local job summaries are unavailable.");
+    return gemmaCompletionService.summarizeJobDescription(description);
+  });
   ipcMain.handle(IPC_CHANNELS.saveDiscoveredJob, (_event, job: DiscoveredJob) => {
     return saveDiscoveredJob(db, job);
   });
