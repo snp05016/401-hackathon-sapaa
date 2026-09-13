@@ -296,15 +296,39 @@ export function parseSkillList(sectionBody: string): string[] {
   return skills;
 }
 
-function parseSkillsFormat(sectionBody: string): ParsedExperienceEntry[] {
+function parseSkillsFormat(sectionBody: string, sectionTitle: string): ParsedExperienceEntry[] {
   const skills = parseSkillList(sectionBody);
   if (!skills.length) return [];
-  return [{ role: "Technical Skills", employer: "Skills", startDate: null, endDate: null, bullets: [], skills, source: "skill" }];
+  const role = sectionTitle.trim().slice(0, 200) || "Technical Skills";
+  return [{ role, employer: "Skills", startDate: null, endDate: null, bullets: [], skills, source: "skill" }];
 }
 
 function findSection(latex: string, name: string): string {
   const sectionMatch = latex.match(new RegExp(`\\\\section\\*?\\{[^}]*${name}[^}]*\\}\\s*([\\s\\S]*?)(?=\\\\section\\*?\\{|\\\\end\\{document\\}|$)`, "i"));
   return sectionMatch?.[1] ?? "";
+}
+
+interface ResumeSection {
+  title: string;
+  body: string;
+}
+
+/**
+ * Returns every top-level section whose heading reads as skill content, so a
+ * resume with several skills-like sections (Skills, Languages, Tools, ...) keeps
+ * them all instead of only the first match.
+ */
+function findSkillsSections(latex: string): ResumeSection[] {
+  const sections: ResumeSection[] = [];
+  const sectionRegex = /\\section\*?\{([^}]*)\}\s*([\s\S]*?)(?=\\section\*?\{|\\end\{document\}|$)/gi;
+  let match;
+  while ((match = sectionRegex.exec(latex)) !== null) {
+    const title = decodeLatexText(match[1]);
+    if (/\b(?:skill|technolog|technical|language)\w*/i.test(title)) {
+      sections.push({ title, body: match[2] });
+    }
+  }
+  return sections;
 }
 
 function parseSubsectionFormat(sectionBody: string): ParsedExperienceEntry[] {
@@ -426,7 +450,7 @@ export function parseMasterLatex(masterLatex: string): ParsedExperienceEntry[] {
   }
 
   const projectEntries = parseResumeProjectFormat(findSection(latex, "projects?"));
-  const skillEntries = parseSkillsFormat(findSection(latex, "skills?"));
+  const skillEntries = findSkillsSections(latex).flatMap(({ title, body }) => parseSkillsFormat(body, title));
   return [...entries.slice(0, 50), ...projectEntries, ...skillEntries]
     .filter((entry) => entry.role.trim() || entry.employer.trim())
     .slice(0, 100);
