@@ -97,3 +97,13 @@ test("Gmail errors do not leak email response content", async () => {
   const provider = createEmailStatusProvider({ getAccessToken: () => "token", fetch: async () => new Response("private email contents", { status: 403 }), provider: { complete: async () => { throw new Error("must not classify"); } } });
   await assert.rejects(provider.checkForUpdates([application()]), (error: Error) => error.message.includes("403") && !error.message.includes("private email"));
 });
+
+test("supports markdown-fenced and prefaced model output from chat models like Antigravity", async () => {
+  const modelText = "Here are the classification results:\n```json\n" + JSON.stringify({
+    results: [{ messageId: "message1", recruiting: true, status: "interviewing", applicationIds: ["one"], confidence: 0.95, evidence: "Interview request" }],
+  }) + "\n```\nHope this helps!";
+  const { updates } = await detect({ recruiting: true, status: "interviewing", applicationIds: ["one"], confidence: 0.95, evidence: "Interview request" }, { modelText });
+  assert.equal(updates[0]?.newStatus, "interviewing");
+  assert.equal(updates[0]?.applicationId, "one");
+  assert.equal(updates[0]?.evidence, "Interview request");
+});

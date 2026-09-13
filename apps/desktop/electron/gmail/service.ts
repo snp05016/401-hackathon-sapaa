@@ -140,36 +140,59 @@ export function createGmailService(db: GhostboardDb, dependencies: GmailDependen
     const legacyRecords = storedRecords
       .filter((record) => record.decision !== "dismissed" && !record.suggestion.action);
     const legacyMessageIds = legacyRecords.map((record) => record.messageId);
-    let cursor = savedSync?.historyId ?? null;
-    let nextCursor = savedSync?.nextHistoryId ?? null;
+    let cursor = savedSync?.historyId || savedSync?.nextHistoryId || null;
+    let nextCursor = savedSync?.nextHistoryId || savedSync?.historyId || null;
     let pageToken = savedSync?.pageToken ?? null;
     let pending = savedSync?.pendingIds ?? [];
-    if (!pending.length && cursor) {
+    if (cursor && !pageToken) {
       const url = new URL("https://gmail.googleapis.com/gmail/v1/users/me/history");
-      url.search = new URLSearchParams({ startHistoryId: cursor, historyTypes: "messageAdded", maxResults: "50", ...(pageToken ? { pageToken } : {}) }).toString();
+      url.search = new URLSearchParams({ startHistoryId: cursor, historyTypes: "messageAdded", maxResults: "50" }).toString();
       try {
         const history = await request<GmailHistory>(url);
         nextCursor = historyId(history.historyId);
         if (history.nextPageToken !== undefined && (typeof history.nextPageToken !== "string" || history.nextPageToken.length > 4000)) throw new Error("Gmail returned an invalid page cursor.");
         pageToken = history.nextPageToken ?? null;
         if (history.history !== undefined && !Array.isArray(history.history)) throw new Error("Gmail returned invalid history.");
-        pending = messageIds((history.history ?? []).flatMap((item) => (item.messagesAdded ?? [])
+        const newIds = messageIds((history.history ?? []).flatMap((item) => (item.messagesAdded ?? [])
           .filter(({ message }) => {
             const labels = message.labelIds ?? [];
             return !labels.some((label) => ["DRAFT", "SPAM", "TRASH"].includes(label))
               && !(labels.includes("SENT") && !labels.includes("INBOX"));
           })
           .map(({ message }) => message.id)));
+        pending = [...new Set([...newIds, ...pending])];
       } catch (cause) {
         if (!(cause instanceof GmailRequestError) || cause.status !== 404) throw cause;
         cursor = null;
         pageToken = null;
         notice = "Gmail's history expired. Checked up to 50 recent inbox messages to resume syncing; older messages may need manual review.";
       }
+    } else if (cursor && pageToken) {
+      const url = new URL("https://gmail.googleapis.com/gmail/v1/users/me/history");
+      url.search = new URLSearchParams({ startHistoryId: cursor, historyTypes: "messageAdded", maxResults: "50", pageToken }).toString();
+      try {
+        const history = await request<GmailHistory>(url);
+        nextCursor = historyId(history.historyId);
+        pageToken = history.nextPageToken ?? null;
+        if (history.history !== undefined && !Array.isArray(history.history)) throw new Error("Gmail returned invalid history.");
+        const newIds = messageIds((history.history ?? []).flatMap((item) => (item.messagesAdded ?? [])
+          .filter(({ message }) => {
+            const labels = message.labelIds ?? [];
+            return !labels.some((label) => ["DRAFT", "SPAM", "TRASH"].includes(label))
+              && !(labels.includes("SENT") && !labels.includes("INBOX"));
+          })
+          .map(({ message }) => message.id)));
+        pending = [...new Set([...newIds, ...pending])];
+      } catch (cause) {
+        if (!(cause instanceof GmailRequestError) || cause.status !== 404) throw cause;
+        cursor = null;
+        pageToken = null;
+      }
     }
     if (!cursor && !pending.length) {
       const profile = await request<GmailProfile>("https://gmail.googleapis.com/gmail/v1/users/me/profile");
       nextCursor = historyId(profile.historyId);
+      cursor = nextCursor;
       const initialUrl = new URL("https://gmail.googleapis.com/gmail/v1/users/me/messages");
       initialUrl.search = new URLSearchParams({ q: "in:inbox newer_than:90d -category:promotions -category:social", maxResults: current.recentOnly ? "10" : "50", includeSpamTrash: "false" }).toString();
       const listed = await request<{ messages?: Array<{ id: string }> }>(initialUrl);
@@ -183,7 +206,7 @@ export function createGmailService(db: GhostboardDb, dependencies: GmailDependen
     const eligibleLegacyIds = current.recentOnly
       ? legacyMessageIds.filter((messageId) => pending.includes(messageId))
       : legacyMessageIds;
-    const batch = [...new Set([...eligibleLegacyIds, ...pending])].slice(0, current.recentOnly ? 10 : 5);
+    const batch = [...new Set([...eligibleLegacyIds, ...pending])].slice(0, 10);
     const provider = createEmailStatusProvider({
       getAccessToken: () => accessToken(), messageIds: batch, lookbackDays: 90, now,
       provider: dependencies.provider,
@@ -262,12 +285,13 @@ export function createGmailService(db: GhostboardDb, dependencies: GmailDependen
         const confident = !!update.newStatus && update.confidence >= AUTOMATIC_UPDATE_CONFIDENCE;
         const reviewedAt = now().toISOString();
 
-        if (!application && confident && update.company && update.title) {
+        const effectiveTitle = update.title || (update.company ? `Role at ${update.company}` : "Candidate");
+        if (!application && confident && update.company) {
           const applicationId = `gmail-${id}`;
           application = {
             id: applicationId,
             company: update.company,
-            title: update.title,
+            title: effectiveTitle,
             location: null,
             jobUrl: `https://mail.google.com/mail/u/0/#inbox/${encodeURIComponent(update.threadId)}`,
             jobDescription: "",
@@ -350,7 +374,7 @@ export function createGmailService(db: GhostboardDb, dependencies: GmailDependen
         noticed++;
       }
       const sync = {
-        account, historyId: finished ? nextCursor : cursor, nextHistoryId: finished ? null : nextCursor,
+        account, historyId: finished ? nextCursor : (cursor ?? nextCursor), nextHistoryId: finished ? null : nextCursor,
         pendingIds: pending, pageToken, lastCheckedAt: checkedAt,
       };
       await transaction.insert(gmailSync).values(sync).onConflictDoUpdate({ target: gmailSync.account, set: sync });
@@ -359,6 +383,10 @@ export function createGmailService(db: GhostboardDb, dependencies: GmailDependen
     else if (moved || created || noticed) {
       const parts = [moved && `moved ${moved} job${moved === 1 ? "" : "s"}`, created && `added ${created} job${created === 1 ? "" : "s"}`, noticed && `${noticed} heads-up${noticed === 1 ? "" : "s"}`].filter(Boolean);
       notice = `Gmail ${parts.join(", ")}.`;
+    } else if (batch.length > 0) {
+      notice = finished
+        ? `Checked ${batch.length} message${batch.length === 1 ? "" : "s"} with Antigravity. No recruiter or status updates found.`
+        : `Checked ${batch.length} message${batch.length === 1 ? "" : "s"} with Antigravity (${pending.length} remaining in queue). None were recruiter updates. Click check next batch to continue.`;
     }
   }
 

@@ -113,6 +113,7 @@ function readableTailoringError(error: unknown): Error {
       || message.includes("too large")
       || message.startsWith("GROQ_API_KEY is not set")
       || message.startsWith("The model did not return a valid LaTeX document")
+      || message.includes("Antigravity CLI")
     ) {
       return error;
     }

@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { GhostboardDb } from "@ghostboard/database";
 import { IPC_CHANNELS } from "../ipc/channels";
+import { getProvider } from "@ghostboard/ai";
 import { parseGmailCredentials } from "./oauth";
 import { createGmailStore } from "./store";
 import { createGmailService } from "./service";
@@ -34,6 +35,9 @@ export function registerGmailHandlers(db: GhostboardDb): void {
       return parseGmailCredentials(await readFile(file, "utf8"));
     },
     openExternal: (url) => shell.openExternal(url),
+    provider: {
+      complete: (req) => getProvider().complete(req),
+    },
   });
   function trusted(event: IpcMainInvokeEvent) {
     if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame) throw new Error("Gmail actions are available only in the desktop app.");
