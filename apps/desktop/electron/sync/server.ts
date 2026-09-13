@@ -110,7 +110,7 @@ export function createSyncServer({ db, token, port }: SyncServerOptions): SyncSe
   let closePromise: Promise<void> | undefined;
 
   const connections = new Set<SyncConnection>();
-  const server = new WebSocketServer({ host: "0.0.0.0", path: SYNC_PATH, port });
+  const server = new WebSocketServer({ host: "0.0.0.0", path: SYNC_PATH, port, maxPayload: 16 * 1024 });
   let resolveReady: (info: SyncServerInfo) => void = () => undefined;
   let rejectReady: (error: Error) => void = () => undefined;
   const ready = new Promise<SyncServerInfo>((resolve, reject) => {
