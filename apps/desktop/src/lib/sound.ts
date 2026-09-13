@@ -10,11 +10,14 @@ export type SoundName =
   | "error"
   | "drop"
   | "delete"
-  | "chime";
+  | "chime"
+  | "type";
 
 export const SOUND_MUTED_STORAGE_KEY = "ghostboard:sound-muted";
+export const SOUND_VOLUME_STORAGE_KEY = "ghostboard:sound-volume";
 
 const MUTE_CHANGE_EVENT = "ghostboard:sound-muted-change";
+const VOLUME_CHANGE_EVENT = "ghostboard:sound-volume-change";
 
 /** Minimum gap between two plays of the same voice. */
 const PER_NAME_THROTTLE_MS = 70;
@@ -22,7 +25,7 @@ const PER_NAME_THROTTLE_MS = 70;
 const BUDGET_WINDOW_MS = 250;
 const BUDGET_COUNT = 3;
 
-const MASTER_GAIN = 0.09;
+const DEFAULT_MASTER_GAIN = 1;
 const LOWPASS_HZ = 2600;
 
 type Voice = {
@@ -64,6 +67,7 @@ const RECIPES: Record<SoundName, Voice[]> = {
     { type: "sine", frequency: 880, gain: 0.04, offset: 0.045, attack: 0.005, decay: 0.055 },
     { type: "sine", frequency: 1318, gain: 0.04, offset: 0.09, attack: 0.005, decay: 0.05 },
   ],
+  type: [{ type: "triangle", frequency: 1600, gain: 0.01, offset: 0, attack: 0.001, decay: 0.018 }],
 };
 
 let audioContext: AudioContext | null = null;
@@ -74,6 +78,8 @@ let listenersAttached = false;
 
 let muted = false;
 let mutedLoaded = false;
+let masterGainLevel = DEFAULT_MASTER_GAIN;
+let volumeLoaded = false;
 
 const lastPlayedAt: Partial<Record<SoundName, number>> = {};
 let recentPlays: number[] = [];
@@ -100,6 +106,23 @@ function loadMuted(): boolean {
   return muted;
 }
 
+function normalizeVolume(value: number): number {
+  return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : DEFAULT_MASTER_GAIN;
+}
+
+function loadVolume(): number {
+  if (volumeLoaded) return masterGainLevel;
+  volumeLoaded = true;
+  if (!isBrowser()) return masterGainLevel;
+  try {
+    const stored = window.localStorage.getItem(SOUND_VOLUME_STORAGE_KEY);
+    if (stored !== null) masterGainLevel = normalizeVolume(Number(stored));
+  } catch {
+    masterGainLevel = DEFAULT_MASTER_GAIN;
+  }
+  return masterGainLevel;
+}
+
 function ensureContext(): AudioContext | null {
   if (engineBroken || !isBrowser()) return null;
   if (audioContext && masterGain) return audioContext;
@@ -113,7 +136,7 @@ function ensureContext(): AudioContext | null {
     }
     const context = new Ctor();
     const gain = context.createGain();
-    gain.gain.value = MASTER_GAIN;
+    gain.gain.value = loadVolume();
     const filter = context.createBiquadFilter();
     filter.type = "lowpass";
     filter.frequency.value = LOWPASS_HZ;
@@ -150,9 +173,25 @@ function attachUnlockListeners(): void {
   window.addEventListener("keydown", handler);
 }
 
+function attachTypingListener(): void {
+  if (!isBrowser()) return;
+  window.addEventListener("input", (event) => {
+    if (!event.isTrusted || !(event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)) {
+      return;
+    }
+    if (event.target instanceof HTMLInputElement && ["checkbox", "radio", "range", "file", "button", "submit", "reset"].includes(event.target.type)) {
+      return;
+    }
+    const inputType = (event as InputEvent).inputType;
+    if (inputType === "insertText" || inputType === "insertCompositionText") playSound("type");
+  });
+}
+
 if (isBrowser()) {
   loadMuted();
+  loadVolume();
   attachUnlockListeners();
+  attachTypingListener();
 }
 
 export function isSoundMuted(): boolean {
@@ -171,7 +210,27 @@ export function setSoundMuted(nextMuted: boolean): void {
   window.dispatchEvent(new CustomEvent(MUTE_CHANGE_EVENT, { detail: nextMuted }));
 }
 
+export function getSoundVolume(): number {
+  return loadVolume();
+}
+
+export function setSoundVolume(nextVolume: number): void {
+  loadVolume();
+  masterGainLevel = normalizeVolume(nextVolume);
+  if (!isBrowser()) return;
+  try {
+    window.localStorage.setItem(SOUND_VOLUME_STORAGE_KEY, String(masterGainLevel));
+  } catch {
+    // Preference is best-effort; an unavailable storage must not break sound effects.
+  }
+  if (audioContext && masterGain) {
+    masterGain.gain.setTargetAtTime(masterGainLevel, audioContext.currentTime, 0.01);
+  }
+  window.dispatchEvent(new CustomEvent(VOLUME_CHANGE_EVENT, { detail: masterGainLevel }));
+}
+
 function withinBudget(name: SoundName, now: number): boolean {
+  if (name === "type") return true;
   const previous = lastPlayedAt[name];
   if (previous !== undefined && now - previous < PER_NAME_THROTTLE_MS) return false;
   recentPlays = recentPlays.filter((stamp) => now - stamp < BUDGET_WINDOW_MS);
@@ -247,6 +306,23 @@ export function useSoundMuted(): [boolean, (muted: boolean) => void] {
   const update = useCallback((next: boolean) => {
     setSoundMuted(next);
     setValue(next);
+  }, []);
+
+  return [value, update];
+}
+
+export function useSoundVolume(): [number, (volume: number) => void] {
+  const [value, setValue] = useState<number>(() => getSoundVolume());
+
+  useEffect(() => {
+    const sync = () => setValue(getSoundVolume());
+    window.addEventListener(VOLUME_CHANGE_EVENT, sync);
+    return () => window.removeEventListener(VOLUME_CHANGE_EVENT, sync);
+  }, []);
+
+  const update = useCallback((next: number) => {
+    setSoundVolume(next);
+    setValue(getSoundVolume());
   }, []);
 
   return [value, update];

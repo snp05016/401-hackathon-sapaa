@@ -4,7 +4,7 @@ import { Volume2, VolumeX } from "lucide-react";
 import { THEMES, useTheme, type ThemeId } from "../../lib/theme";
 import { cn } from "../../lib/utils";
 import { SPRING, TRANSITION } from "../../lib/motion";
-import { playSound, useSoundMuted } from "../../lib/sound";
+import { playSound, useSoundMuted, useSoundVolume } from "../../lib/sound";
 import { ThemeWipe } from "../motion";
 
 type PendingWipe = { theme: ThemeId; ground: string; origin: { x: number; y: number } };
@@ -86,38 +86,55 @@ export function ThemeSwitcher() {
 
 export function SoundToggle({ className }: { className?: string }): JSX.Element {
   const [muted, setMuted] = useSoundMuted();
+  const [volume, setVolume] = useSoundVolume();
+  const volumePercent = Math.round(volume * 100);
 
   return (
-    <motion.button
-      type="button"
-      role="switch"
-      aria-checked={!muted}
-      aria-label="Sound effects"
-      title={muted ? "Sound off" : "Sound on"}
-      onClick={() => {
-        const next = !muted;
-        setMuted(next);
-        if (!next) playSound("toggle");
-      }}
-      whileHover={{ scale: 1.08 }}
-      whileTap={{ scale: 0.94 }}
-      transition={SPRING.press}
-      className={cn(
-        "relative grid h-[18px] w-[18px] place-items-center transition-colors hover:text-ink",
-        "focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-oxblood",
-        muted ? "text-ink-3" : "text-ink-2",
-        className,
-      )}
-    >
-      <motion.span
-        key={muted ? "muted" : "unmuted"}
-        initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={TRANSITION.quick}
-        className="grid place-items-center"
+    <div className={cn("group relative", className)}>
+      <motion.button
+        type="button"
+        role="switch"
+        aria-checked={!muted}
+        aria-label="Sound effects"
+        title={muted ? "Sound off" : "Sound on"}
+        onClick={() => {
+          const next = !muted;
+          setMuted(next);
+          if (!next) playSound("toggle");
+        }}
+        whileHover={{ scale: 1.08 }}
+        whileTap={{ scale: 0.94 }}
+        transition={SPRING.press}
+        className={cn(
+          "relative grid h-[18px] w-[18px] place-items-center transition-colors hover:text-ink",
+          "focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-oxblood",
+          muted ? "text-ink-3" : "text-ink-2",
+        )}
       >
-        {muted ? <VolumeX size={14} strokeWidth={1.6} /> : <Volume2 size={14} strokeWidth={1.6} />}
-      </motion.span>
-    </motion.button>
+        <motion.span
+          key={muted ? "muted" : "unmuted"}
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={TRANSITION.quick}
+          className="grid place-items-center"
+        >
+          {muted ? <VolumeX size={14} strokeWidth={1.6} /> : <Volume2 size={14} strokeWidth={1.6} />}
+        </motion.span>
+      </motion.button>
+      <label className="pointer-events-none absolute right-0 top-full z-20 flex w-36 items-center gap-2 border border-hairline bg-paper-raised px-2.5 py-2 text-[10px] text-ink-2 opacity-0 shadow-sm transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 sm:bottom-full sm:top-auto">
+        <span className="shrink-0">Volume</span>
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.01"
+          value={volume}
+          onChange={(event) => setVolume(Number(event.target.value))}
+          aria-label="Sound effects volume"
+          className="h-1 min-w-0 flex-1 cursor-pointer accent-[rgb(var(--oxblood))]"
+        />
+        <output className="w-7 text-right text-ink">{volumePercent}%</output>
+      </label>
+    </div>
   );
 }
