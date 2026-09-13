@@ -58,6 +58,16 @@ function fieldLabel(element: FillableElement): string | null {
   if (referenced) return referenced;
   const wrappedLabel = element.closest("label")?.textContent?.trim();
   if (wrappedLabel) return wrappedLabel;
+  const automationLabel = [
+    "data-testid",
+    "data-test",
+    "data-qa",
+    "data-automation-id",
+    "data-field",
+  ]
+    .map((attribute) => element.getAttribute(attribute)?.trim())
+    .find((value): value is string => !!value);
+  if (automationLabel) return automationLabel;
 
   let container: HTMLElement | null = element.parentElement;
   for (let depth = 0; container && depth < 4; depth += 1, container = container.parentElement) {
@@ -119,7 +129,7 @@ export function detectApplicationFormFields(root: Document = document): Detected
 
 export function isApplicationFormPage(root: Document = document): boolean {
   const fields = detectApplicationFormFields(root);
-  if (fields.length < 2) return false;
+  if (fields.length === 0) return false;
   const evidence = [
     root.title,
     root.location?.pathname,
@@ -129,7 +139,9 @@ export function isApplicationFormPage(root: Document = document): boolean {
   const explicitSignal = /\b(?:apply|application|candidate|resume|cover letter|work authorization|sponsorship)\b/i.test(evidence);
   const labels = normalized(fields.map((field) => [field.label, field.name, field.placeholder].filter(Boolean).join(" ")).join(" "));
   const identitySignals = ["first name", "last name", "email"].filter((signal) => labels.includes(signal)).length;
-  return explicitSignal || identitySignals >= 2;
+  const applicationPath = /\b(?:apply|application|candidate|careers|jobs)\b/i.test(root.location?.pathname ?? "");
+  const hasForm = root.querySelector("form") !== null;
+  return explicitSignal || identitySignals >= 2 || (hasForm && applicationPath && identitySignals >= 1);
 }
 
 function setNativeValue(element: FillableElement, value: string): void {
@@ -168,10 +180,17 @@ export function writeFormValue(element: FillableElement, requestedValue: string)
   }
 
   if (element.tagName === "SELECT") {
-    const option = [...(element as HTMLSelectElement).options].find((candidate) => {
-      const expected = normalized(requestedValue);
-      return normalized(candidate.value) === expected || normalized(candidate.text) === expected;
-    });
+    const expected = normalized(requestedValue);
+    const options = [...(element as HTMLSelectElement).options];
+    const option = options.find((candidate) => normalized(candidate.value) === expected || normalized(candidate.text) === expected)
+      // Portals commonly decorate a country or region label with a language or
+      // code (for example "Canada (English)"). Only use a bounded substring
+      // fallback after exact matching so a generic value cannot select an
+      // unrelated option.
+      ?? options.find((candidate) => {
+        const text = normalized(candidate.text);
+        return expected.length >= 3 && (text.includes(expected) || expected.includes(text));
+      });
     if (!option) return false;
     value = option.value;
   }

@@ -9,6 +9,11 @@ const profileFields: ProfileField[] = [
   { key: "fullName", label: "Full name", value: "Ada Lovelace", category: "personal" },
   { key: "email", label: "Email", value: "ada@example.com", category: "contact" },
   { key: "phone", label: "Phone", value: "+15555555555", category: "contact" },
+  { key: "address", label: "Address", value: "1 Analytical Engine Way", category: "personal" },
+  { key: "city", label: "City", value: "London", category: "personal" },
+  { key: "region", label: "State / province / region", value: "Ontario", category: "personal" },
+  { key: "postalCode", label: "Postal code", value: "N1A 1A1", category: "personal" },
+  { key: "country", label: "Country", value: "Canada", category: "personal" },
   { key: "linkedin", label: "LinkedIn URL", value: "https://linkedin.com/in/ada", category: "links" },
   { key: "github", label: "GitHub URL", value: "https://github.com/ada", category: "links" },
 ];
@@ -47,6 +52,21 @@ test("matchFormField returns no match when the field is unrelated", () => {
   const result = matchFormField(field({ label: "Start Date", name: "start_date" }), profileFields);
   assert.equal(result.matchedProfileKey, null);
   assert.equal(result.confidence, 0);
+});
+
+test("matchFormField uses native types and location aliases when labels are sparse", () => {
+  const email = matchFormField(field({ label: null, name: "contact", fieldType: "email" }), profileFields);
+  assert.equal(email.matchedProfileKey, "email");
+
+  const address = matchFormField(field({ label: "Street address", name: "address_line_1" }), profileFields);
+  assert.equal(address.matchedProfileKey, "address");
+
+  const country = matchFormField(field({ label: "Country of residence", name: "country" }), profileFields);
+  assert.equal(country.matchedProfileKey, "country");
+
+  assert.equal(matchFormField(field({ label: "City / town" }), profileFields).matchedProfileKey, "city");
+  assert.equal(matchFormField(field({ label: "Province" }), profileFields).matchedProfileKey, "region");
+  assert.equal(matchFormField(field({ label: "Postal code" }), profileFields).matchedProfileKey, "postalCode");
 });
 
 test("matchFormField recognizes resume reference fields", () => {

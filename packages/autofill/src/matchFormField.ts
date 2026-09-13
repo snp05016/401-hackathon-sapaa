@@ -32,16 +32,6 @@ const PROFILE_FIELD_ALIASES: Record<string, string[]> = {
     "name",
     "candidate name",
     "legal name",
-    "first name",
-    "last name",
-    "first_name",
-    "last_name",
-    "fname",
-    "lname",
-    "firstname",
-    "lastname",
-    "given name",
-    "family name",
     "your name",
     "display name",
   ],
@@ -65,6 +55,73 @@ const PROFILE_FIELD_ALIASES: Record<string, string[]> = {
     "contact number",
     "mobile number",
     "phone number mobile",
+  ],
+  address: [
+    "address",
+    "street address",
+    "mailing address",
+    "home address",
+    "address line 1",
+    "address line 2",
+    "street",
+  ],
+  city: [
+    "city",
+    "town",
+    "municipality",
+    "city or town",
+  ],
+  region: [
+    "state",
+    "province",
+    "region",
+    "state or province",
+    "state province",
+  ],
+  state: [
+    "state",
+    "province",
+    "region",
+    "state or province",
+  ],
+  province: [
+    "province",
+    "state",
+    "region",
+    "state or province",
+  ],
+  postalCode: [
+    "postal code",
+    "postcode",
+    "zip code",
+    "zip",
+    "postal",
+  ],
+  zipCode: [
+    "zip code",
+    "postal code",
+    "postcode",
+    "zip",
+    "postal",
+  ],
+  country: [
+    "country",
+    "country of residence",
+    "current country",
+    "nation",
+  ],
+  workAuthorization: [
+    "work authorization",
+    "authorization to work",
+    "legally authorized to work",
+    "right to work",
+    "employment authorization",
+  ],
+  sponsorship: [
+    "sponsorship",
+    "visa sponsorship",
+    "require sponsorship",
+    "need sponsorship",
   ],
   linkedin: [
     "linkedin",
@@ -239,6 +296,17 @@ export function matchFormField(field: DetectedFormField, profileFields: ProfileF
 
   const workdayMatch = workdayResumeField(text, profileFields);
   if (workdayMatch) return { ...workdayMatch, field };
+
+  // Native type attributes are often the only reliable signal on modern
+  // portals, where the visible label is rendered separately or omitted.
+  const nativeTypeKey = field.fieldType === "email"
+    ? "email"
+    : field.fieldType === "tel"
+      ? "phone"
+      : null;
+  if (nativeTypeKey && profileFields.some((candidate) => candidate.key === nativeTypeKey && candidate.value.trim())) {
+    return { field, matchedProfileKey: nativeTypeKey, confidence: 0.94 };
+  }
 
   const directTypeHints = new Map<string, string>([
     ["email", "email"],
