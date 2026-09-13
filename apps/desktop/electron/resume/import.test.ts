@@ -65,6 +65,11 @@ describe("mergeImportedExperienceEntries", () => {
     assert.equal(result[0].source, "project");
   });
 
+  test("keeps the bank each entry was uploaded from", () => {
+    const result = mergeImportedExperienceEntries([], [makeEntry({ id: "1", bank: "backend-bank" })]);
+    assert.equal(result[0].bank, "backend-bank");
+  });
+
   test("preserves existing order and appends accepted", () => {
     const existing = [
       makeEntry({ id: "1", role: "A", employer: "A" }),

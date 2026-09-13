@@ -73,7 +73,8 @@ function normalizeExperienceEntry(value: unknown): ExperienceEntry {
   const bullets = stringList(entry.bullets, "experience entry bullets", 200);
   const skills = stringList(entry.skills, "experience entry skills", 100);
   const source = optionalText(entry.source, 300);
-  return { id, role, employer, startDate, endDate, bullets, skills, ...(source ? { source } : {}) };
+  const bank = optionalText(entry.bank, 120);
+  return { id, role, employer, startDate, endDate, bullets, skills, ...(source ? { source } : {}), ...(bank ? { bank } : {}) };
 }
 
 function normalizeTailoredRecord(value: unknown): TailoredResumeRecord {
