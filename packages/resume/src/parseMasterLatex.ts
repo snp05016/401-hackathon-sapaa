@@ -403,6 +403,109 @@ function parseParagraphFormat(sectionBody: string): ParsedExperienceEntry[] {
   return entries;
 }
 
+const SECTION_HEADINGS = /^(?:work |professional |relevant |technical |other )?(?:experience|employment|history|projects?|education|skills|technologies|summary|profile|about|contact|resume|cv|bank)$/i;
+const BULLET_LINE = /^\s*(?:[-*•‣+]|\d+[.)])\s+/;
+const SKILLS_LINE = /^\s*(?:skills?|technolog(?:y|ies)|tech stack|tools)\s*[:\-–]\s*/i;
+
+/** Strips Markdown decoration so a heading reads the same as its plain-text equivalent. */
+/** Drops what the date left behind and the trailing "| Location" segment. */
+function tidyHeading(value: string): string {
+  return value
+    .replace(/\(\s*\)/g, " ")
+    .split("|")[0]
+    .replace(/\s*[,;\-–—|]\s*$/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function stripMarkdown(line: string): string {
+  return line
+    .replace(/^\s*#{1,6}\s*/, "")
+    .replace(/^\s*>\s*/, "")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/(\*\*\*|\*\*|__|\*|_|`)/g, "")
+    .replace(/\s*[:•|]\s*$/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Reads an experience bank written as Markdown or plain text — a heading per role,
+ * dashed or numbered bullets under it, and an optional `Skills:` line. Headers that
+ * are only a section name ("Experience", "Projects") are skipped, and a line that
+ * follows a header before any bullet is treated as that role's dates and location
+ * rather than as a second role.
+ */
+export function parseTextBank(text: string): ParsedExperienceEntry[] {
+  const entries: ParsedExperienceEntry[] = [];
+  let current: ParsedExperienceEntry | null = null;
+  let headerText = "";
+
+  const commit = () => {
+    if (!current) return;
+    if (current.bullets.length || current.skills?.length) entries.push(current);
+    current = null;
+    headerText = "";
+  };
+
+  for (const rawLine of text.replace(/\r\n?/g, "\n").split("\n")) {
+    const entry: ParsedExperienceEntry | null = current; // a local alias keeps the narrowing that `commit` would otherwise reset
+    const line = rawLine.trim();
+    if (!line || /^([-=*_])\1{2,}$/.test(line)) continue;
+
+    if (BULLET_LINE.test(line)) {
+      const bullet = stripMarkdown(line.replace(BULLET_LINE, ""));
+      if (!entry || !bullet) continue;
+      if (SKILLS_LINE.test(bullet)) entry.skills = [...(entry.skills ?? []), ...parseSkillList(bullet.replace(SKILLS_LINE, ""))];
+      else if (entry.bullets.length < 100) entry.bullets.push(bullet.slice(0, 1000));
+      continue;
+    }
+
+    if (SKILLS_LINE.test(line) && entry) {
+      entry.skills = [...(entry.skills ?? []), ...parseSkillList(stripMarkdown(line).replace(SKILLS_LINE, ""))];
+      continue;
+    }
+
+    const heading = stripMarkdown(line);
+    if (!heading || SECTION_HEADINGS.test(heading)) {
+      commit();
+      continue;
+    }
+
+    // A line before any bullet belongs to the header above it: dates, employer, location.
+    if (entry && entry.bullets.length === 0 && !entry.skills?.length) {
+      headerText = `${headerText} ${heading}`;
+      const { start, end } = extractDateRange(headerText);
+      const { role, employer } = splitRoleEmployer(removeDateRange(headerText));
+      entry.role = tidyHeading(role);
+      entry.employer = tidyHeading(employer);
+      entry.startDate = start;
+      entry.endDate = end;
+      continue;
+    }
+
+    commit();
+    if (entries.length >= 50) break;
+    headerText = heading;
+    const { start, end } = extractDateRange(heading);
+    const { role, employer } = splitRoleEmployer(removeDateRange(heading));
+    current = { role: tidyHeading(role), employer: tidyHeading(employer), startDate: start, endDate: end, bullets: [], skills: [], source: "experience" };
+  }
+  commit();
+
+  const skills = entries.some((entry) => entry.skills?.length)
+    ? []
+    : parseSkillList(text.split("\n").filter((line) => SKILLS_LINE.test(line)).map((line) => stripMarkdown(line).replace(SKILLS_LINE, "")).join("\n"));
+  if (skills.length) entries.push({ role: "Technical Skills", employer: "Skills", startDate: null, endDate: null, bullets: [], skills, source: "skill" });
+  return entries.filter((entry) => entry.role.trim() || entry.employer.trim()).slice(0, 100);
+}
+
+/** LaTeX when it looks like LaTeX, otherwise Markdown or plain text. */
+export function parseExperienceBank(source: string): ParsedExperienceEntry[] {
+  const looksLikeLatex = /\\(?:documentclass|begin\{document\}|section\*?\{|resumeSubheading|item\b)/.test(source);
+  return looksLikeLatex ? parseMasterLatex(source) : parseTextBank(source);
+}
+
 export function parseMasterLatex(masterLatex: string): ParsedExperienceEntry[] {
   const latex = stripComments(masterLatex);
   const sectionBody = findSection(latex, "(?:experience|employment)");

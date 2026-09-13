@@ -1,6 +1,6 @@
 import { test, describe, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { parseMasterLatex, parseSkillList, type ParsedExperienceEntry } from "./parseMasterLatex";
+import { parseExperienceBank, parseMasterLatex, parseSkillList, parseTextBank, type ParsedExperienceEntry } from "./parseMasterLatex";
 
 const SAMPLE_LATEX = String.raw`
 \documentclass{article}
@@ -398,5 +398,70 @@ describe("parseSkillList", () => {
 
   test("returns an empty list for a section with no skills", () => {
     assert.deepEqual(parseSkillList("   \n  "), []);
+  });
+});
+
+describe("parseTextBank", () => {
+  const BANK = [
+    "# Experience",
+    "",
+    "## Software Engineer — BuildSouk",
+    "Aug 2026 – Present | Dubai, UAE",
+    "",
+    "- Built **BuildSouk**, a B2B marketplace, in TypeScript.",
+    "- Pushed tenant isolation with forced row-level security.",
+    "Skills: TypeScript, Next.js, AWS (Lambda, S3)",
+    "",
+    "### Research Assistant, Compiler Lab (May 2025 - Sep 2025)",
+    "* Researched compiler optimization.",
+    "",
+    "Projects",
+    "--------",
+    "",
+    "**Nivesh — AI Equity Platform**",
+    "May 2026 -- Present",
+    "1. Architected a full-stack platform using Docker.",
+  ].join("\n");
+
+  test("reads a role per heading with its bullets, dates, and skills", () => {
+    const entries = parseTextBank(BANK);
+    assert.equal(entries.length, 3);
+    assert.deepEqual(entries.map((entry) => [entry.role, entry.employer]), [
+      ["Software Engineer", "BuildSouk"],
+      ["Research Assistant", "Compiler Lab"],
+      ["Nivesh", "AI Equity Platform"],
+    ]);
+    assert.equal(entries[0].startDate, "2026-08-01");
+    assert.equal(entries[0].endDate, null);
+    assert.equal(entries[1].endDate, "2025-09-01");
+    // Markdown emphasis is stripped and a parenthesised skill list survives intact.
+    assert.deepEqual(entries[0].bullets, [
+      "Built BuildSouk, a B2B marketplace, in TypeScript.",
+      "Pushed tenant isolation with forced row-level security.",
+    ]);
+    assert.deepEqual(entries[0].skills, ["TypeScript", "Next.js", "AWS (Lambda, S3)"]);
+    assert.deepEqual(entries[2].bullets, ["Architected a full-stack platform using Docker."]);
+  });
+
+  test("section headings never become entries", () => {
+    assert.deepEqual(parseTextBank("# Experience\n\n## Projects\n\nSkills\n"), []);
+  });
+
+  test("a bank that is only a skills list still lands in the bank", () => {
+    const entries = parseTextBank("Skills: Python, Docker, AWS (Lambda, S3)");
+    assert.deepEqual(entries, [{
+      role: "Technical Skills", employer: "Skills", startDate: null, endDate: null,
+      bullets: [], skills: ["Python", "Docker", "AWS (Lambda, S3)"], source: "skill",
+    }]);
+  });
+
+  test("parseExperienceBank routes LaTeX to the LaTeX parser and text to this one", () => {
+    const latex = String.raw`\documentclass{article}\begin{document}\section{Experience}
+\textbf{Engineer} -- Jan 2020 to Feb 2021\\
+\textit{Acme}
+\begin{itemize}\item Shipped it.\end{itemize}
+\end{document}`;
+    assert.equal(parseExperienceBank(latex)[0].employer, "Acme");
+    assert.equal(parseExperienceBank(BANK)[0].employer, "BuildSouk");
   });
 });

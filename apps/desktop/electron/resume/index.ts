@@ -4,7 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { transcribeWithGroq } from "@ghostboard/ai";
-import { customizeResume, parseMasterLatex, type ParsedExperienceEntry, type ResumeCustomizeRequest, type ResumeCustomizeResult } from "@ghostboard/resume";
+import { customizeResume, parseExperienceBank, type ParsedExperienceEntry, type ResumeCustomizeRequest, type ResumeCustomizeResult } from "@ghostboard/resume";
 import type { ExperienceEntry, TailoredResumeRecord } from "@ghostboard/shared";
 import {
   readExperienceBank,
@@ -252,9 +252,9 @@ async function transcribeAudio(value: unknown): Promise<{ text: string }> {
 }
 
 function extractExperienceEntries(value: unknown): ParsedExperienceEntry[] {
-  const latex = plainText(value, "master LaTeX", MAX_MASTER_LATEX_LENGTH);
-  if (!latex.trim()) throw new Error("Master LaTeX is required.");
-  return parseMasterLatex(latex);
+  const source = plainText(value, "resume text", MAX_MASTER_LATEX_LENGTH);
+  if (!source.trim()) throw new Error("Resume text is required.");
+  return parseExperienceBank(source);
 }
 
 function importExperienceEntries(value: unknown): ExperienceEntry[] {
