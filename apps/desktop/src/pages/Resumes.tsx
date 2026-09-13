@@ -2003,8 +2003,8 @@ export function Resumes() {
                       variant="default"
                       value={jobTitle}
                       onValueChange={(value) => updateJobField(setJobTitle, value)}
+                      microPrompt="Job title: "
                       disabled={isTailoring}
-                      microPrompt="Complete this job posting title for resume tailoring returning only its continuation: "
                     />
                   </div>
                   <div>

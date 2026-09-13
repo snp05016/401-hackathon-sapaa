@@ -154,6 +154,57 @@ function JobDescription({ description }: { description: string | null }) {
   })}</div>;
 }
 
+function JobSummary({ job }: { job: DiscoveredJob }) {
+  const sourceDescription = plainDescription(job.description);
+  const [summary, setSummary] = useState<string | null>(null);
+  const [summarizing, setSummarizing] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setSummary(null);
+    setSummaryError(null);
+    if (!sourceDescription) return () => { active = false; };
+
+    setSummarizing(true);
+    void ipc().summarizeJobDescription({
+      company: job.company,
+      title: job.title,
+      description: sourceDescription,
+    })
+      .then((result) => {
+        if (active) setSummary(result.summary);
+      })
+      .catch((error) => {
+        if (active) setSummaryError(error instanceof Error ? error.message : "The local job summary could not be generated.");
+      })
+      .finally(() => {
+        if (active) setSummarizing(false);
+      });
+
+    return () => { active = false; };
+  }, [job.company, job.title, sourceDescription]);
+
+  const displayedDescription = summary ?? (sourceDescription || "Open the posting for the complete job description.");
+  return (
+    <div className="mt-5" aria-busy={summarizing || undefined}>
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.p
+          key={summary ?? "source-description"}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={TRANSITION.base}
+          className="line-clamp-3 text-[12px] leading-relaxed text-ink-2"
+        >
+          {displayedDescription}
+        </motion.p>
+      </AnimatePresence>
+      {summaryError && <p role="status" className="mt-2 text-[10px] text-ink-3">Showing the source description; local summary unavailable.</p>}
+    </div>
+  );
+}
+
 function Onboarding({ initial, onComplete }: { initial: DiscoverPreferences; onComplete: (preferences: DiscoverPreferences) => void }) {
   const [step, setStep] = useState(1);
   const [direction, setDirection] = useState(1);
@@ -226,7 +277,7 @@ function Onboarding({ initial, onComplete }: { initial: DiscoverPreferences; onC
               displayClassName="text-[18px]"
               value={preferences.role}
               onValueChange={(role) => setPreferences({ ...preferences, role })}
-              microPrompt="Complete this target job title for a job search returning only its continuation: "
+              microPrompt="Job title: "
             />
             <label htmlFor="discover-alternates" className="mt-7 block text-[12px] text-ink-2">Alternate titles <span className="text-ink-3">comma-separated, up to two</span></label>
             <PredictiveInput
@@ -235,7 +286,7 @@ function Onboarding({ initial, onComplete }: { initial: DiscoverPreferences; onC
               placeholder="Embedded Software Intern, Firmware Developer Intern"
               value={preferences.alternateTitles}
               onValueChange={(alternateTitles) => setPreferences({ ...preferences, alternateTitles })}
-              microPrompt="Complete this alternate job title for a job search returning only its continuation: "
+              microPrompt="Job title: "
             />
             <label htmlFor="discover-level" className="mt-7 block text-[12px] text-ink-2">Career level</label>
             <select id="discover-level" value={preferences.experienceLevel} onChange={(event) => setPreferences({ ...preferences, experienceLevel: event.target.value })} className="mt-2 w-full border-0 border-b border-hairline bg-transparent pb-2 text-[14px] text-ink focus:border-oxblood focus:outline-none">
@@ -370,7 +421,7 @@ function JobCard({ job, saved, busy, index, onSave, onVisit }: { job: Discovered
       <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-[11px] text-ink-2">{job.location && <span className="flex items-center gap-1.5"><MapPin size={13} />{job.location}</span>}{job.isRemote && <span className="flex items-center gap-1.5"><Compass size={13} />Remote</span>}{job.jobType && <span className="flex items-center gap-1.5"><BriefcaseBusiness size={13} />{job.jobType}</span>}</div>
       {salary && <p className="tnum mt-4 text-[12px] text-verdigris">{salary}</p>}
       {!!job.matchReasons?.length && <ul className="mt-4 flex flex-wrap gap-1.5" aria-label="Why this role matches">{job.matchReasons.map((reason) => <li key={reason}><Badge variant="mist">{reason}</Badge></li>)}</ul>}
-      <p className="mt-5 line-clamp-3 text-[12px] leading-relaxed text-ink-2">{plainDescription(job.description) || "Open the posting for the complete job description."}</p>
+      <JobSummary job={job} />
       <details className="mt-4 border-t border-hairline pt-3"><summary className="cursor-pointer text-[11px] font-medium text-ink underline decoration-hairline underline-offset-4 hover:text-oxblood">Read formatted job description</summary><div className="mt-4 max-h-80 overflow-y-auto border-l-2 border-oxblood/30 bg-paper px-4 py-3"><JobDescription description={job.description} /></div></details>
       <div className="mt-auto flex flex-wrap items-center gap-2 pt-6"><Button variant="ink" className="min-h-11 flex-1 px-4" onClick={() => onVisit()} disabled={busy || !(job.jobUrlDirect ?? job.jobUrl)}>{busy ? <LoaderCircle size={15} className="animate-spin" /> : <ArrowUpRight size={15} />}{saved ? "Open posting" : "View & track"}</Button><Button variant="rule" className="min-h-11" onClick={onSave} disabled={busy || saved}>{saved ? <><Check size={14} />Tracked</> : <><FileText size={14} />Save</>}</Button></div>
       {relatedLinks.length > 0 && <div className="mt-3 flex flex-wrap gap-3 text-[10px] text-ink-3">{relatedLinks.map((link) => <button key={`${link.label}:${link.url}`} type="button" disabled={busy} onClick={() => onVisit(link.url)} className="underline underline-offset-4 transition-colors hover:text-oxblood disabled:opacity-50">{link.label} <ArrowUpRight size={10} className="inline" /></button>)}</div>}
