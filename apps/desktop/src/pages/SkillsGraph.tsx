@@ -164,7 +164,7 @@ export function SkillsGraph() {
   const postingSkillColor = useMemo(() => resolveCssColor("--brass"), []);
   const preferenceSkillColor = useMemo(() => resolveCssColor("--oxblood"), []);
   const resumeSkillColor = useMemo(() => resolveCssColor("--ink"), []);
-
+  const linkColor = useMemo(() => resolveCssColor("--ink-2"), []);
 
   useEffect(() => {
     let active = true;
@@ -481,6 +481,7 @@ export function SkillsGraph() {
               graphData={graphData}
               width={size.width}
               height={size.height}
+              linkColor={() => linkColor}
               backgroundColor="transparent"    
               nodeId="id"
               nodeVal={(node: any) => Math.pow((node as NodeData).size / 4, 2)}
@@ -543,7 +544,7 @@ export function SkillsGraph() {
                 ctx.moveTo(start.x, start.y);
                 ctx.lineTo(end.x, end.y);
                 ctx.lineWidth = active ? 2.5 : 1;
-                ctx.strokeStyle = active ? "rgb(var(--oxblood))" : "var(--hairline)";
+                ctx.strokeStyle = active ? "rgb(var(--oxblood))" : "rgb(var(--ink))";
                 ctx.globalAlpha = hoveredId != null && !active ? 0.25 : active ? 1 : 0.8;
                 ctx.stroke();
                 ctx.restore();
