@@ -69,3 +69,37 @@ test("parseResumeReference builds autofill-ready resume JSON", () => {
   assert.match(reference.plainText, /local-first job search tools/);
   assert.doesNotMatch(reference.plainText, /itemize/);
 });
+
+test("parseResumeReference supports macro-driven resumes used by the desktop sample", () => {
+  const macroLatex = String.raw`
+\documentclass{article}
+\newcommand{\resumeSubheading}[4]{#1 #2 #3 #4}
+\newcommand{\resumeItem}[1]{\item #1}
+\begin{document}
+\begin{center}\textbf{Sample Candidate} | sample@example.com\end{center}
+\section{Education}
+\resumeSubheading{Example University}{20XX -- 20XX}{B.Sc. Computer Science}{Edmonton, AB}
+\section{Experience}
+\resumeSubheading{Example Technology Company}{20XX -- 20XX}{Software Engineering Intern}{Remote}
+\resumeItemListStart
+\resumeItem{Automated a recurring workflow with Python.}
+\resumeItemListEnd
+\section{Projects}
+\resumeProjectHeading{\textbf{Workflow Toolkit} \emph{$|$ Python, SQLite}}{20XX}
+\resumeItemListStart
+\resumeItem{Built a local workflow service.}
+\resumeItemListEnd
+\end{document}
+`;
+
+  const reference = parseResumeReference(macroLatex);
+  assert.equal(reference.experience[0]?.title, "Software Engineering Intern");
+  assert.equal(reference.experience[0]?.company, "Example Technology Company");
+  assert.equal(reference.experience[0]?.location, "Remote");
+  assert.deepEqual(reference.experience[0]?.bullets, ["Automated a recurring workflow with Python."]);
+  assert.equal(reference.education[0]?.school, "Example University");
+  assert.equal(reference.education[0]?.degree, "B.Sc. Computer Science");
+  assert.equal(reference.education[0]?.location, "Edmonton, AB");
+  assert.equal(reference.projects[0]?.name, "Workflow Toolkit");
+  assert.deepEqual(reference.projects[0]?.bullets, ["Built a local workflow service."]);
+});

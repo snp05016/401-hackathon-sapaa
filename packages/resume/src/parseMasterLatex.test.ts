@@ -154,6 +154,25 @@ describe("parseMasterLatex", () => {
     });
   });
 
+  test("accepts resumeSubheading templates with dates before the role location", () => {
+    const latex = String.raw`
+\documentclass{article}
+\begin{document}
+\section{Experience}
+\resumeSubheading{Platform Intern}{May 2024 -- Aug. 2024}{Example Co.}{Remote}
+\resumeItemListStart
+  \resumeItem{Built a reliable service.}
+\resumeItemListEnd
+\end{document}
+`;
+    const entries = parseMasterLatex(latex);
+    assert.equal(entries[0]?.role, "Platform Intern");
+    assert.equal(entries[0]?.employer, "Example Co.");
+    assert.equal(entries[0]?.startDate, "2024-05-01");
+    assert.equal(entries[0]?.endDate, "2024-08-01");
+    assert.equal(entries[0]?.location, "Remote");
+  });
+
   test("parses various date formats", () => {
     const latex = String.raw`
 \documentclass{article}
