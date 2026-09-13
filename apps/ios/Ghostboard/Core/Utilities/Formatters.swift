@@ -31,10 +31,17 @@ enum AppFormat {
         dayMonthYear.string(from: date)
     }
 
+    private static let calendarDayDisplay: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d MMM yyyy"
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        return formatter
+    }()
+
     /// Renders a bare `YYYY-MM-DD` calendar date without pretending it is a moment in time.
     static func calendarDay(_ raw: String) -> String {
         guard let date = calendarDate.date(from: raw) else { return raw }
-        return dayMonthYear.string(from: date)
+        return calendarDayDisplay.string(from: date)
     }
 
     private static let relativeFormatter: RelativeDateTimeFormatter = {
