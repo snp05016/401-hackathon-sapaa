@@ -8,6 +8,14 @@ out
 .env
 .env.local
 .DS_Store
+__pycache__/
+*.py[cod]
+.venv/
+vendor/
+
+# Per-developer Xcode state
+**/xcuserdata/
+*.xcuserstate
 
 # Local Google OAuth downloads and tokens
 gmail-credentials.json

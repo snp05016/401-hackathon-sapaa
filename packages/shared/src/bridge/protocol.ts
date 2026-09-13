@@ -1,11 +1,11 @@
-import type { JobPosting } from "../types/job";
+import type { JobDetails, JobPosting } from "../types/job";
 import type { Application, ApplicationStage } from "../types/application";
 import type { Profile } from "../types/profile";
 import type { MasterResume } from "../types/resume";
 import type { DetectedFormField } from "../types/form";
 
 export const BRIDGE_DEFAULT_PORT = 4173;
-export const BRIDGE_EXTENSION_MESSAGES_DEFAULT_PORT = 4174;
+export const BRIDGE_EXTENSION_MESSAGES_DEFAULT_PORT = 42786;
 export const BRIDGE_EXTENSION_MESSAGES_PATH = "/extension-messages";
 export const BRIDGE_TOKEN_HEADER = "authorization";
 
@@ -54,7 +54,7 @@ export interface ProfileResponse {
   profile: Profile;
 }
 
-export interface CreateJobRequest {
+export interface CreateJobRequest extends Partial<JobDetails> {
   id?: string;
   fingerprint?: string;
   contentFingerprint?: string | null;
@@ -153,4 +153,3 @@ export interface ExternalKanbanResponse {
 export interface ExternalResumeTemplateResponse {
   resume: MasterResume;
 }
-

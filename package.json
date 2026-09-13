@@ -8,18 +8,20 @@
   ],
   "scripts": {
     "dev": "npm run dev --workspace=apps/desktop",
+    "dev:seed": "npm run db:seed && GHOSTBOARD_DB_PATH=\"$PWD/dev.db\" npm run dev",
+    "dev:jobspy": "python3 -m uvicorn main:app --app-dir services/jobspy --host 127.0.0.1 --port 8001",
     "dev:extension": "npm run dev --workspace=apps/extension",
     "build": "npm run build --workspaces --if-present",
-  "test": "tsx --test packages/scraping/src/*.test.ts packages/matching/src/*.test.ts packages/autofill/src/*.test.ts packages/tracking/src/*.test.ts packages/tracking/src/statusProviders/*.test.ts packages/extension-messaging/src/*.test.ts apps/desktop/electron/db/*.test.ts apps/desktop/electron/gmail/*.test.ts packages/resume/src/*.test.ts apps/desktop/electron/resume/*.test.ts",
+    "test": "tsx --test packages/scraping/src/*.test.ts packages/matching/src/*.test.ts packages/autofill/src/*.test.ts packages/tracking/src/*.test.ts packages/tracking/src/statusProviders/*.test.ts packages/extension-messaging/src/*.test.ts apps/desktop/electron/db/*.test.ts apps/desktop/electron/gmail/*.test.ts apps/desktop/electron/sync/*.test.ts packages/resume/src/*.test.ts apps/desktop/electron/resume/*.test.ts",
     "db:generate": "npm run db:generate --workspace=@ghostboard/database",
     "db:seed": "tsx fixtures/seed-data.ts",
     "typecheck": "for d in packages/shared packages/database packages/ai packages/scraping packages/matching packages/autofill packages/resume packages/tracking packages/extension-messaging apps/desktop apps/extension; do echo \"== $d ==\" && tsc --noEmit -p $d || exit 1; done",
     "lint": "echo \"(lint not configured for hackathon scaffold)\""
   },
   "devDependencies": {
-    "typescript": "^5.6.3",
+    "@types/node": "^20.16.5",
     "tsx": "^4.19.1",
-    "@types/node": "^20.16.5"
+    "typescript": "^5.6.3"
   },
   "allowScripts": {
     "esbuild@0.18.20": true,
@@ -28,6 +30,7 @@
     "esbuild@0.28.2": true,
     "electron@32.3.3": true,
     "@libsql/client@0.14.0": true,
-    "libsql@0.4.7": true
+    "libsql@0.4.7": true,
+    "node-llama-cpp@3.21.1": true
   }
 }

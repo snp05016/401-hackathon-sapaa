@@ -21,6 +21,15 @@ function job(id: string, title: string, description: string, location = "Toronto
     postedAt: null,
     salaryRange: null,
     scrapedAt: "2026-09-11T00:00:00.000Z",
+    workArrangement: null,
+    applicationDeadline: null,
+    startDate: null,
+    termDuration: null,
+    responsibilities: [],
+    preferredQualifications: [],
+    education: null,
+    workAuthorization: null,
+    clearance: null,
   };
 }
 

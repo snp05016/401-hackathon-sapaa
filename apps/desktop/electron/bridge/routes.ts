@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
 import { applications, type GhostboardDb } from "@ghostboard/database";
 import { ingestJob } from "@ghostboard/scraping";
+import { getProvider } from "@ghostboard/ai";
 import type {
   CreateJobRequest,
   CreateJobResponse,
@@ -17,7 +18,7 @@ import type {
   ExternalResumeTemplateResponse,
   ApplicationStage,
 } from "@ghostboard/shared";
-import { APPLICATION_STAGES, STAGE_LABELS } from "@ghostboard/shared";
+import { APPLICATION_STAGES, STAGE_LABELS, calendarDateOrNull, jobDetailsOf } from "@ghostboard/shared";
 import { readProfile, readMasterResume } from "../db/index";
 
 export function handleGetProfile(): ProfileResponse {
@@ -60,6 +61,15 @@ export async function handleCreateJob(db: GhostboardDb, body: CreateJobRequest):
     postedAt: body.postedAt,
     salaryRange: body.salaryRange,
     scrapedAt: body.scrapedAt ?? now,
+    workArrangement: body.workArrangement ?? null,
+    applicationDeadline: body.applicationDeadline ?? null,
+    startDate: body.startDate ?? null,
+    termDuration: body.termDuration ?? null,
+    responsibilities: body.responsibilities ?? [],
+    preferredQualifications: body.preferredQualifications ?? [],
+    education: body.education ?? null,
+    workAuthorization: body.workAuthorization ?? null,
+    clearance: body.clearance ?? null,
   };
 
   const applicationId = crypto.randomUUID();
@@ -78,11 +88,27 @@ export async function handleCreateJob(db: GhostboardDb, body: CreateJobRequest):
     nextActionDate: null,
     resumeId: null,
     source: job.source,
+    deadline: calendarDateOrNull(job.applicationDeadline),
+    jobDetails: jobDetailsOf(job),
     createdAt: now,
     updatedAt: now,
   });
 
   return { job, applicationId };
+}
+
+/**
+ * Enrichment is opt-in on having a key configured. Without one, ingestion stays
+ * fully deterministic; the LLM only ever sees the cleaned description, and only
+ * for fields JSON-LD, provider APIs, and the DOM left empty.
+ */
+function enrichmentProvider() {
+  if (!process.env.GROQ_API_KEY && !process.env.GEMINI_API_KEY) return undefined;
+  try {
+    return getProvider();
+  } catch {
+    return undefined;
+  }
 }
 
 /** Read-only intelligence boundary: no application or lifecycle state is written. */
@@ -92,7 +118,7 @@ export async function handleIngestJob(body: IngestJobRequest): Promise<IngestJob
     html: body.html,
     visibleText: body.visibleText,
     snapshot: body.snapshot,
-  });
+  }, { llm: enrichmentProvider() });
 }
 
 export async function handleUpsertApplication(

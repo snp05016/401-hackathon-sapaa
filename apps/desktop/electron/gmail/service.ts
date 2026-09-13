@@ -271,6 +271,8 @@ export function createGmailService(db: GhostboardDb, dependencies: GmailDependen
             location: null,
             jobUrl: `https://mail.google.com/mail/u/0/#inbox/${encodeURIComponent(update.threadId)}`,
             jobDescription: "",
+            // Gmail-derived applications never went through job-page ingestion.
+            jobDetails: null,
             status: update.newStatus!,
             dateFound: update.receivedAt,
             dateApplied: update.receivedAt,
@@ -313,6 +315,23 @@ export function createGmailService(db: GhostboardDb, dependencies: GmailDependen
           const index = jobs.findIndex((job) => job.id === application!.id);
           if (index >= 0) jobs[index] = { ...application, status: update.newStatus!, updatedAt: reviewedAt };
           moved++;
+        } else if (application && candidate && confident
+          && application.status === "interviewing" && update.newStatus === "interviewing") {
+          // A later interview email is new activity even though it does not move
+          // the pipeline. Advancing this anchor lets a previously dismissed
+          // thank-you/follow-up reminder become eligible again.
+          const metadata = { source: "gmail", messageId: update.messageId, threadId: update.threadId, gmailReceivedAt: update.receivedAt, reviewedAt, automatic: true };
+          await transaction.insert(applicationEvents).values({
+            id: `gmail:${id}:email`, applicationId: application.id, type: "email_received",
+            title: update.subject, description: update.evidence, occurredAt: update.receivedAt, metadata,
+          }).onConflictDoNothing();
+          const lastActivityAt = Date.parse(application.lastActivityAt) > Date.parse(update.receivedAt)
+            ? application.lastActivityAt
+            : update.receivedAt;
+          await transaction.update(applications).set({ lastActivityAt, updatedAt: reviewedAt }).where(eq(applications.id, application.id));
+          const index = jobs.findIndex((job) => job.id === application!.id);
+          if (index >= 0) jobs[index] = { ...application, lastActivityAt, updatedAt: reviewedAt };
+          noticed++;
         } else {
           noticed++;
         }

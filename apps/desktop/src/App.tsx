@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { LayoutGroup } from "framer-motion";
 import { ApplicationsProvider } from "./lib/useApplications";
 import { AppShell } from "./components/layout/AppShell";
 import { SplashScreen } from "./components/layout/SplashScreen";
+import { GhostScatter } from "./components/layout/GhostScatter";
 import { LaunchAlerts } from "./components/layout/LaunchAlerts";
 import type { NavPage } from "./components/layout/Sidebar";
 import { Today } from "./pages/Today";
@@ -12,6 +14,7 @@ import { Resumes } from "./pages/Resumes";
 import { Profile } from "./pages/Profile";
 import { Tracking } from "./pages/Tracking";
 import { RecruiterInbox } from "./pages/RecruiterInbox";
+import { SkillsGraph } from "./pages/SkillsGraph";
 
 const PAGES: Record<NavPage, () => JSX.Element> = {
   today: Today,
@@ -22,6 +25,7 @@ const PAGES: Record<NavPage, () => JSX.Element> = {
   profile: Profile,
   tracking: Tracking,
   recruiterInbox: RecruiterInbox,
+  skillsGraph: SkillsGraph,
 };
 
 // Title card holds, then lifts away; pages mount as it lifts so their own
@@ -51,13 +55,20 @@ export function App() {
 
   return (
     <ApplicationsProvider>
-      <LaunchAlerts />
-      <AppShell page={page} onNavigate={setPage}>
-        {phase !== "intro" && <Page />}
-      </AppShell>
-      {phase !== "done" && (
-        <SplashScreen exiting={phase === "revealing"} onSkip={() => setPhase("revealing")} />
-      )}
+      <LayoutGroup>
+        <LaunchAlerts />
+        <AppShell
+          page={page}
+          onNavigate={setPage}
+          ghostMarkLayoutId={phase === "intro" ? undefined : "ghost-mark"}
+        >
+          {phase !== "intro" && <Page />}
+        </AppShell>
+        {phase !== "done" && <GhostScatter />}
+        {phase !== "done" && (
+          <SplashScreen exiting={phase === "revealing"} onSkip={() => setPhase("revealing")} />
+        )}
+      </LayoutGroup>
     </ApplicationsProvider>
   );
 }

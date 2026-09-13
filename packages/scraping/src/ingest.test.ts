@@ -5,7 +5,12 @@ import { fileURLToPath } from "node:url";
 import {
   areDuplicateJobs,
   contentFingerprintSimilarity,
+  buildCanonicalJob,
   draftFromHtml,
+  enrichDraft,
+  extractPreferredQualifications,
+  extractRequirements,
+  extractResponsibilities,
   fingerprintDescription,
   fingerprintJob,
   ingestJob,
@@ -178,4 +183,124 @@ test("a fixed SPA route distinguishes real jobs while repeated snapshots stay st
   assert.equal(fingerprintJob(base), fingerprintJob({ ...base }));
   assert.notEqual(fingerprintJob(base), fingerprintJob({ ...base, location: "Vancouver" }));
   assert.notEqual(fingerprintJob(base), fingerprintJob({ ...base, title: "Data Engineer" }));
+});
+
+test("section headings split required, preferred, and responsibilities", () => {
+  const description = [
+    "About the role", "",
+    "What you will do", "", "- Ship features", "- Mentor peers", "",
+    "You may be a good fit if you have", "", "- 3+ years of Python", "- BS in CS", "",
+    "Strong candidates may also have", "", "- Kubernetes", "",
+    "Benefits", "", "- Free lunch",
+  ].join("\n");
+  assert.deepEqual(extractRequirements(description), ["3+ years of Python", "BS in CS"]);
+  assert.deepEqual(extractPreferredQualifications(description), ["Kubernetes"]);
+  assert.deepEqual(extractResponsibilities(description), ["Ship features", "Mentor peers"]);
+  // A stop heading must close the section rather than absorb the benefits list.
+  assert.ok(!extractRequirements(description).includes("Free lunch"));
+});
+
+test("JSON-LD supplies deadline, start date, education, and arrangement", async () => {
+  const posting = {
+    "@context": "https://schema.org/", "@type": "JobPosting",
+    title: "Software Engineering Intern",
+    description: "<p>Build and operate distributed systems alongside the platform team, with mentorship throughout the term.</p><p>Requirements</p><ul><li>Pursuing a BS in CS</li><li>Experience with Python or Go</li></ul>",
+    datePosted: "2026-08-01", validThrough: "2026-10-31", jobStartDate: "2026-06-01",
+    employmentType: ["INTERN"], hiringOrganization: { name: "Acme Robotics" },
+    jobLocationType: "TELECOMMUTE", jobLocation: [{ address: { addressLocality: "Toronto", addressCountry: "CA" } }],
+    educationRequirements: { credentialCategory: "bachelor degree" },
+  };
+  const html = `<html><head><script type="application/ld+json">${JSON.stringify(posting)}</script></head><body>${"Build reliable systems and collaborate across teams. ".repeat(10)}</body></html>`;
+  const result = await ingestJob({ url: "https://job-boards.greenhouse.io/acme/jobs/321" }, {
+    fetch: (async () => new Response(html, { headers: { "content-type": "text/html" } })) as typeof globalThis.fetch,
+    cache: new MemoryJobIngestionCache(),
+  });
+  assert.equal(result.posting?.workArrangement, "remote");
+  assert.equal(result.posting?.applicationDeadline, "2026-10-31T00:00:00.000Z");
+  assert.equal(result.posting?.startDate, "2026-06-01T00:00:00.000Z");
+  assert.equal(result.posting?.education, "bachelor degree");
+});
+
+test("a vague date stays verbatim instead of becoming a fabricated calendar day", () => {
+  const draft = { url: "https://example.com/jobs/1", company: "Acme", title: "Intern", startDate: "June 2026", description: "x".repeat(200) };
+  assert.equal(buildCanonicalJob(draft).posting?.startDate, "June 2026");
+});
+
+test("LLM enrichment is asked only for empty fields and never overwrites extraction", async () => {
+  const prompts: string[] = [];
+  const llm = {
+    async complete(request: { messages: Array<{ content: string }> }) {
+      prompts.push(request.messages.map((message) => message.content).join("\n"));
+      return { text: '```json\n{"termDuration":"Summer 2026, 12 weeks","clearance":"Active TS/SCI","workArrangement":"onsite","responsibilities":["ignored"]}\n```' };
+    },
+  };
+  const draft = {
+    url: "https://example.com/jobs/1", company: "Acme", title: "Intern",
+    description: `Responsibilities\n\n- Build systems\n\n${"Detailed job content. ".repeat(20)}`,
+    workArrangement: "remote" as const,
+  };
+  const enriched = await enrichDraft(draft, llm);
+  assert.equal(enriched.termDuration, "Summer 2026, 12 weeks");
+  assert.equal(enriched.clearance, "Active TS/SCI");
+  // workArrangement was already known, so it is neither asked for nor overwritten.
+  assert.equal(enriched.workArrangement, "remote");
+  assert.ok(!prompts[0].includes('"workArrangement"'));
+  assert.ok(prompts[0].includes('"clearance"'));
+  // The whole prompt stays near the description's size -- no raw HTML is sent.
+  assert.ok(prompts[0].length < draft.description.length + 1500);
+});
+
+test("enrichment failures degrade to deterministic extraction with a warning", async () => {
+  const warnings: string[] = [];
+  const failing = { async complete() { throw new Error("groq is down"); } };
+  const draft = { url: "https://example.com/jobs/1", title: "Intern", description: "Detailed job content. ".repeat(20) };
+  const enriched = await enrichDraft(draft, failing, warnings);
+  assert.equal(enriched.title, "Intern");
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /groq is down/);
+
+  const truncated = { async complete() { return { text: '{"termDuration":"Summer 2026"' }; } };
+  const second: string[] = [];
+  assert.equal((await enrichDraft(draft, truncated, second)).termDuration, undefined);
+  assert.match(second[0], /no parseable JSON/);
+});
+
+test("a posting dropped by the confidence threshold explains itself", async () => {
+  const html = `<html><head><title>Notes</title></head><body><main>${"Some long prose about a topic that is not a job posting at all. ".repeat(12)}</main></body></html>`;
+  const result = await ingestJob({ url: "https://example.com/reading/notes", html }, { cache: new MemoryJobIngestionCache() });
+  assert.notEqual(result.outcome, "job");
+  assert.equal(result.posting, undefined);
+  assert.ok(result.warnings.length >= 1);
+});
+
+test("bulleted sections are not asked for once the splitter has parsed the page", async () => {
+  const prompts: string[] = [];
+  const llm = {
+    async complete(request: { messages: Array<{ content: string }> }) {
+      prompts.push(request.messages.map((message) => message.content).join("\n"));
+      return { text: '{"preferredQualifications":["3+ years of Python","invented extra"],"clearance":null}' };
+    },
+  };
+  const draft = {
+    url: "https://example.com/jobs/1", company: "Acme", title: "Engineer",
+    description: `Requirements\n\n- 3+ years of Python\n\n${"Detailed job content. ".repeat(20)}`,
+    requirements: ["3+ years of Python"],
+  };
+  const enriched = await enrichDraft(draft, llm);
+  assert.ok(!prompts[0].includes('"preferredQualifications"'));
+  assert.ok(!prompts[0].includes('"responsibilities"'));
+  // Even if a reply volunteers them, a restated requirement is never kept.
+  assert.equal(enriched.preferredQualifications, undefined);
+});
+
+test("enrichment opts into low reasoning effort so gpt-oss does not bill for thinking", async () => {
+  let sent: unknown = "unset";
+  const llm = {
+    async complete(request: { reasoningEffort?: string }) {
+      sent = request.reasoningEffort;
+      return { text: '{"clearance":"Active TS/SCI"}' };
+    },
+  };
+  await enrichDraft({ description: "Detailed job content. ".repeat(20) }, llm);
+  assert.equal(sent, "low");
 });

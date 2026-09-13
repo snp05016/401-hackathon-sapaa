@@ -19,7 +19,18 @@ const WORKSPACE_PACKAGES = [
 ];
 
 const ROOT_DIRECTORY = fileURLToPath(new URL("../..", import.meta.url));
-const MAIN_ENVIRONMENT_KEYS = ["GHOSTBOARD_LLM_PROVIDER", "GROQ_API_KEY", "GROQ_MODEL", "GEMINI_API_KEY", "GHOSTBOARD_BRIDGE_PORT"] as const;
+const MAIN_ENVIRONMENT_KEYS = [
+  "GHOSTBOARD_LLM_PROVIDER",
+  "GROQ_API_KEY",
+  "GROQ_MODEL",
+  "GEMINI_API_KEY",
+  "GHOSTBOARD_BRIDGE_PORT",
+  "GHOSTBOARD_SYNC_PORT",
+  "GHOSTBOARD_SYNC_DISABLED",
+  "JOBSPY_URL",
+  "GOOGLE_CLIENT_ID",
+  "GOOGLE_CLIENT_SECRET",
+] as const;
 
 export default defineConfig(({ mode }) => {
   const rootEnvironment = loadEnv(mode, ROOT_DIRECTORY, "");

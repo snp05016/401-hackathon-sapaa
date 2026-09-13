@@ -10,33 +10,70 @@ import {
   type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import type { Application, ApplicationStage } from "@ghostboard/shared";
 import { APPLICATION_STAGES } from "@ghostboard/shared";
 import { EmojiBurst, type EmojiBurstEffect } from "./EmojiBurst";
 import { KanbanCardPreview } from "./KanbanCard";
 import { KanbanColumn } from "./KanbanColumn";
 import { moveApplication } from "./moveApplication";
+import { PaperConfetti } from "../motion";
+import { DURATION, EASE, TRANSITION, fadeRise, modalBackdrop, modalPanel } from "../../lib/motion";
+import { playSound } from "../../lib/sound";
 import { ipc } from "../../lib/ipc";
 
 const DELETE_DROP_ID = "kanban-delete-drop-zone";
 
-function DeleteDropZone() {
+function DeleteDropZone({ active }: { active: boolean }) {
   const { setNodeRef, isOver } = useDroppable({ id: DELETE_DROP_ID });
 
   return (
-    <div
+    <motion.div
       ref={setNodeRef}
       aria-label="Delete application drop zone"
-      className={[
-        "mt-3 flex h-14 w-full items-center justify-center rounded-sm border text-[12px] font-semibold uppercase tracking-[0.16em] transition-colors duration-200",
-        isOver
-          ? "border-oxblood/70 bg-oxblood/20 text-oxblood/75"
-          : "border-oxblood/30 bg-oxblood/10 text-oxblood/55",
-      ].join(" ")}
+      aria-hidden={!active}
+      animate={{
+        opacity: active ? 1 : 0,
+        y: active ? 0 : 16,
+        scale: isOver ? 1.06 : 1,
+      }}
+      transition={{ type: "spring", stiffness: 380, damping: 30, mass: 0.8 }}
+      className="pointer-events-none fixed bottom-8 left-1/2 z-40 flex -translate-x-1/2 items-end justify-center"
     >
-      Delete
-    </div>
+      <motion.span
+        aria-hidden="true"
+        className="inline-flex"
+        animate={isOver ? { rotate: [0, -8, 8, -6, 0] } : { rotate: 0 }}
+        transition={
+          isOver
+            ? { duration: 0.6, ease: EASE.inOut, repeat: Infinity }
+            : { duration: DURATION.quick, ease: EASE.subtle }
+        }
+      >
+        <div className="relative mt-3 ml-2 h-[48px] w-[40px] cursor-pointer">
+          {/* Animating Container: Holds both the lid and the handle so they rotate together */}
+          <div 
+            className={`absolute left-0 w-[40px] origin-left transition-all duration-200 ease-out
+              ${isOver ? '-top-[8px] -rotate-35' : '-top-[.5px] rotate-0'}`}
+          >
+            {/* Handle (Centered precisely on top of the lid) */}
+            <div className="absolute -top-[6px] left-[10px] h-[10px] w-[20px] rounded-t-[3px] border-4 border-ink border-b-0" />
+            
+            {/* The Lid Bar */}
+            <div className="absolute top-0 -left-[5px] h-[8px] w-[50px] rounded-[4px] bg-ink" />
+          </div>
+          {/* The Bin */}
+          <div className="absolute bottom-0 h-[38px] w-[40px] rounded-b-[6px] bg-ink">
+            {/* Left Line */}
+            <div className="absolute top-[8px] left-[8px] w-[4px] h-[24px] rounded-full bg-paper" />
+            {/* Middle Line */}
+            <div className="absolute top-[8px] left-[18px] w-[4px] h-[24px] rounded-full bg-paper" />
+            {/* Right Line */}
+            <div className="absolute top-[8px] right-[8px] w-[4px] h-[24px] rounded-full bg-paper" />
+          </div>
+        </div>
+      </motion.span>
+    </motion.div>
   );
 }
 
@@ -51,8 +88,23 @@ function ApplicationDetails({ application, onClose }: { application: Application
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="application-details-title">
-      <button type="button" className="absolute inset-0 cursor-default bg-ink/40" aria-label="Close application details" onClick={onClose} />
-      <section className="relative z-10 flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden border border-hairline bg-paper-raised shadow-2xl">
+      <motion.button
+        type="button"
+        variants={modalBackdrop}
+        initial="hidden"
+        animate="visible"
+        exit="exit"
+        className="absolute inset-0 cursor-default bg-ink/40"
+        aria-label="Close application details"
+        onClick={onClose}
+      />
+      <motion.section
+        variants={modalPanel}
+        initial="hidden"
+        animate="visible"
+        exit="exit"
+        className="relative z-10 flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden border border-hairline bg-paper-raised shadow-2xl"
+      >
         <header className="flex items-start justify-between gap-5 border-b border-hairline px-5 py-4 sm:px-7">
           <div className="min-w-0">
             <p className="text-[11px] uppercase tracking-[0.14em] text-ink-3">{application.status}</p>
@@ -83,7 +135,7 @@ function ApplicationDetails({ application, onClose }: { application: Application
             Open original job posting
           </a>
         </div>
-      </section>
+      </motion.section>
     </div>
   );
 }
@@ -103,7 +155,30 @@ export function KanbanBoard({
   const nextBurstId = useRef(0);
   const prefersReducedMotion = useReducedMotion();
   const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
+  const [promotion, setPromotion] = useState<{ stage: ApplicationStage; token: number } | null>(null);
+  const [confettiOrigin, setConfettiOrigin] = useState<{ x: number; y: number } | null>(null);
+  const [shakingApplicationId, setShakingApplicationId] = useState<string | null>(null);
+  const nextPromotionToken = useRef(0);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+
+  // Safety nets so a one-shot overlay can never linger if its own callback is missed.
+  useEffect(() => {
+    if (!promotion) return;
+    const timer = window.setTimeout(() => setPromotion(null), 1800);
+    return () => window.clearTimeout(timer);
+  }, [promotion]);
+
+  useEffect(() => {
+    if (!confettiOrigin) return;
+    const timer = window.setTimeout(() => setConfettiOrigin(null), 2400);
+    return () => window.clearTimeout(timer);
+  }, [confettiOrigin]);
+
+  useEffect(() => {
+    if (!shakingApplicationId) return;
+    const timer = window.setTimeout(() => setShakingApplicationId(null), 420);
+    return () => window.clearTimeout(timer);
+  }, [shakingApplicationId]);
 
   const byStage = useMemo(() => {
     const grouped: Record<ApplicationStage, Application[]> = {
@@ -134,6 +209,7 @@ export function KanbanBoard({
 
     if (over.id === DELETE_DROP_ID) {
       setBanner(null);
+      playSound("delete");
       setApplications((current) => current.filter((application) => application.id !== activeApp.id));
       ipc()
         .deleteApplication(activeApp.id)
@@ -147,6 +223,7 @@ export function KanbanBoard({
               ? current
               : [...current, activeApp],
           );
+          playSound("error");
           setBanner("This application couldn't be deleted and was returned to the board.");
         });
       return;
@@ -169,6 +246,13 @@ export function KanbanBoard({
     moveApplication(activeApp.id, fromStage, toStage)
       .then((savedApplication) => {
         setApplications((apps) => apps.map((app) => (app.id === savedApplication.id ? savedApplication : app)));
+        nextPromotionToken.current += 1;
+        setPromotion({ stage: toStage, token: nextPromotionToken.current });
+        playSound("drop");
+        if (toStage === "offer") {
+          playSound("chime");
+          if (!prefersReducedMotion) setConfettiOrigin(dropPoint);
+        }
         if (!prefersReducedMotion) {
           const id = nextBurstId.current++;
           setEmojiBursts((bursts) => [...bursts, { id, stage: toStage, ...dropPoint }]);
@@ -176,12 +260,20 @@ export function KanbanBoard({
       })
       .catch(() => {
         setApplications(previous);
+        setShakingApplicationId(activeApp.id);
+        playSound("error");
         setBanner("This move didn't save — the application was returned to its previous stage.");
       });
   }
 
   function openApplication(application: Application) {
+    playSound("open");
     setSelectedApplication(application);
+  }
+
+  function closeApplication() {
+    playSound("close");
+    setSelectedApplication(null);
   }
 
   function handleDragStart(event: DragStartEvent) {
@@ -197,14 +289,24 @@ export function KanbanBoard({
 
   return (
     <div>
-      {banner && (
-        <div className="mb-5 flex items-center justify-between gap-6 border-l-2 border-oxblood bg-paper-raised py-2.5 pl-4 pr-3 text-[12px] text-ink">
-          <span>{banner}</span>
-          <button onClick={() => setBanner(null)} className="shrink-0 text-ink-2 underline underline-offset-4 transition-colors hover:text-oxblood">
-            Dismiss
-          </button>
-        </div>
-      )}
+      <AnimatePresence initial={false}>
+        {banner && (
+          <motion.div
+            key="kanban-banner"
+            variants={fadeRise}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            transition={TRANSITION.base}
+            className="mb-5 flex items-center justify-between gap-6 border-l-2 border-oxblood bg-paper-raised py-2.5 pl-4 pr-3 text-[12px] text-ink"
+          >
+            <span>{banner}</span>
+            <button onClick={() => setBanner(null)} className="shrink-0 text-ink-2 underline underline-offset-4 transition-colors hover:text-oxblood">
+              Dismiss
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <DndContext
         sensors={sensors}
         onDragStart={handleDragStart}
@@ -217,10 +319,19 @@ export function KanbanBoard({
       >
         <div className="flex gap-4 overflow-x-auto pb-5 snap-x snap-mandatory sm:snap-none">
           {APPLICATION_STAGES.map((stage, index) => (
-            <KanbanColumn key={stage} stage={stage} applications={byStage[stage]} index={index} onOpen={openApplication} />
+            <KanbanColumn
+              key={stage}
+              stage={stage}
+              applications={byStage[stage]}
+              index={index}
+              onOpen={openApplication}
+              promotionToken={promotion?.stage === stage ? promotion.token : 0}
+              onPromotionDone={() => setPromotion(null)}
+              shakingApplicationId={shakingApplicationId}
+            />
           ))}
         </div>
-        <DeleteDropZone />
+        <DeleteDropZone active={draggedApplication !== null} />
         <DragOverlay dropAnimation={null} style={{ zIndex: 100 }}>
           {draggedApplication ? (
             <KanbanCardPreview
@@ -240,7 +351,17 @@ export function KanbanBoard({
           }
         />
       ))}
-      {selectedApplication && <ApplicationDetails application={selectedApplication} onClose={() => setSelectedApplication(null)} />}
+      <PaperConfetti
+        fire={confettiOrigin !== null}
+        count={18}
+        origin={confettiOrigin ?? undefined}
+        onDone={() => setConfettiOrigin(null)}
+      />
+      <AnimatePresence>
+        {selectedApplication && (
+          <ApplicationDetails key={selectedApplication.id} application={selectedApplication} onClose={closeApplication} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

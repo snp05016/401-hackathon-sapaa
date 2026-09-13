@@ -5,6 +5,62 @@ import type { ExperienceEntry, MasterResume, TailoredResumeRecord } from "@ghost
 import type { ParsedExperienceEntry, ResumeCustomizeRequest, ResumeCustomizeResult } from "@ghostboard/resume";
 import { IPC_CHANNELS } from "./ipc/channels";
 
+export type DiscoverSite = "linkedin" | "indeed" | "glassdoor" | "google" | "zip_recruiter";
+
+export interface DiscoverSearchRequest {
+  sites: DiscoverSite[];
+  searchTerm: string;
+  alternateTitles: string[];
+  requiredSkills: string[];
+  preferredSkills: string[];
+  preferredIndustries: string[];
+  excludedKeywords: string[];
+  experienceLevel: string;
+  timingKeywords: string[];
+  location: string;
+  countryIndeed: string;
+  distance: number;
+  resultsWanted?: number;
+  hoursOld?: number;
+  isRemote?: boolean;
+  jobType?: "fulltime" | "parttime" | "contract" | "internship";
+}
+
+export interface DiscoveredJob {
+  site: string;
+  id: string;
+  title: string | null;
+  company: string | null;
+  location: string | null;
+  jobUrl: string | null;
+  jobUrlDirect: string | null;
+  companyUrl: string | null;
+  companyUrlDirect: string | null;
+  description: string | null;
+  isRemote: boolean | null;
+  minimumAmount: number | null;
+  maximumAmount: number | null;
+  currency: string | null;
+  interval: string | null;
+  datePosted: string | null;
+  jobType: string | null;
+  matchScore?: number;
+  matchReasons?: string[];
+  matchedSkills?: string[];
+}
+
+export interface DiscoverSearchResponse {
+  cached: boolean;
+  count: number;
+  results: DiscoveredJob[];
+  warnings: string[];
+}
+
+export interface SaveDiscoveredJobResult {
+  application: Application;
+  alreadySaved: boolean;
+}
+
 export interface MoveApplicationRequest {
   applicationId: string;
   fromStage: ApplicationStage;
@@ -14,6 +70,28 @@ export interface MoveApplicationRequest {
 export interface MoveApplicationResult {
   application: Application;
   event: ApplicationEvent | null;
+}
+
+export interface SyncPairingInfo {
+  enabled: boolean;
+  port: number;
+  addresses: string[];
+  token: string;
+  error: string | null;
+}
+
+export interface GemmaPrediction {
+  completion: string;
+}
+
+export interface GemmaJobSummary {
+  summary: string;
+}
+
+export interface GemmaJobSummaryRequest {
+  company: string | null;
+  title: string | null;
+  description: string;
 }
 
 export interface GhostboardApi {
@@ -28,6 +106,11 @@ export interface GhostboardApi {
   applyGmailSuggestion(id: string, applicationId: string, expectedUpdatedAt: string): Promise<GmailState>;
   cancelGmail(): Promise<void>;
   listApplications(): Promise<Application[]>;
+  searchDiscoveredJobs(request: DiscoverSearchRequest): Promise<DiscoverSearchResponse>;
+  predictJobTitle(prompt: string): Promise<GemmaPrediction>;
+  summarizeJobDescription(request: GemmaJobSummaryRequest): Promise<GemmaJobSummary>;
+  saveDiscoveredJob(job: DiscoveredJob): Promise<SaveDiscoveredJobResult>;
+  visitDiscoveredJob(job: DiscoveredJob, targetUrl?: string): Promise<SaveDiscoveredJobResult>;
   updateDeadline(applicationId: string, deadline: string | null): Promise<Application>;
   moveApplication(request: MoveApplicationRequest): Promise<MoveApplicationResult>;
   evaluateFollowUps(): Promise<FollowUpSuggestion[]>;
@@ -36,6 +119,7 @@ export interface GhostboardApi {
   getProfile(): Promise<Profile>;
   saveProfile(fields: ProfileField[]): Promise<Profile>;
   getBridgeInfo(): Promise<{ port: number; token: string } | null>;
+  getSyncInfo(): Promise<SyncPairingInfo>;
   getMasterResume(): Promise<MasterResume>;
   saveMasterResume(latex: string): Promise<MasterResume>;
   listExperienceEntries(): Promise<ExperienceEntry[]>;
@@ -65,6 +149,11 @@ const api: GhostboardApi = {
   applyGmailSuggestion: (id, applicationId, updatedAt) => ipcRenderer.invoke(IPC_CHANNELS.gmailApply, id, applicationId, updatedAt),
   cancelGmail: () => ipcRenderer.invoke(IPC_CHANNELS.gmailCancel),
   listApplications: () => ipcRenderer.invoke(IPC_CHANNELS.listApplications),
+  searchDiscoveredJobs: (request) => ipcRenderer.invoke(IPC_CHANNELS.searchDiscoveredJobs, request),
+  predictJobTitle: (prompt) => ipcRenderer.invoke(IPC_CHANNELS.predictJobTitle, prompt),
+  summarizeJobDescription: (request) => ipcRenderer.invoke(IPC_CHANNELS.summarizeJobDescription, request),
+  saveDiscoveredJob: (job) => ipcRenderer.invoke(IPC_CHANNELS.saveDiscoveredJob, job),
+  visitDiscoveredJob: (job, targetUrl) => ipcRenderer.invoke(IPC_CHANNELS.visitDiscoveredJob, job, targetUrl),
   updateDeadline: (applicationId, deadline) => ipcRenderer.invoke(IPC_CHANNELS.updateDeadline, applicationId, deadline),
   moveApplication: (request) => ipcRenderer.invoke(IPC_CHANNELS.moveApplication, request),
   evaluateFollowUps: () => ipcRenderer.invoke(IPC_CHANNELS.evaluateFollowUps),
@@ -73,6 +162,7 @@ const api: GhostboardApi = {
   getProfile: () => ipcRenderer.invoke(IPC_CHANNELS.getProfile),
   saveProfile: (fields) => ipcRenderer.invoke(IPC_CHANNELS.saveProfile, fields),
   getBridgeInfo: () => ipcRenderer.invoke(IPC_CHANNELS.bridgeInfo),
+  getSyncInfo: () => ipcRenderer.invoke(IPC_CHANNELS.syncInfo),
   getMasterResume: () => ipcRenderer.invoke(IPC_CHANNELS.resumeMasterGet),
   saveMasterResume: (latex) => ipcRenderer.invoke(IPC_CHANNELS.resumeMasterSave, latex),
   listExperienceEntries: () => ipcRenderer.invoke(IPC_CHANNELS.resumeExperienceList),

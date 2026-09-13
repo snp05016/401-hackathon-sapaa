@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { applications, applicationEvents, gmailSuggestions, gmailSync, runMigrations } from "@ghostboard/database";
+import { buildFollowUpSuggestions } from "@ghostboard/tracking";
 import * as schema from "../../../../packages/database/src/schema";
 import { createGmailService } from "./service";
 import type { GmailConnection } from "./store";
@@ -79,6 +80,26 @@ test("a high-confidence single interview match updates the application during th
     assert.equal((await context.db.select().from(applications))[0].status, "interviewing");
     assert.equal((await context.db.select().from(applicationEvents)).length, 2);
     assert.equal((await context.db.select().from(gmailSuggestions))[0].decision, "applied");
+  } finally { await context.cleanup(); }
+});
+
+test("a new interview email makes a dismissed interview reminder eligible again", async () => {
+  const context = await fixture();
+  try {
+    context.setConfidence(0.9);
+    await context.db.update(applications).set({
+      status: "interviewing",
+      lastActivityAt: "2026-09-08T12:00:00Z",
+      followUpDismissedAt: "2026-09-10T12:00:00Z",
+    });
+
+    const state = await context.service.check();
+    assert.equal(state.error, null);
+    const [application] = await context.db.select().from(applications);
+    assert.equal(application.status, "interviewing");
+    assert.equal(Date.parse(application.lastActivityAt), Date.parse("2026-09-11T12:00:00Z"));
+    assert.equal((await context.db.select().from(applicationEvents)).length, 1);
+    assert.equal(buildFollowUpSuggestions([application], currentTime)[0]?.kind, "thank_you");
   } finally { await context.cleanup(); }
 });
 

@@ -32,6 +32,15 @@ export interface JobExtractionDraft {
   description?: string | null;
   requirements?: string[];
   postedAt?: string | null;
+  workArrangement?: "remote" | "hybrid" | "onsite" | null;
+  applicationDeadline?: string | null;
+  startDate?: string | null;
+  termDuration?: string | null;
+  responsibilities?: string[];
+  preferredQualifications?: string[];
+  education?: string | null;
+  workAuthorization?: string | null;
+  clearance?: string | null;
 }
 
 export interface JobIngestionInput {
@@ -41,10 +50,25 @@ export interface JobIngestionInput {
   snapshot?: JobPageSnapshot;
 }
 
+/**
+ * Structural shape of `@ghostboard/ai`'s LLMProvider. Declared rather than
+ * imported so this package stays dependency-free and browser-safe.
+ */
+export interface CompletionLike {
+  complete(request: {
+    messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
+    temperature?: number;
+    maxTokens?: number;
+    reasoningEffort?: "low" | "medium" | "high";
+  }): Promise<{ text: string }>;
+}
+
 export interface JobIngestionOptions {
   fetch?: typeof globalThis.fetch;
   now?: () => Date;
   cache?: JobIngestionCache;
+  /** Opt-in. Called only for fields deterministic extraction left empty. */
+  llm?: CompletionLike;
 }
 
 export interface JobIngestionCache {
