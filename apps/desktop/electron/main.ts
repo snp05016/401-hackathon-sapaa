@@ -1,13 +1,15 @@
 import { app, BrowserWindow } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { BRIDGE_DEFAULT_PORT, isExtensionConnectRequest } from "@ghostboard/shared";
+import { BRIDGE_DEFAULT_PORT, SYNC_DEFAULT_PORT, isExtensionConnectRequest } from "@ghostboard/shared";
 import { createExtensionMessageServer } from "@ghostboard/extension-messaging";
 import { initDb } from "./db/index";
 import { createBridgeServer } from "./bridge/server";
 import { getOrCreateBridgeToken } from "./bridge/token";
 import { registerIpcHandlers } from "./ipc/handlers";
 import { createJobSpySidecar } from "./jobspy/sidecar";
+import { createSyncServer, type SyncServer } from "./sync/server";
+import { setSyncServerDisabled, setSyncServerInfo, setSyncServerUnavailable } from "./sync/info";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
@@ -70,9 +72,32 @@ if (!hasSingleInstanceLock) {
       if (!isExtensionConnectRequest(message)) return;
       extensionMessageServer.sendJsonTo(client, { type: "bridge-authentication", port, token });
     });
+    let syncServer: SyncServer | undefined;
+    if (process.env.GHOSTBOARD_SYNC_DISABLED === "1") {
+      setSyncServerDisabled();
+    } else {
+      const configuredSyncPort = Number(process.env.GHOSTBOARD_SYNC_PORT);
+      const syncPort = Number.isInteger(configuredSyncPort) && configuredSyncPort > 0 && configuredSyncPort <= 65_535
+        ? configuredSyncPort
+        : SYNC_DEFAULT_PORT;
+      const candidate = createSyncServer({ db, token, port: syncPort });
+      try {
+        const info = await candidate.ready;
+        syncServer = candidate;
+        setSyncServerInfo(info, token);
+        console.log(`[sync] companion listening on 0.0.0.0:${info.port}`);
+      } catch (error) {
+        await candidate.close();
+        const reason = error instanceof Error ? error.message : "unknown startup error";
+        setSyncServerUnavailable(`The iPhone companion could not start on port ${syncPort}. Restart the desktop or choose another GHOSTBOARD_SYNC_PORT.`);
+        console.error("[sync] companion startup failed:", reason);
+      }
+    }
+
     app.once("before-quit", () => {
       jobSpySidecar.stop();
       void extensionMessageServer.close();
+      void syncServer?.close();
     });
 
     createWindow();
