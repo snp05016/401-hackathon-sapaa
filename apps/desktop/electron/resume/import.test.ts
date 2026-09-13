@@ -65,6 +65,68 @@ describe("mergeImportedExperienceEntries", () => {
     assert.equal(result[0].source, "project");
   });
 
+  test("replaces stale per-category skill rows with the freshly parsed flat skill entry", () => {
+    const existing: ExperienceEntry[] = [
+      makeEntry({ id: "1", role: "Software", employer: "Skills", source: "skill", skills: ["Java", "C#/C/C++"] }),
+      makeEntry({ id: "2", role: "Languages", employer: "Skills", source: "skill", skills: ["English", "Cantonese"] }),
+    ];
+    const proposed = [makeEntry({ id: "9", role: "Technical Skills", employer: "Skills", source: "skill", skills: ["Java", "Python", "SQL"] })];
+    const result = mergeImportedExperienceEntries(existing, proposed);
+    const skillRows = result.filter((entry) => entry.source === "skill");
+    assert.equal(skillRows.length, 1);
+    assert.equal(skillRows[0].role, "Technical Skills");
+    assert.deepEqual(skillRows[0].skills, ["Java", "Python", "SQL"]);
+    assert.ok(!skillRows[0].skills.includes("C#/C/C++"));
+  });
+
+  test("refreshes the flat skill entry in place across re-saves instead of duplicating it", () => {
+    const existing: ExperienceEntry[] = [
+      makeEntry({ id: "keep", role: "Technical Skills", employer: "Skills", source: "skill", skills: ["C++"] }),
+      makeEntry({ id: "2", role: "Software Developer", employer: "Acme", source: "experience" }),
+    ];
+    const proposed = [makeEntry({ id: "new", role: "Technical Skills", employer: "Skills", source: "skill", skills: ["Java", "SQL"] })];
+    const result = mergeImportedExperienceEntries(existing, proposed);
+    assert.equal(result.length, 2);
+    const skillRow = result.find((entry) => entry.source === "skill");
+    assert.equal(skillRow?.id, "keep");
+    assert.deepEqual(skillRow?.skills, ["Java", "SQL"]);
+    assert.ok(result.find((entry) => entry.id === "2"));
+  });
+
+  test("leaves existing skill rows untouched when the resume declares no skills", () => {
+    const existing = [makeEntry({ id: "1", role: "Software", employer: "Skills", source: "skill", skills: ["Java"] })];
+    const proposed: ExperienceEntry[] = [];
+    const result = mergeImportedExperienceEntries(existing, proposed);
+    assert.equal(result.length, 1);
+    assert.equal(result[0].id, "1");
+    assert.deepEqual(result[0].skills, ["Java"]);
+  });
+
+  test("refreshes matching existing entries with the newest resume content but keeps their id", () => {
+    const existing = [makeEntry({ id: "1", role: "Engineer", employer: "Acme", bullets: ["Old bullet"], startDate: "2021-01-01" })];
+    const proposed = [makeEntry({ id: "9", role: "engineer", employer: "acme", bullets: ["Newest bullet", "Edited bullet"], startDate: "2022-06-15", skills: ["New Skill"] })];
+    const result = mergeImportedExperienceEntries(existing, proposed);
+    assert.equal(result.length, 1);
+    assert.equal(result[0].id, "1");
+    assert.deepEqual(result[0].bullets, ["Newest bullet", "Edited bullet"]);
+    assert.equal(result[0].startDate, "2022-06-15");
+    assert.deepEqual(result[0].skills, ["New Skill"]);
+  });
+
+  test("refreshes matching entries without removing unrelated manual entries", () => {
+    const existing = [
+      makeEntry({ id: "1", role: "Engineer", employer: "Acme", bullets: ["Old bullet"] }),
+      makeEntry({ id: "2", role: "Volunteer", employer: "Local Shelter", source: "volunteer" }),
+    ];
+    const proposed = [makeEntry({ id: "9", role: "Engineer", employer: "Acme", bullets: ["Newest bullet"] })];
+    const result = mergeImportedExperienceEntries(existing, proposed);
+    assert.equal(result.length, 2);
+    assert.equal(result[0].id, "1");
+    assert.deepEqual(result[0].bullets, ["Newest bullet"]);
+    assert.equal(result[1].id, "2");
+    assert.equal(result[1].source, "volunteer");
+  });
+
   test("preserves existing order and appends accepted", () => {
     const existing = [
       makeEntry({ id: "1", role: "A", employer: "A" }),
