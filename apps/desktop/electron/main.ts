@@ -7,6 +7,7 @@ import { initDb } from "./db/index";
 import { createBridgeServer } from "./bridge/server";
 import { getOrCreateBridgeToken } from "./bridge/token";
 import { registerIpcHandlers } from "./ipc/handlers";
+import { createJobSpySidecar } from "./jobspy/sidecar";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
@@ -54,7 +55,12 @@ if (!hasSingleInstanceLock) {
 
   app.whenReady().then(async () => {
     const db = await initDb();
-    registerIpcHandlers(db);
+    const jobSpySidecar = createJobSpySidecar(path.resolve(app.getAppPath(), "../../services/jobspy"));
+    const jobSpyStartup = jobSpySidecar.start();
+    registerIpcHandlers(db, () => jobSpySidecar.start());
+    void jobSpyStartup.catch((error) => {
+      console.error("[jobspy] Automatic startup failed:", error);
+    });
 
     const port = Number(process.env.GHOSTBOARD_BRIDGE_PORT) || BRIDGE_DEFAULT_PORT;
     const { token } = getOrCreateBridgeToken(port);
@@ -65,6 +71,7 @@ if (!hasSingleInstanceLock) {
       extensionMessageServer.sendJsonTo(client, { type: "bridge-authentication", port, token });
     });
     app.once("before-quit", () => {
+      jobSpySidecar.stop();
       void extensionMessageServer.close();
     });
 
