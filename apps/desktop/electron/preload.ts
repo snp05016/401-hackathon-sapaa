@@ -118,6 +118,7 @@ export interface GhostboardApi {
   applyGmailSuggestion(id: string, applicationId: string, expectedUpdatedAt: string): Promise<GmailState>;
   cancelGmail(): Promise<void>;
   listApplications(): Promise<Application[]>;
+  onApplicationsChanged(listener: () => void): () => void;
   searchDiscoveredJobs(request: DiscoverSearchRequest): Promise<DiscoverSearchResponse>;
   predictJobTitle(prompt: string): Promise<GemmaPrediction>;
   summarizeJobDescription(request: GemmaJobSummaryRequest): Promise<GemmaJobSummary>;
@@ -162,6 +163,11 @@ const api: GhostboardApi = {
   applyGmailSuggestion: (id, applicationId, updatedAt) => ipcRenderer.invoke(IPC_CHANNELS.gmailApply, id, applicationId, updatedAt),
   cancelGmail: () => ipcRenderer.invoke(IPC_CHANNELS.gmailCancel),
   listApplications: () => ipcRenderer.invoke(IPC_CHANNELS.listApplications),
+  onApplicationsChanged: (listener) => {
+    const handleChanged = () => listener();
+    ipcRenderer.on(IPC_CHANNELS.applicationsChanged, handleChanged);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.applicationsChanged, handleChanged);
+  },
   searchDiscoveredJobs: (request) => ipcRenderer.invoke(IPC_CHANNELS.searchDiscoveredJobs, request),
   predictJobTitle: (prompt) => ipcRenderer.invoke(IPC_CHANNELS.predictJobTitle, prompt),
   summarizeJobDescription: (request) => ipcRenderer.invoke(IPC_CHANNELS.summarizeJobDescription, request),

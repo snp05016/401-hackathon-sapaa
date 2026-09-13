@@ -10,6 +10,7 @@ export const IPC_CHANNELS = {
   gmailApply: "gmail:apply",
   gmailCancel: "gmail:cancel",
   listApplications: "applications:list",
+  applicationsChanged: "applications:changed",
   searchDiscoveredJobs: "discover:search",
   predictJobTitle: "discover:predict-job-title",
   summarizeJobDescription: "discover:summarize-job-description",

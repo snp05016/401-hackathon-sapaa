@@ -385,8 +385,8 @@ export function createGmailService(db: GhostboardDb, dependencies: GmailDependen
       notice = `Gmail ${parts.join(", ")}.`;
     } else if (batch.length > 0) {
       notice = finished
-        ? `Checked ${batch.length} message${batch.length === 1 ? "" : "s"} with Antigravity. No recruiter or status updates found.`
-        : `Checked ${batch.length} message${batch.length === 1 ? "" : "s"} with Antigravity (${pending.length} remaining in queue). None were recruiter updates. Click check next batch to continue.`;
+        ? `Checked ${batch.length} message${batch.length === 1 ? "" : "s"} with Casper. No recruiter or status updates found.`
+        : `Checked ${batch.length} message${batch.length === 1 ? "" : "s"} with Casper (${pending.length} remaining in queue). None were recruiter updates. Click check next batch to continue.`;
     }
   }
 

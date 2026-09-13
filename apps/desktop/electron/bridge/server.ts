@@ -30,7 +30,12 @@ async function readBody<T>(req: http.IncomingMessage): Promise<T> {
   return raw ? (JSON.parse(raw) as T) : ({} as T);
 }
 
-export function createBridgeServer(db: GhostboardDb, token: string, port: number): http.Server {
+export function createBridgeServer(
+  db: GhostboardDb,
+  token: string,
+  port: number,
+  onApplicationsChanged: () => void,
+): http.Server {
   const server = http.createServer((req, res) => {
     void (async () => {
       const origin = req.headers.origin;
@@ -80,7 +85,9 @@ export function createBridgeServer(db: GhostboardDb, token: string, port: number
 
         if (req.method === "POST" && url.pathname === "/jobs") {
           const body = await readBody(req);
-          sendJson(res, 200, await handleCreateJob(db, body as never), origin);
+          const response = await handleCreateJob(db, body as never);
+          onApplicationsChanged();
+          sendJson(res, 200, response, origin);
           return;
         }
 
@@ -92,7 +99,9 @@ export function createBridgeServer(db: GhostboardDb, token: string, port: number
 
         if (req.method === "POST" && url.pathname === "/applications") {
           const body = await readBody(req);
-          sendJson(res, 200, await handleUpsertApplication(db, body as never), origin);
+          const response = await handleUpsertApplication(db, body as never);
+          onApplicationsChanged();
+          sendJson(res, 200, response, origin);
           return;
         }
 

@@ -2050,7 +2050,7 @@ export function Resumes() {
               </Button>
               <Button variant="outline" silent onClick={() => void handleTailor()} disabled={!canTailorWithAi}>
                 <Sparkles size={13} aria-hidden="true" />
-                {isTailoring ? "Tailoring with Antigravity…" : "Tailor with Antigravity"}
+                {isTailoring ? "Tailoring with Casper…" : "Tailor with Casper"}
               </Button>
               <AnimatePresence initial={false} mode="wait">
                 {isTailoring && (
@@ -2085,8 +2085,8 @@ export function Resumes() {
                   {!masterReady
                     ? "Write a master resume above before tailoring."
                     : !jobReady
-                      ? "You can start editing manually now. Add a job description to enable Antigravity."
-                      : "Start with a manual copy, or ask Antigravity to create a first draft. Nothing is saved until you choose."}
+                      ? "You can start editing manually now. Add a job description to enable Casper."
+                      : "Start with a manual copy, or ask Casper to create a first draft. Nothing is saved until you choose."}
                 </p>
               )}
             </div>
@@ -2102,14 +2102,14 @@ export function Resumes() {
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="font-display text-[20px] text-ink">Review and edit the draft</h3>
                     <Badge variant="outline">
-                      {tailoredDraftSource === "ai" ? "Antigravity draft" : "Manual copy"}
+                      {tailoredDraftSource === "ai" ? "Casper draft" : "Manual copy"}
                     </Badge>
                     {tailoredDraftEdited && <Badge>Edited</Badge>}
                   </div>
                   <div className="flex items-center gap-4">
                     {tailoredDraftEdited && (
                       <Button variant="quiet" onClick={() => handleTailoredDraftChange(tailoredResult.latex)}>
-                        {tailoredDraftSource === "ai" ? "Reset to Antigravity draft" : "Reset to master copy"}
+                        {tailoredDraftSource === "ai" ? "Reset to Casper draft" : "Reset to master copy"}
                       </Button>
                     )}
                     <p className="text-[12px] text-ink-2">Your master resume is never modified.</p>

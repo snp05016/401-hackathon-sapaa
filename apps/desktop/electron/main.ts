@@ -13,6 +13,7 @@ import { createJobSpySidecar } from "./jobspy/sidecar";
 import { createSyncServer, type SyncServer } from "./sync/server";
 import { setSyncServerDisabled, setSyncServerInfo, setSyncServerUnavailable } from "./sync/info";
 import { GemmaCompletionService } from "./gemma/service";
+import { IPC_CHANNELS } from "./ipc/channels";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -93,7 +94,11 @@ if (!hasSingleInstanceLock) {
 
     const port = Number(process.env.GHOSTBOARD_BRIDGE_PORT) || BRIDGE_DEFAULT_PORT;
     const { token } = getOrCreateBridgeToken(port);
-    createBridgeServer(db, token, port);
+    createBridgeServer(db, token, port, () => {
+      for (const window of BrowserWindow.getAllWindows()) {
+        window.webContents.send(IPC_CHANNELS.applicationsChanged);
+      }
+    });
     const extensionMessageServer = createExtensionMessageServer({});
     extensionMessageServer.onJsonMessage((message, client) => {
       if (!isExtensionConnectRequest(message)) return;
