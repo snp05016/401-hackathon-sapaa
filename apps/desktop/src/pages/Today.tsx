@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, Copy, X } from "lucide-react";
 import { ActivityCalendar } from "react-activity-calendar";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -91,8 +91,12 @@ export function Today() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [dismissingAll, setDismissingAll] = useState(false);
   const [dismissError, setDismissError] = useState<string | null>(null);
+  const [tailoredBodies, setTailoredBodies] = useState<Record<string, string>>({});
+  const [tailoringIds, setTailoringIds] = useState<Set<string>>(new Set());
+  const [tailoringErrors, setTailoringErrors] = useState<Set<string>>(new Set());
   const [heatmapSheen, setHeatmapSheen] = useState(false);
   const prefersReducedMotion = useReducedMotion();
+  const tailoredSuggestionIds = useRef(new Set<string>());
   const counts = summarizeToday(applications ?? [], now);
   const hasApplications = Boolean(applications);
 
@@ -108,14 +112,10 @@ export function Today() {
     return () => window.clearTimeout(timer);
   }, [hasApplications]);
 
-  async function copyMessage(item: FollowUpSuggestion) {
-    const body = renderMessageTemplate(item.message.body, {
-      Company: capitalize(item.company),
-      "Job Title": item.title.toLowerCase(),
-    });
+  async function copyMessage(applicationId: string, body: string) {
     try {
       await navigator.clipboard.writeText(body);
-      setCopiedId(item.applicationId);
+      setCopiedId(applicationId);
       playSound("success");
     } catch (error) {
       playSound("error");
@@ -180,6 +180,48 @@ export function Today() {
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
+  }, [modalOpen]);
+
+  useEffect(() => {
+    if (!modalOpen || !applications) return;
+    let active = true;
+
+    for (const suggestion of followUps) {
+      if (tailoredSuggestionIds.current.has(suggestion.applicationId)) continue;
+      tailoredSuggestionIds.current.add(suggestion.applicationId);
+      const application = applications.find((item) => item.id === suggestion.applicationId);
+      if (!application) continue;
+      const template = renderMessageTemplate(suggestion.message.body, {
+        Company: capitalize(suggestion.company),
+        "Job Title": suggestion.title.toLowerCase(),
+      });
+      setTailoringIds((current) => new Set(current).add(suggestion.applicationId));
+      void ipc().tailorFollowUpMessage({
+        company: suggestion.company,
+        title: suggestion.title,
+        jobDescription: application.jobDescription,
+        template,
+        kind: suggestion.kind,
+      })
+        .then(({ body }) => {
+          if (active) setTailoredBodies((current) => ({ ...current, [suggestion.applicationId]: body }));
+        })
+        .catch((tailoringError) => {
+          console.error("Could not tailor follow-up message", tailoringError);
+          if (active) setTailoringErrors((current) => new Set(current).add(suggestion.applicationId));
+        })
+        .finally(() => {
+          if (active) {
+            setTailoringIds((current) => {
+              const next = new Set(current);
+              next.delete(suggestion.applicationId);
+              return next;
+            });
+          }
+        });
+    }
+
+    return () => { active = false; };
   }, [modalOpen]);
 
   return (
@@ -335,11 +377,14 @@ export function Today() {
               </header>
               <div className="space-y-8 px-7 py-6">
                 {followUps.map((item, index) => {
-                  const body = renderMessageTemplate(item.message.body, {
+                  const template = renderMessageTemplate(item.message.body, {
                     Company: capitalize(item.company),
                     "Job Title": item.title.toLowerCase(),
                   });
+                  const body = tailoredBodies[item.applicationId] ?? template;
                   const copied = copiedId === item.applicationId;
+                  const tailoring = tailoringIds.has(item.applicationId);
+                  const tailoringFailed = tailoringErrors.has(item.applicationId);
                   return (
                     <motion.section
                       key={item.applicationId}
@@ -357,7 +402,7 @@ export function Today() {
                       <div className="relative mt-4">
                         <motion.button
                           type="button"
-                          onClick={() => void copyMessage(item)}
+                          onClick={() => void copyMessage(item.applicationId, body)}
                           aria-label={copied ? "Message copied" : "Copy message"}
                           title={copied ? "Copied" : "Copy"}
                           whileHover={{ scale: 1.08 }}
@@ -378,10 +423,21 @@ export function Today() {
                             </motion.span>
                           </AnimatePresence>
                         </motion.button>
-                        <pre className="whitespace-pre-wrap border border-hairline bg-paper p-4 pr-12 font-sans text-[13px] leading-relaxed text-ink">
-                          {body}
-                        </pre>
+                        <AnimatePresence mode="wait" initial={false}>
+                          <motion.pre
+                            key={body}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={TRANSITION.base}
+                            className="whitespace-pre-wrap border border-hairline bg-paper p-4 pr-12 font-sans text-[13px] leading-relaxed text-ink"
+                          >
+                            {body}
+                          </motion.pre>
+                        </AnimatePresence>
                       </div>
+                      {tailoring && <p role="status" className="mt-2 text-[10px] text-ink-3">Tailoring this draft to the role…</p>}
+                      {tailoringFailed && <p role="status" className="mt-2 text-[10px] text-ink-3">Showing the original template; local tailoring was unavailable.</p>}
                     </motion.section>
                   );
                 })}
