@@ -13,6 +13,7 @@ export const IPC_CHANNELS = {
   searchDiscoveredJobs: "discover:search",
   predictJobTitle: "discover:predict-job-title",
   summarizeJobDescription: "discover:summarize-job-description",
+  tailorFollowUpMessage: "today:tailor-follow-up-message",
   saveDiscoveredJob: "discover:save",
   visitDiscoveredJob: "discover:visit",
   updateDeadline: "applications:update-deadline",
