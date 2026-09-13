@@ -25,6 +25,7 @@
     "drizzle-orm": "^0.33.0",
     "framer-motion": "^11.5.4",
     "lucide-react": "^0.445.0",
+    "node-llama-cpp": "^3.21.1",
     "react": "^18.3.1",
     "react-activity-calendar": "^3.2.1",
     "react-dom": "^18.3.1",

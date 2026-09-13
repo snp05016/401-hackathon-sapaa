@@ -10,6 +10,7 @@ import { registerIpcHandlers } from "./ipc/handlers";
 import { createJobSpySidecar } from "./jobspy/sidecar";
 import { createSyncServer, type SyncServer } from "./sync/server";
 import { setSyncServerDisabled, setSyncServerInfo, setSyncServerUnavailable } from "./sync/info";
+import { GemmaCompletionService } from "./gemma/service";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
@@ -59,7 +60,8 @@ if (!hasSingleInstanceLock) {
     const db = await initDb();
     const jobSpySidecar = createJobSpySidecar(path.resolve(app.getAppPath(), "../../services/jobspy"));
     const jobSpyStartup = jobSpySidecar.start();
-    registerIpcHandlers(db, () => jobSpySidecar.start());
+    const gemmaCompletionService = new GemmaCompletionService();
+    registerIpcHandlers(db, () => jobSpySidecar.start(), gemmaCompletionService);
     void jobSpyStartup.catch((error) => {
       console.error("[jobspy] Automatic startup failed:", error);
     });
@@ -96,6 +98,7 @@ if (!hasSingleInstanceLock) {
 
     app.once("before-quit", () => {
       jobSpySidecar.stop();
+      void gemmaCompletionService.dispose();
       void extensionMessageServer.close();
       void syncServer?.close();
     });

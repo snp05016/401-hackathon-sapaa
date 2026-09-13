@@ -1,4 +1,4 @@
-import type { JobPosting } from "../types/job";
+import type { JobDetails, JobPosting } from "../types/job";
 import type { Application, ApplicationStage } from "../types/application";
 import type { Profile } from "../types/profile";
 import type { MasterResume } from "../types/resume";
@@ -54,7 +54,7 @@ export interface ProfileResponse {
   profile: Profile;
 }
 
-export interface CreateJobRequest {
+export interface CreateJobRequest extends Partial<JobDetails> {
   id?: string;
   fingerprint?: string;
   contentFingerprint?: string | null;
@@ -71,15 +71,6 @@ export interface CreateJobRequest {
   postedAt: string | null;
   salaryRange: string | null;
   scrapedAt?: string;
-  workArrangement?: JobPosting["workArrangement"];
-  applicationDeadline?: string | null;
-  startDate?: string | null;
-  termDuration?: string | null;
-  responsibilities?: JobPosting["responsibilities"];
-  preferredQualifications?: JobPosting["preferredQualifications"];
-  education?: string | null;
-  workAuthorization?: string | null;
-  clearance?: string | null;
 }
 
 export interface CreateJobResponse {

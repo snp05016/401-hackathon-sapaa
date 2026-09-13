@@ -29,6 +29,7 @@
     "esbuild@0.28.2": true,
     "electron@32.3.3": true,
     "@libsql/client@0.14.0": true,
-    "libsql@0.4.7": true
+    "libsql@0.4.7": true,
+    "node-llama-cpp@3.21.1": true
   }
 }

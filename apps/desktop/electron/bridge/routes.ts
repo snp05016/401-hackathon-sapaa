@@ -18,7 +18,7 @@ import type {
   ExternalResumeTemplateResponse,
   ApplicationStage,
 } from "@ghostboard/shared";
-import { APPLICATION_STAGES, STAGE_LABELS } from "@ghostboard/shared";
+import { APPLICATION_STAGES, STAGE_LABELS, calendarDateOrNull, jobDetailsOf } from "@ghostboard/shared";
 import { readProfile, readMasterResume } from "../db/index";
 
 export function handleGetProfile(): ProfileResponse {
@@ -88,6 +88,8 @@ export async function handleCreateJob(db: GhostboardDb, body: CreateJobRequest):
     nextActionDate: null,
     resumeId: null,
     source: job.source,
+    deadline: calendarDateOrNull(job.applicationDeadline),
+    jobDetails: jobDetailsOf(job),
     createdAt: now,
     updatedAt: now,
   });

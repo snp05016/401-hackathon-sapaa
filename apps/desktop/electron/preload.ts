@@ -85,6 +85,10 @@ export interface ResumeBulletProposalResult {
   warnings: string[];
 }
 
+export interface GemmaPrediction {
+  completion: string;
+}
+
 export interface GhostboardApi {
   getGmailState(): Promise<GmailState>;
   importGmailCredentials(): Promise<GmailState>;
@@ -98,6 +102,7 @@ export interface GhostboardApi {
   cancelGmail(): Promise<void>;
   listApplications(): Promise<Application[]>;
   searchDiscoveredJobs(request: DiscoverSearchRequest): Promise<DiscoverSearchResponse>;
+  predictJobTitle(prompt: string): Promise<GemmaPrediction>;
   saveDiscoveredJob(job: DiscoveredJob): Promise<SaveDiscoveredJobResult>;
   visitDiscoveredJob(job: DiscoveredJob, targetUrl?: string): Promise<SaveDiscoveredJobResult>;
   updateDeadline(applicationId: string, deadline: string | null): Promise<Application>;
@@ -140,6 +145,7 @@ const api: GhostboardApi = {
   cancelGmail: () => ipcRenderer.invoke(IPC_CHANNELS.gmailCancel),
   listApplications: () => ipcRenderer.invoke(IPC_CHANNELS.listApplications),
   searchDiscoveredJobs: (request) => ipcRenderer.invoke(IPC_CHANNELS.searchDiscoveredJobs, request),
+  predictJobTitle: (prompt) => ipcRenderer.invoke(IPC_CHANNELS.predictJobTitle, prompt),
   saveDiscoveredJob: (job) => ipcRenderer.invoke(IPC_CHANNELS.saveDiscoveredJob, job),
   visitDiscoveredJob: (job, targetUrl) => ipcRenderer.invoke(IPC_CHANNELS.visitDiscoveredJob, job, targetUrl),
   updateDeadline: (applicationId, deadline) => ipcRenderer.invoke(IPC_CHANNELS.updateDeadline, applicationId, deadline),
