@@ -14,6 +14,7 @@ import { COUNTRIES, buildLocation, findCountry } from "../lib/locations";
 import { cn } from "../lib/utils";
 
 const PREFERENCES_KEY = "discover-preferences-v2";
+const RESULTS_LIMIT = 24;
 const SITES: Array<{ id: DiscoverSite; label: string }> = [
   { id: "linkedin", label: "LinkedIn" }, { id: "indeed", label: "Indeed" },
   { id: "glassdoor", label: "Glassdoor" }, { id: "google", label: "Google Jobs" },
@@ -94,7 +95,7 @@ function searchRequest(preferences: DiscoverPreferences): DiscoverSearchRequest 
     location: preferences.location,
     countryIndeed: preferences.countryIndeed,
     distance: preferences.distance,
-    resultsWanted: 24,
+    resultsWanted: RESULTS_LIMIT,
     hoursOld: 168,
     isRemote: preferences.workplace === "remote",
     jobType: preferences.jobType || undefined,
@@ -110,6 +111,40 @@ function formatSalary(job: DiscoveredJob): string | null {
   const compact = new Intl.NumberFormat("en-CA", { notation: "compact", maximumFractionDigits: 1 });
   const values = [job.minimumAmount, job.maximumAmount].filter((amount): amount is number => amount != null).map((amount) => compact.format(amount));
   return `${job.currency ?? "CAD"} ${values.join("–")}${job.interval ? ` / ${job.interval}` : ""}`;
+}
+
+function mergeDiscoveredJobs(current: Map<string, DiscoveredJob>, incoming: DiscoveredJob[]): DiscoveredJob[] {
+  for (const job of incoming) current.set(`${job.site}:${job.id || job.jobUrl}`, job);
+  return [...current.values()]
+    .sort((left, right) => (right.matchScore ?? 0) - (left.matchScore ?? 0))
+    .slice(0, RESULTS_LIMIT);
+}
+
+const MAX_CONCURRENT_SUMMARIES = 1;
+let activeSummaryCount = 0;
+const pendingSummaries: Array<() => void> = [];
+
+function scheduleJobSummary(task: () => Promise<void>): () => void {
+  let cancelled = false;
+  const start = () => {
+    if (cancelled) {
+      startNextJobSummary();
+      return;
+    }
+    activeSummaryCount += 1;
+    void task().finally(() => {
+      activeSummaryCount -= 1;
+      startNextJobSummary();
+    });
+  };
+  if (activeSummaryCount < MAX_CONCURRENT_SUMMARIES) start();
+  else pendingSummaries.push(start);
+  return () => { cancelled = true; };
+}
+
+function startNextJobSummary(): void {
+  const next = pendingSummaries.shift();
+  if (next) next();
 }
 
 type DescriptionBlock =
@@ -167,22 +202,22 @@ function JobSummary({ job }: { job: DiscoveredJob }) {
     if (!sourceDescription) return () => { active = false; };
 
     setSummarizing(true);
-    void ipc().summarizeJobDescription({
-      company: job.company,
-      title: job.title,
-      description: sourceDescription,
-    })
-      .then((result) => {
+    const cancel = scheduleJobSummary(async () => {
+      try {
+        const result = await ipc().summarizeJobDescription({
+          company: job.company,
+          title: job.title,
+          description: sourceDescription,
+        });
         if (active) setSummary(result.summary);
-      })
-      .catch((error) => {
+      } catch (error) {
         if (active) setSummaryError(error instanceof Error ? error.message : "The local job summary could not be generated.");
-      })
-      .finally(() => {
+      } finally {
         if (active) setSummarizing(false);
-      });
+      }
+    });
 
-    return () => { active = false; };
+    return () => { active = false; cancel(); };
   }, [job.company, job.title, sourceDescription]);
 
   const displayedDescription = summary ?? (sourceDescription || "Open the posting for the complete job description.");
@@ -442,20 +477,49 @@ export function Discover() {
   const [notice, setNotice] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
   const initialSearchStarted = useRef(false);
+  const searchId = useRef(0);
 
   async function runSearch(nextPreferences = preferences, userInitiated = false) {
     if (!nextPreferences) return;
+    const activeSearchId = ++searchId.current;
+    const request = searchRequest(nextPreferences);
+    const sourceCount = request.sites.length;
+    const resultsPerSource = Math.max(1, Math.ceil((request.resultsWanted ?? RESULTS_LIMIT) / sourceCount));
+    const loadedJobs = new Map<string, DiscoveredJob>();
+    const sourceFailures: string[] = [];
+    let playedSuccess = false;
+    let allCached = true;
     setSearching(true); setError(null); setNotice(null);
-    try {
-      const response = await ipc().searchDiscoveredJobs(searchRequest(nextPreferences));
-      setResults(response.results); setWarnings(response.warnings);
-      if (response.cached) setNotice("Loaded from the local 10-minute search cache.");
-      // One sound for the whole result set, and never for the automatic first load.
-      if (userInitiated && response.results.length > 0) playSound("success");
-    } catch (searchError) {
-      setResults([]); setError(searchError instanceof Error ? searchError.message : "Job discovery could not be reached.");
+    setResults([]); setWarnings([]);
+
+    const searches = request.sites.map(async (site) => {
+      try {
+        const response = await ipc().searchDiscoveredJobs({ ...request, sites: [site], resultsWanted: resultsPerSource });
+        if (searchId.current !== activeSearchId) return;
+        allCached &&= response.cached;
+        setResults(mergeDiscoveredJobs(loadedJobs, response.results));
+        setWarnings((current) => [...new Set([...current, ...response.warnings])]);
+        if (userInitiated && response.results.length > 0 && !playedSuccess) {
+          playedSuccess = true;
+          playSound("success");
+        }
+      } catch (searchError) {
+        if (searchId.current !== activeSearchId) return;
+        allCached = false;
+        const detail = searchError instanceof Error ? searchError.message : "could not be reached";
+        sourceFailures.push(`${formatSource(site)}: ${detail}`);
+        setWarnings((current) => [...new Set([...current, `${formatSource(site)} could not be searched.`])]);
+      }
+    });
+
+    await Promise.allSettled(searches);
+    if (searchId.current !== activeSearchId) return;
+
+    if (sourceFailures.length === sourceCount) {
+      setError(sourceFailures[0] ?? "Job discovery could not be reached.");
       if (userInitiated) playSound("error");
-    } finally { setSearching(false); }
+    } else if (allCached) setNotice("Loaded from the local 10-minute search cache.");
+    setSearching(false);
   }
 
   useEffect(() => {
@@ -503,12 +567,10 @@ export function Discover() {
       <label className="relative block w-full sm:w-[260px]"><span className="sr-only">Filter loaded jobs</span><Search size={14} className="absolute left-0 top-2.5 text-ink-3" /><Input variant="rule" className="pl-6" placeholder="Filter loaded jobs" value={filter} onChange={(event) => setFilter(event.target.value)} /></label>
     </motion.section>
     <div aria-live="polite">{notice && <p role="status" className="mt-5 border-l-2 border-verdigris pl-3 text-[12px] text-ink">{notice}</p>}{warnings.map((warning) => <p key={warning} className="mt-3 border-l-2 border-brass pl-3 text-[11px] text-ink-2">{warning}</p>)}{error && <div role="alert" className="mt-5 flex flex-wrap items-center justify-between gap-3 border border-oxblood/30 bg-paper-raised p-4 text-[12px] text-ink"><span>{error}</span><Button variant="quiet" onClick={() => results.length ? setError(null) : void runSearch(preferences, true)}>{results.length ? "Dismiss" : "Try again"}</Button></div>}</div>
-    {searching && <>
-      <div role="status" className="mt-10 text-center"><p className="font-display text-[26px] text-ink">Searching across {preferences.sites.length} sources</p><p className="mt-2 text-[11px] text-ink-2">This can take a moment. Results are cached to protect upstream services.</p></div>
-      <ul aria-hidden="true" className="mt-7 grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-3">{[0, 1, 2, 3, 4, 5].map((placeholder) => <li key={placeholder} className="flex min-w-0 flex-col gap-4 border border-hairline bg-paper-raised/70 p-5"><Shimmer height={14} rounded className="w-1/3" /><Shimmer height={30} rounded /><Shimmer lines={4} height={11} /><Shimmer height={40} rounded /></li>)}</ul>
-    </>}
+    {searching && <div role="status" className="mt-10 text-center"><p className="font-display text-[26px] text-ink">Searching across {preferences.sites.length} sources</p><p className="mt-2 text-[11px] text-ink-2">Roles appear as each source finishes. Results are cached to protect upstream services.</p></div>}
+    {searching && results.length === 0 && <ul aria-hidden="true" className="mt-7 grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-3">{[0, 1, 2, 3, 4, 5].map((placeholder) => <li key={placeholder} className="flex min-w-0 flex-col gap-4 border border-hairline bg-paper-raised/70 p-5"><Shimmer height={14} rounded className="w-1/3" /><Shimmer height={30} rounded /><Shimmer lines={4} height={11} /><Shimmer height={40} rounded /></li>)}</ul>}
     {!searching && !error && results.length === 0 && <motion.div initial={{ opacity: 0, y: DISTANCE.rise }} animate={{ opacity: 1, y: 0 }} transition={TRANSITION.hero} className="mt-10 max-w-[650px] border-y border-dashed border-hairline py-10"><GhostDrift className="mb-5 inline-flex text-ink-3"><Ghost size={34} strokeWidth={1.4} /></GhostDrift><p className="font-display text-[30px] leading-snug text-ink">No roles surfaced this time.</p><p className="mt-3 text-[12px] leading-relaxed text-ink-2">Try a broader title, another location, or add a source. Your preferences stay private on this device.</p><Button variant="quiet" className="mt-5" onClick={() => setEditingPreferences(true)}>Adjust preferences <ArrowRight size={14} /></Button></motion.div>}
-    {!searching && filteredResults.length > 0 && <><div className="mt-7 flex items-baseline justify-between"><p className="tnum text-[11px] text-ink-2">{filteredResults.length} of {results.length} roles</p><p className="text-[10px] text-ink-3">Opening any posting saves it to Found</p></div><ul className="mt-4 grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-3">{filteredResults.map((job, index) => <JobCard key={`${job.site}:${job.id}`} job={job} saved={savedIds.has(job.id)} busy={busyId === job.id} index={index} onSave={() => void saveJob(job, false)} onVisit={(targetUrl) => void saveJob(job, true, targetUrl)} />)}</ul></>}
+    {filteredResults.length > 0 && <><div className="mt-7 flex items-baseline justify-between"><p className="tnum text-[11px] text-ink-2">{filteredResults.length} of {results.length} roles</p><p className="text-[10px] text-ink-3">Opening any posting saves it to Found</p></div><ul className="mt-4 grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-3">{filteredResults.map((job, index) => <JobCard key={`${job.site}:${job.id}`} job={job} saved={savedIds.has(job.id)} busy={busyId === job.id} index={index} onSave={() => void saveJob(job, false)} onVisit={(targetUrl) => void saveJob(job, true, targetUrl)} />)}</ul></>}
     {!searching && results.length > 0 && filteredResults.length === 0 && <p className="mt-9 text-[13px] text-ink-2">No loaded jobs match “{filter}”. Clear the filter to see all {results.length} roles.</p>}
   </div>;
 }
