@@ -153,3 +153,17 @@ export interface ExternalKanbanResponse {
 export interface ExternalResumeTemplateResponse {
   resume: MasterResume;
 }
+
+export interface TailoredAutofillRequest {
+  job: {
+    company: string;
+    title: string;
+    jobUrl: string;
+    jobDescription: string;
+  };
+}
+
+export interface TailoredAutofillResponse {
+  resume: MasterResume;
+  source: "saved" | "cached" | "generated";
+}

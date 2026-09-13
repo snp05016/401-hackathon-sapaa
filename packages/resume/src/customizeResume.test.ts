@@ -173,3 +173,34 @@ test("customizeResume never mutates the master resume and returns a separate doc
   assert.equal(master, snapshot);
   assert.notEqual(result.latex, master);
 });
+
+test("customizeResume preserves all content outside Experience exactly", async () => {
+  const master = [
+    "\\documentclass{article}",
+    "\\begin{document}",
+    "Ada Lovelace | ada@example.com | Edmonton, AB",
+    "\\section{Experience}",
+    "Software engineer at Acme.",
+    "\\section{Education}",
+    "University of Alberta",
+    "\\end{document}",
+  ].join("\n");
+  const candidate = [
+    "\\documentclass{article}",
+    "\\begin{document}",
+    "Wrong Name | changed@example.com",
+    "\\section{Experience}",
+    "Backend engineer at Acme.",
+    "\\section{Education}",
+    "Changed University",
+    "\\end{document}",
+  ].join("\n");
+  const result = await customizeResume(
+    { masterLatex: master, jobDescription: "Build backend services." },
+    { provider: mockProvider(candidate) },
+  );
+  assert.equal(result.latex, master.replace("Software engineer at Acme.", "Backend engineer at Acme."));
+  assert.match(result.latex, /Ada Lovelace \| ada@example\.com \| Edmonton, AB/);
+  assert.match(result.latex, /University of Alberta/);
+  assert.doesNotMatch(result.latex, /Wrong Name|changed@example\.com|Changed University/);
+});

@@ -5,9 +5,9 @@ export type ExtensionMessage =
   | { type: "job-cleared"; url: string }
   | { type: "page-snapshot"; snapshot: JobPageSnapshot }
   | { type: "job-saved"; title: string; company: string }
-  | { type: "trigger-autofill" }
-  | { type: "request-autofill-profile" }
-  | { type: "autofill-profile-response"; profile: Profile | null; resume: MasterResume | null };
+  | { type: "trigger-autofill"; mode: "master" | "tailored" }
+  | { type: "request-autofill-profile"; mode: "master" | "tailored" }
+  | { type: "autofill-profile-response"; profile: Profile | null; resume: MasterResume | null; resumeSource?: "master" | "saved" | "cached" | "generated"; error?: string };
 
 export interface BridgeSettings {
   port: number;

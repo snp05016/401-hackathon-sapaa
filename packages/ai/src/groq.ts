@@ -44,7 +44,7 @@ export async function completeWithGroq(request: CompletionRequest): Promise<Comp
       continue;
     }
     if (!response.ok) {
-      if (response.status === 429) throw new Error("Groq is still rate-limiting requests. Wait about a minute, then click Check Gmail again.");
+      if (response.status === 429) throw new Error("Groq is still rate-limiting requests. Wait about a minute, then try again.");
       const detail = (await response.text()).slice(0, 500);
       throw new Error(`Groq API error ${response.status}${detail ? `: ${detail}` : ""}`);
     }

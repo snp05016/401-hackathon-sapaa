@@ -1,7 +1,7 @@
 import http from "node:http";
 import type { GhostboardDb } from "@ghostboard/database";
 import type { BridgeErrorResponse, HealthResponse } from "@ghostboard/shared";
-import { handleGetProfile, handleCreateJob, handleIngestJob, handleUpsertApplication, handlePageContext, handleGetKanban, handleGetResumeTemplate } from "./routes";
+import { handleGetProfile, handleCreateJob, handleIngestJob, handleUpsertApplication, handlePageContext, handleGetKanban, handleGetResumeTemplate, handleGetTailoredAutofillResume } from "./routes";
 
 const BRIDGE_VERSION = "0.1.0";
 const LOOPBACK_ADDRESSES = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
@@ -75,6 +75,12 @@ export function createBridgeServer(db: GhostboardDb, token: string, port: number
 
         if (req.method === "GET" && url.pathname === "/external/resume-template") {
           sendJson(res, 200, handleGetResumeTemplate(), origin);
+          return;
+        }
+
+        if (req.method === "POST" && url.pathname === "/external/tailored-autofill-resume") {
+          const body = await readBody(req);
+          sendJson(res, 200, await handleGetTailoredAutofillResume(body as never), origin);
           return;
         }
 

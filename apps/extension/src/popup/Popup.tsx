@@ -122,15 +122,15 @@ export function Popup() {
     }
   }
 
-  async function handleAutofill() {
-    setStatus("Autofill…");
+  async function handleAutofill(mode: "master" | "tailored") {
+    setStatus(mode === "tailored" ? "Tailoring resume and autofilling…" : "Autofilling from master resume…");
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id) {
       setStatus("No active tab available.");
       return;
     }
 
-    chrome.tabs.sendMessage(tab.id, { type: "trigger-autofill" }, (response) => {
+    chrome.tabs.sendMessage(tab.id, { type: "trigger-autofill", mode }, (response) => {
       if (chrome.runtime.lastError) {
         setStatus("Autofill is unavailable on this page.");
         return;
@@ -164,13 +164,15 @@ export function Popup() {
               Save Job
             </button>
           )}
-          <button onClick={handleAutofill} style={{ marginTop: 8, marginLeft: 8 }}>
-            Autofill form
-          </button>
         </div>
       ) : (
-        <div className="empty">No job detected on this page yet.</div>
+        <div className="empty">No job detected on this page. Master autofill is still available.</div>
       )}
+      <div className="autofill-actions">
+        <button onClick={() => void handleAutofill("tailored")}>Autofill with tailored resume</button>
+        <button className="secondary" onClick={() => void handleAutofill("master")}>Autofill from master resume</button>
+        <div className="autofill-note">Tailored autofill uses the latest job detected by the extension.</div>
+      </div>
       {status && <div className="status">{status}</div>}
 
       <div className="settings" style={{ marginTop: 16 }}>

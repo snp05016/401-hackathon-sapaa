@@ -51,10 +51,43 @@ function buildSystemPrompt(): string {
     "NC-06: Never conceal keywords with invisible text, micro-fonts, metadata, or other anti-human tricks.",
     "NC-07: Never claim that simulated ATS scoring predicts an employer's actual decision.",
     "NC-08: Send only the minimum required context; cloud_data_scope stays \"minimum_required\".",
-    "You may reorder existing truthful bullets, emphasize a verified facet of an experience, improve wording, or remove lower-value content only when the tailoring preferences allow it and every factual claim remains supported by the sources above.",
+    "NC-09: Only content inside the Experience section may change. Preserve the candidate's name, contact information, summary, skills, projects, education, formatting, and every other section exactly.",
+    "Within Experience, you may reorder existing truthful bullets, emphasize a verified facet of an experience, improve wording, or remove lower-value content only when the tailoring preferences allow it and every factual claim remains supported by the sources above.",
     "Return one complete LaTeX document starting with \\documentclass and ending with \\end{document}. Valid LaTeX only.",
     "Do not include Markdown fences, commentary, a change log, or explanations.",
   ].join("\n");
+}
+
+interface SectionContentBounds {
+  contentStart: number;
+  contentEnd: number;
+}
+
+function experienceSectionBounds(latex: string): SectionContentBounds | null {
+  const sectionPattern = /\\section\*?\{([^}]+)\}/g;
+  const sections = [...latex.matchAll(sectionPattern)];
+  const experienceIndex = sections.findIndex((match) =>
+    /^(?:professional |work )?experience$|^employment history$|^work history$/i.test(match[1].trim()),
+  );
+  if (experienceIndex < 0) return null;
+  const section = sections[experienceIndex];
+  const contentStart = (section.index ?? 0) + section[0].length;
+  const nextSectionStart = sections[experienceIndex + 1]?.index;
+  const documentEnd = latex.lastIndexOf("\\end{document}");
+  const contentEnd = nextSectionStart ?? (documentEnd >= contentStart ? documentEnd : latex.length);
+  return { contentStart, contentEnd };
+}
+
+/** Guarantees that tailoring cannot alter identity, contact, education, or any non-experience content. */
+export function applyTailoredExperience(masterLatex: string, candidateLatex: string): string {
+  const master = experienceSectionBounds(masterLatex);
+  const candidate = experienceSectionBounds(candidateLatex);
+  if (!master || !candidate) throw new Error("Both resumes must contain an Experience section for experience-only tailoring.");
+  return [
+    masterLatex.slice(0, master.contentStart),
+    candidateLatex.slice(candidate.contentStart, candidate.contentEnd),
+    masterLatex.slice(master.contentEnd),
+  ].join("");
 }
 
 function serializeJobDescription(request: ResumeCustomizeRequest): string {
@@ -162,12 +195,17 @@ export async function customizeResume(
       { role: "user", content: user },
     ],
     temperature: 0.1,
-    maxTokens: 8192,
+    maxTokens: 4096,
   });
-  const latex = extractLatex(completion.text);
+  const candidateLatex = extractLatex(completion.text);
+  const candidateValidation = validateLatex(candidateLatex);
+  if (!candidateValidation.valid) {
+    throw new Error(`The model did not return a valid LaTeX document: ${candidateValidation.errors.join(" ")}`);
+  }
+  const latex = applyTailoredExperience(request.masterLatex, candidateLatex);
   const validation = validateLatex(latex);
   if (!validation.valid) {
-    throw new Error(`The model did not return a valid LaTeX document: ${validation.errors.join(" ")}`);
+    throw new Error(`The tailored Experience section produced invalid LaTeX: ${validation.errors.join(" ")}`);
   }
 
   return { latex, changesSummary: diffLatex(request.masterLatex, latex) };
