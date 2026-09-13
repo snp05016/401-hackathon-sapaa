@@ -1,4 +1,6 @@
 import { app, BrowserWindow } from "electron";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { BRIDGE_DEFAULT_PORT, SYNC_DEFAULT_PORT, isExtensionConnectRequest } from "@ghostboard/shared";
@@ -13,6 +15,29 @@ import { setSyncServerDisabled, setSyncServerInfo, setSyncServerUnavailable } fr
 import { GemmaCompletionService } from "./gemma/service";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const candidateEnvFiles = [
+  path.resolve(__dirname, "../../.env"),
+  path.resolve(process.cwd(), ".env"),
+  path.resolve(process.cwd(), "../../.env"),
+];
+for (const envFile of candidateEnvFiles) {
+  if (fs.existsSync(envFile) && typeof process.loadEnvFile === "function") {
+    try {
+      process.loadEnvFile(envFile);
+      break;
+    } catch {}
+  }
+}
+
+const home = os.homedir();
+const extraBinPaths = [path.join(home, ".local/bin"), "/opt/homebrew/bin", "/usr/local/bin"];
+const currentPaths = (process.env.PATH || "").split(path.delimiter);
+for (const p of extraBinPaths) {
+  if (!currentPaths.includes(p)) currentPaths.unshift(p);
+}
+process.env.PATH = currentPaths.join(path.delimiter);
+
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 
 function createWindow(): void {

@@ -142,10 +142,43 @@ async function loadMessages(options: ResolvedGmailOptions): Promise<GmailMessage
   });
 }
 
+export function extractJsonPayload(text: string): unknown {
+  const trimmed = text.trim();
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    // Continue to fenced extraction
+  }
+
+  const fencedMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fencedMatch) {
+    try {
+      return JSON.parse(fencedMatch[1].trim());
+    } catch {
+      // Continue to brace extraction
+    }
+  }
+
+  const firstBrace = trimmed.indexOf("{");
+  const lastBrace = trimmed.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    try {
+      return JSON.parse(trimmed.slice(firstBrace, lastBrace + 1));
+    } catch {
+      // Failed
+    }
+  }
+
+  throw new Error("The email classifier returned an invalid response. Try again.");
+}
+
 function parseModelResponse(text: string, messages: GmailMessage[], applications: Application[]): ModelClassification[] {
-  const trimmed = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
   let value: unknown;
-  try { value = JSON.parse(trimmed); } catch { throw new Error("The email classifier returned an invalid response. Try again."); }
+  try {
+    value = extractJsonPayload(text);
+  } catch {
+    throw new Error("The email classifier returned an invalid response. Try again.");
+  }
   const results = (value as { results?: unknown })?.results;
   if (!Array.isArray(results) || results.length > messages.length) throw new Error("The email classifier returned an invalid response. Try again.");
   const messageIds = new Set(messages.map((message) => message.id));

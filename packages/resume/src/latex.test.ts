@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { diffLatex, validateLatex } from "./latex";
+import { cleanLatexText, computeSideBySideDiff, diffLatex, parseChangesSummaryFallback, validateLatex } from "./latex";
 
 const VALID_LATEX = [
   "\\documentclass{article}",
@@ -64,4 +64,72 @@ test("diffLatex reports added and removed lines", () => {
 
 test("diffLatex returns an empty list for identical documents", () => {
   assert.deepEqual(diffLatex(VALID_LATEX, VALID_LATEX), []);
+});
+
+test("cleanLatexText strips commands, comments, and decodes characters", () => {
+  assert.equal(
+    cleanLatexText("\\resumeItem{Supported \\textbf{system design} for \\textbf{Docker} and \\textbf{FastAPI},...}"),
+    "Supported system design for Docker and FastAPI,...",
+  );
+  assert.equal(
+    cleanLatexText("\\item{\\textbf{Languages:}}{ Python, TypeScript, C++ }"),
+    "Languages: Python, TypeScript, C++",
+  );
+  assert.equal(
+    cleanLatexText("% Swappable skill slots: exactly 1 full line"),
+    "",
+  );
+  assert.equal(
+    cleanLatexText("Cost was \\$100 \\& savings were 20\\% across all \\_modules\\_"),
+    "Cost was $100 & savings were 20% across all _modules_",
+  );
+});
+
+test("computeSideBySideDiff pairs changed lines into Before and After without LaTeX", () => {
+  const before = [
+    "\\documentclass{article}",
+    "\\begin{document}",
+    "\\section{Experience}",
+    "\\resumeSubheading{Acme Corp}{Remote}{Software Engineer}{2024}",
+    "\\resumeItemListStart",
+    "  \\resumeItem{Architected a full-stack \\textbf{AI platform} with \\textbf{FastAPI}.}",
+    "  \\resumeItem{Maintained existing legacy pipelines.}",
+    "\\resumeItemListEnd",
+    "% Some comment line",
+    "\\end{document}",
+  ].join("\n");
+
+  const after = [
+    "\\documentclass{article}",
+    "\\begin{document}",
+    "\\section{Experience}",
+    "\\resumeSubheading{Acme Corp}{Remote}{Software Engineer}{2024}",
+    "\\resumeItemListStart",
+    "  \\resumeItem{Supported \\textbf{system design} for an AI platform with \\textbf{FastAPI}.}",
+    "  \\resumeItem{Maintained existing legacy pipelines.}",
+    "\\resumeItemListEnd",
+    "\\end{document}",
+  ].join("\n");
+
+  const diff = computeSideBySideDiff(before, after);
+  assert.equal(diff.length, 1);
+  assert.equal(diff[0].type, "modified");
+  assert.equal(diff[0].section, "Acme Corp");
+  assert.equal(diff[0].before?.text, "Architected a full-stack AI platform with FastAPI.");
+  assert.equal(diff[0].after?.text, "Supported system design for an AI platform with FastAPI.");
+});
+
+test("parseChangesSummaryFallback pairs legacy changesSummary lines into side-by-side items", () => {
+  const summary = [
+    "Added line 131: \\resumeItem{Supported \\textbf{system design}...}",
+    "Removed line 131: \\resumeItem{Architected a \\textbf{full-stack}...}",
+    "Removed line 144: % Some comment line",
+  ];
+  const items = parseChangesSummaryFallback(summary);
+  assert.equal(items.length, 1);
+  assert.equal(items[0].type, "modified");
+  assert.equal(items[0].before?.line, 131);
+  assert.equal(items[0].before?.text, "Architected a full-stack...");
+  assert.equal(items[0].after?.line, 131);
+  assert.equal(items[0].after?.text, "Supported system design...");
 });
