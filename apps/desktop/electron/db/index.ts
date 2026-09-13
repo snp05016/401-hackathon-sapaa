@@ -4,6 +4,7 @@ import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createDb, runMigrations, type GhostboardDb } from "@ghostboard/database";
 import type { ExperienceEntry, MasterResume, Profile, ProfileField, TailoredResumeRecord } from "@ghostboard/shared";
+import { orderExperienceEntries } from "../resume/import";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -169,16 +170,18 @@ export function writeMasterResume(latex: string): MasterResume {
 }
 
 export function readExperienceBank(): ExperienceEntry[] {
-  return readJsonFile(
+  const entries = readJsonFile(
     experienceBankPath(),
     isExperienceBankFile,
     (): { version: 1; entries: ExperienceEntry[] } => ({ version: 1, entries: [] }),
   ).entries;
+  return orderExperienceEntries(entries);
 }
 
 export function writeExperienceBank(entries: ExperienceEntry[]): ExperienceEntry[] {
-  fs.writeFileSync(experienceBankPath(), JSON.stringify({ version: 1, entries }, null, 2));
-  return entries;
+  const ordered = orderExperienceEntries(entries);
+  fs.writeFileSync(experienceBankPath(), JSON.stringify({ version: 1, entries: ordered }, null, 2));
+  return ordered;
 }
 
 export function readTailoredResumes(): TailoredResumeRecord[] {
