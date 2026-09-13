@@ -41,7 +41,7 @@ struct StaleDataNotice: View {
         case .idle:
             return hasData ? "Not connected. \(syncedLine)" : nil
         case .connecting, .synchronizing:
-            return hasData ? nil : "Connecting to your desktop…"
+            return hasData ? "Updating cached data. \(syncedLine)" : "Connecting to your desktop…"
         case .reconnecting(_, let reason):
             return hasData ? "Reconnecting. \(syncedLine)" : reason ?? "Reconnecting to your desktop…"
         }
