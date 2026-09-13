@@ -70,6 +70,130 @@ test("proposals map back to bullet ids and drop no-ops", async () => {
   assert.equal(proposals.length, 1);
   assert.equal(proposals[0].id, "b0");
   assert.equal(proposals[0].after, "Built REST APIs in Python.");
+  assert.deepEqual(proposals[0].evidence, []);
+  assert.equal(proposals[0].replacementSource, "master");
+});
+
+test("a cited experience-bank capability is supported", async () => {
+  const master = "\\documentclass{article}\\begin{document}\\begin{itemize}\\item Optimized SQL queries for internal reporting.\\end{itemize}\\end{document}";
+  const provider = {
+    async complete() {
+      return {
+        text: JSON.stringify({
+          proposals: [{
+            n: 1,
+            after: "Optimized SQL queries for PostgreSQL-backed internal reporting.",
+            rationale: "Names relevant database experience",
+            evidenceRefs: ["bank:role-1:0"],
+          }],
+        }),
+        provider: "stub",
+        model: "stub",
+      };
+    },
+  };
+  const result = await proposeBulletRewrites(master, "PostgreSQL reporting role", {
+    provider,
+    experienceBank: [{
+      id: "role-1",
+      role: "Backend Engineer",
+      employer: "Example Co",
+      startDate: null,
+      endDate: null,
+      bullets: ["Built reporting services backed by PostgreSQL."],
+      skills: ["PostgreSQL"],
+    }],
+  });
+  assert.equal(result.proposals[0].unsupported, false);
+  assert.equal(result.proposals[0].evidence[0].ref, "bank:role-1:0");
+  assert.equal(result.proposals[0].evidence[0].text, "Built reporting services backed by PostgreSQL.");
+  assert.deepEqual(result.warnings, []);
+});
+
+test("an uncited bank capability remains flagged", async () => {
+  const master = "\\documentclass{article}\\begin{document}\\begin{itemize}\\item Optimized SQL queries for internal reporting.\\end{itemize}\\end{document}";
+  const provider = {
+    async complete() {
+      return {
+        text: '{"proposals":[{"n":1,"after":"Optimized SQL queries for PostgreSQL-backed internal reporting."}]}',
+        provider: "stub",
+        model: "stub",
+      };
+    },
+  };
+  const result = await proposeBulletRewrites(master, "PostgreSQL reporting role", {
+    provider,
+    experienceBank: [{
+      id: "role-1",
+      role: "Backend Engineer",
+      employer: "Example Co",
+      startDate: null,
+      endDate: null,
+      bullets: ["Built reporting services backed by PostgreSQL."],
+      skills: [],
+    }],
+  });
+  assert.equal(result.proposals[0].unsupported, true);
+  assert.deepEqual(result.proposals[0].evidence, []);
+});
+
+test("an experience-bank reference can replace the current bullet", async () => {
+  const master = "\\documentclass{article}\\begin{document}\\begin{itemize}\\item Maintained internal dashboards.\\end{itemize}\\end{document}";
+  const provider = {
+    async complete() {
+      return {
+        text: '{"proposals":[{"n":1,"bankRef":"bank:role-2:0","rationale":"More relevant evidence"}]}',
+        provider: "stub",
+        model: "stub",
+      };
+    },
+  };
+  const result = await proposeBulletRewrites(master, "Data platform role", {
+    provider,
+    experienceBank: [{
+      id: "role-2",
+      role: "Data Engineer",
+      employer: "Example Co",
+      startDate: null,
+      endDate: null,
+      bullets: ["Built data pipelines processing 2M records daily."],
+      skills: ["SQL"],
+    }],
+  });
+  assert.equal(result.proposals.length, 1);
+  assert.equal(result.proposals[0].after, "Built data pipelines processing 2M records daily.");
+  assert.equal(result.proposals[0].replacementSource, "experience-bank");
+  assert.equal(result.proposals[0].unsupported, false);
+  assert.equal(result.proposals[0].evidence[0].ref, "bank:role-2:0");
+});
+
+test("invalid bank references are ignored and reported", async () => {
+  const master = "\\documentclass{article}\\begin{document}\\begin{itemize}\\item Maintained internal dashboards.\\end{itemize}\\end{document}";
+  const provider = {
+    async complete() {
+      return {
+        text: '{"proposals":[{"n":1,"after":"Maintained dashboards with Kubernetes.","evidenceRefs":["bank:missing:0"],"bankRef":"bank:missing:0"}]}',
+        provider: "stub",
+        model: "stub",
+      };
+    },
+  };
+  const result = await proposeBulletRewrites(master, "Platform role", {
+    provider,
+    experienceBank: [{
+      id: "role-3",
+      role: "Engineer",
+      employer: "Example Co",
+      startDate: null,
+      endDate: null,
+      bullets: ["Maintained internal dashboards."],
+      skills: [],
+    }],
+  });
+  assert.equal(result.proposals[0].unsupported, true);
+  assert.deepEqual(result.proposals[0].evidence, []);
+  assert.equal(result.warnings.length, 2);
+  assert.match(result.warnings[0], /not available/);
 });
 
 test("a provider failure degrades to a warning rather than throwing", async () => {
