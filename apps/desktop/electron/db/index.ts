@@ -9,7 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 let db: GhostboardDb | null = null;
 
-const DEFAULT_PROFILE_FIELDS: ProfileField[] = [
+export const DEFAULT_PROFILE_FIELDS: ProfileField[] = [
   { key: "firstName", label: "First name", value: "", category: "personal" },
   { key: "lastName", label: "Last name", value: "", category: "personal" },
   { key: "email", label: "Email", value: "", category: "contact" },
@@ -19,10 +19,11 @@ const DEFAULT_PROFILE_FIELDS: ProfileField[] = [
   { key: "linkedin", label: "LinkedIn URL", value: "", category: "links" },
   { key: "github", label: "GitHub URL", value: "", category: "links" },
   { key: "veteranStatus", label: "Veteran status", value: "", category: "eeo" },
+  { key: "lgbtqStatus", label: "LGBTQ+ status", value: "", category: "eeo" },
   { key: "gender", label: "Gender", value: "", category: "eeo" },
 ];
 
-function normalizeProfileFields(fields: ProfileField[] | undefined): ProfileField[] {
+export function normalizeProfileFields(fields: ProfileField[] | undefined): ProfileField[] {
   const byKey = new Map<string, ProfileField>();
 
   for (const field of DEFAULT_PROFILE_FIELDS) {
