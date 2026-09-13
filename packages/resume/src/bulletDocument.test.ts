@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { applyBulletDocument, benchBullets, parseBulletDocument } from "./bulletDocument";
+import { applyBulletDocument, benchBullets, decodeBulletText, encodeBulletText, parseBulletDocument } from "./bulletDocument";
 
 const MACRO_RESUME = String.raw`\documentclass{article}
 \begin{document}
@@ -67,5 +67,15 @@ describe("bulletDocument", () => {
     const edited = applyBulletDocument(MACRO_RESUME, [{ ...lists[0], bullets: lists[0].bullets.slice(0, 1) }]);
     assert.deepEqual(benchBullets(MACRO_RESUME, edited).map((bullet) => bullet.text.slice(0, 13)), ["Pushed tenant", "Shipped a 49-"]);
     assert.deepEqual(benchBullets(MACRO_RESUME, MACRO_RESUME), []);
+  });
+
+  test("plain-text edits escape LaTeX control characters and remain readable", () => {
+    const text = String.raw`Improved R&D throughput by 25% with C_# and $5 budgets {yearly} ~ ^ \\`;
+    const encoded = encodeBulletText(text);
+    assert.equal(decodeBulletText(encoded), text);
+    assert.match(encoded, /R\\&D/);
+    assert.match(encoded, /25\\%/);
+    assert.match(encoded, /C\\_\\#/);
+    assert.match(encoded, /\\textbackslash\{\}/);
   });
 });

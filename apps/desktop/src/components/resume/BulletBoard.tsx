@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { GripVertical, Undo2, X } from "lucide-react";
-import { applyBulletDocument, benchBullets, parseBulletDocument, type BulletItem, type BulletList } from "@ghostboard/resume";
+import { Check, GripVertical, Pencil, Plus, Undo2, X } from "lucide-react";
+import { applyBulletDocument, benchBullets, encodeBulletText, parseBulletDocument, type BulletItem, type BulletList } from "@ghostboard/resume";
 import { DISTANCE, SPRING, TRANSITION } from "../../lib/motion";
 import { cn } from "../../lib/utils";
 
@@ -10,6 +10,13 @@ const BENCH = "bench";
 interface DragSource {
   listId: string;
   index: number;
+}
+
+interface BulletDraft {
+  listId: string;
+  index: number;
+  mode: "edit" | "add";
+  text: string;
 }
 
 /**
@@ -30,6 +37,7 @@ export function BulletBoard({
   const bench = useMemo(() => benchBullets(masterLatex, latex), [masterLatex, latex]);
   const [drag, setDrag] = useState<DragSource | null>(null);
   const [over, setOver] = useState<{ listId: string; index: number } | null>(null);
+  const [draft, setDraft] = useState<BulletDraft | null>(null);
 
   function bulletAt(source: DragSource): BulletItem | null {
     if (source.listId === BENCH) return bench[source.index] ?? null;
@@ -44,6 +52,7 @@ export function BulletBoard({
     if (source.listId === listId && (source.index === index || source.index === index - 1)) return;
     const bullet = bulletAt(source);
     if (!bullet) return;
+    setDraft(null);
 
     const next: BulletList[] = lists.map((list) => {
       if (list.id !== source.listId && list.id !== listId) return list;
@@ -60,9 +69,75 @@ export function BulletBoard({
   }
 
   function remove(listId: string, index: number) {
+    setDraft(null);
     onChange(applyBulletDocument(latex, lists.map((list) => list.id === listId
       ? { ...list, bullets: list.bullets.filter((_, position) => position !== index) }
       : list)));
+  }
+
+  function saveDraft() {
+    if (!draft) return;
+    const text = draft.text.replace(/\s+/g, " ").trim();
+    if (!text) return;
+    const next = lists.map((list) => {
+      if (list.id !== draft.listId) return list;
+      const bullet: BulletItem = {
+        id: draft.mode === "add" ? `${list.id}-new-${Date.now()}` : list.bullets[draft.index].id,
+        latex: encodeBulletText(text),
+        text,
+      };
+      const bullets = draft.mode === "add"
+        ? [...list.bullets, bullet]
+        : list.bullets.map((current, index) => index === draft.index ? bullet : current);
+      return { ...list, bullets };
+    });
+    setDraft(null);
+    onChange(applyBulletDocument(latex, next));
+  }
+
+  function editorRow(activeDraft: BulletDraft) {
+    return (
+      <motion.li
+        key={`${activeDraft.listId}-${activeDraft.mode}-${activeDraft.index}`}
+        layout
+        initial={{ opacity: 0, y: DISTANCE.riseSmall }}
+        animate={{ opacity: 1, y: 0 }}
+        className="border border-verdigris bg-paper-raised p-2.5 shadow-sm"
+      >
+        <label className="sr-only" htmlFor={`bullet-${activeDraft.listId}-${activeDraft.index}`}>
+          {activeDraft.mode === "add" ? "New resume bullet" : "Edit resume bullet"}
+        </label>
+        <textarea
+          id={`bullet-${activeDraft.listId}-${activeDraft.index}`}
+          autoFocus
+          rows={3}
+          value={activeDraft.text}
+          onChange={(event) => setDraft({ ...activeDraft, text: event.target.value })}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setDraft(null);
+            if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) saveDraft();
+          }}
+          className="w-full resize-y rounded-sm border border-hairline bg-paper px-2.5 py-2 text-[12px] leading-relaxed text-ink outline-none focus:border-verdigris focus:ring-1 focus:ring-verdigris"
+        />
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <span className="text-[10px] text-ink-3">⌘/Ctrl + Enter to save · Esc to cancel</span>
+          <span className="flex items-center gap-2">
+            <button type="button" onClick={() => setDraft(null)} className="text-[11px] text-ink-2 hover:text-ink">
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={saveDraft}
+              disabled={!activeDraft.text.trim()}
+              className="inline-flex items-center gap-1 rounded-sm bg-ink px-2.5 py-1.5 text-[11px] text-paper-raised hover:bg-oxblood disabled:pointer-events-none disabled:opacity-40"
+            >
+              <Check size={11} aria-hidden="true" />
+              {activeDraft.mode === "add" ? "Add bullet" : "Save edit"}
+            </button>
+          </span>
+        </div>
+      </motion.li>
+    );
   }
 
   if (lists.length === 0) {
@@ -130,16 +205,33 @@ export function BulletBoard({
         )}
       >
         <GripVertical size={13} aria-hidden="true" className="mt-0.5 shrink-0 text-ink-3" />
-        <span className="flex-1">{bullet.text}</span>
+        <button
+          type="button"
+          onClick={() => tone === "kept" && setDraft({ listId, index, mode: "edit", text: bullet.text })}
+          className={cn("flex-1 text-left", tone === "kept" && "cursor-text")}
+          aria-label={tone === "kept" ? `Edit bullet: ${bullet.text.slice(0, 60)}` : undefined}
+        >
+          {bullet.text}
+        </button>
         {tone === "kept" && (
-          <button
-            type="button"
-            onClick={() => remove(listId, index)}
-            aria-label={`Remove bullet: ${bullet.text.slice(0, 60)}`}
-            className="shrink-0 text-ink-3 opacity-0 transition-opacity hover:text-oxblood focus-visible:opacity-100 group-hover:opacity-100"
-          >
-            <X size={13} />
-          </button>
+          <span className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+            <button
+              type="button"
+              onClick={() => setDraft({ listId, index, mode: "edit", text: bullet.text })}
+              aria-label={`Edit bullet: ${bullet.text.slice(0, 60)}`}
+              className="text-ink-3 hover:text-verdigris"
+            >
+              <Pencil size={12} />
+            </button>
+            <button
+              type="button"
+              onClick={() => remove(listId, index)}
+              aria-label={`Remove bullet: ${bullet.text.slice(0, 60)}`}
+              className="text-ink-3 hover:text-oxblood"
+            >
+              <X size={13} />
+            </button>
+          </span>
         )}
       </motion.li>
     );
@@ -148,7 +240,7 @@ export function BulletBoard({
   return (
     <div className="space-y-4">
       <p className="text-[12px] leading-relaxed text-ink-2">
-        Drag a bullet to reorder it, move it to another role, or send it to the bench. The preview and the PDF update as you go.
+        Click a bullet to rewrite it. You can also add, reorder, move, or remove bullets; the PDF preview updates after every change.
       </p>
 
       {lists.map((list) => (
@@ -156,10 +248,24 @@ export function BulletBoard({
           <h5 className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-ink-3">{list.label}</h5>
           <ul className="space-y-1.5">
             <AnimatePresence initial={false}>
-              {list.bullets.map((bullet, index) => bulletRow(bullet, list.id, index, "kept"))}
+              {list.bullets.map((bullet, index) => (
+                draft?.listId === list.id && draft.index === index && draft.mode === "edit"
+                  ? editorRow(draft)
+                  : bulletRow(bullet, list.id, index, "kept")
+              ))}
+              {draft?.listId === list.id && draft.mode === "add" && editorRow(draft)}
             </AnimatePresence>
             {dropTail(list)}
           </ul>
+          <button
+            type="button"
+            onClick={() => setDraft({ listId: list.id, index: list.bullets.length, mode: "add", text: "" })}
+            disabled={draft !== null}
+            className="mt-1 inline-flex items-center gap-1 text-[11px] text-ink-2 hover:text-verdigris disabled:pointer-events-none disabled:opacity-40"
+          >
+            <Plus size={11} aria-hidden="true" />
+            Add a bullet
+          </button>
         </section>
       ))}
 
