@@ -2,6 +2,7 @@ export * from "./types";
 export * from "./genericScraper";
 export * from "./canonical";
 export * from "./document";
+export * from "./enrich";
 export * from "./html";
 export * from "./ingest";
 export * from "./normalization";

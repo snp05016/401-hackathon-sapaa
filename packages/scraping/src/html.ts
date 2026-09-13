@@ -138,6 +138,23 @@ function identifierFromJsonLd(value: unknown): string | null {
   return normalizeInline(id.value || id.name) || null;
 }
 
+/** schema.org `jobLocationType`/location text to the three arrangements we track. */
+export function workArrangementFrom(...values: unknown[]): "remote" | "hybrid" | "onsite" | null {
+  const text = values.map(normalizeInline).join(" ").toLowerCase();
+  if (/\bhybrid\b/.test(text)) return "hybrid";
+  if (/telecommute|\bremote\b|work from home|distributed/.test(text)) return "remote";
+  if (/\bon[- ]?site\b|\bin[- ]?office\b|\bin[- ]person\b/.test(text)) return "onsite";
+  return null;
+}
+
+function educationFromJsonLd(value: unknown): string | null {
+  if (typeof value === "string") return normalizeInline(htmlToText(value)) || null;
+  if (Array.isArray(value)) return value.map(educationFromJsonLd).filter(Boolean).join("; ") || null;
+  if (!value || typeof value !== "object") return null;
+  const node = value as Record<string, unknown>;
+  return normalizeInline(node.credentialCategory || node.name || node.description) || null;
+}
+
 export function draftFromJsonLd(html: string, url: string): JobExtractionDraft | null {
   const node = extractJsonLd(html).find(hasJobPostingType);
   if (!node) return null;
@@ -157,6 +174,10 @@ export function draftFromJsonLd(html: string, url: string): JobExtractionDraft |
     employmentType: normalizeInline(employment) || null,
     description: htmlToText(node.description),
     postedAt: normalizeInline(node.datePosted) || null,
+    workArrangement: workArrangementFrom(node.jobLocationType, employment, node.title),
+    applicationDeadline: normalizeInline(node.validThrough) || null,
+    startDate: normalizeInline(node.jobStartDate) || null,
+    education: educationFromJsonLd(node.educationRequirements),
   };
 }
 
@@ -177,21 +198,70 @@ function candidateDescription(html: string): string {
   return candidates.sort((a, b) => b.length - a.length)[0].slice(0, 50_000);
 }
 
-export function extractRequirements(description: string): string[] {
-  const results: string[] = [];
-  let active = false;
-  const start = /^(?:requirements?|qualifications?|must[- ]haves?|preferred|nice[- ]to[- ]haves?|what (?:we(?:'|’)re looking for|you(?:'|’)ll bring)|who you are|about you)\b/i;
-  const stop = /^(?:responsibilities|what you(?:'|’)ll do|benefits?|perks?|compensation|salary|about (?:us|the company)|equal opportunity)\b/i;
+type Section = "required" | "preferred" | "responsibilities";
+
+/**
+ * Heading cues that open a bulleted section. Deliberately generous: real
+ * postings phrase these a dozen ways ("You may be a good fit if you have...",
+ * "What you'll bring"), and a missed heading costs us the whole section.
+ */
+const SECTION_HEADINGS: Array<[Section, RegExp]> = [
+  ["preferred", /^(?:preferred|nice[- ]to[- ]haves?|bonus(?: points)?|pluses|it(?:'|\u2019)s a plus|strong(?:ly preferred)?|additionally,? (?:strong )?candidates|desired|we(?:'|\u2019)d love|you might also)\b/i],
+  ["required", /^(?:requirements?|qualifications?|minimum|basic qualifications?|must[- ]haves?|what (?:we(?:(?:'|\u2019)re| are) looking for|you(?:(?:'|\u2019)ll| will)? (?:bring|need|have))|who you are|about you|you (?:may be a good fit|could be a good fit|will be a good fit|should (?:have|apply))|we(?:'|\u2019)re looking for|skills? (?:and experience|required)|experience)\b/i],
+  ["responsibilities", /^(?:responsibilities|what you(?:(?:'|\u2019)ll| will)? (?:do|be doing|own|work on)|in this role|the role|your (?:role|impact)|day[- ]to[- ]day|key duties|duties)\b/i],
+];
+
+/** Headings that end any bulleted section without opening a new one. */
+const SECTION_STOP = /^(?:benefits?|perks?|compensation|salary|pay range|about (?:us|the (?:company|team))|equal (?:opportunity|employment)|how to apply|our (?:values|mission)|location|logistics|deadline|create a job alert|apply for this job)\b/i;
+
+function collectSections(description: string): Record<Section, string[]> {
+  const out: Record<Section, string[]> = { required: [], preferred: [], responsibilities: [] };
+  let active: Section | null = null;
   for (const raw of description.split(/\r?\n/)) {
-    const line = raw.replace(/^\s*(?:#{1,6}|[-*•])\s*/, "").trim();
-    if (stop.test(line)) active = false;
-    if (start.test(line)) {
-      active = true;
+    const line = raw.replace(/^\s*(?:#{1,6}|[-*\u2022])\s*/, "").trim();
+    if (!line) continue;
+    if (SECTION_STOP.test(line)) {
+      active = null;
       continue;
     }
-    if (active && /^\s*[-*•]/.test(raw) && line.length >= 3) results.push(line);
+    const heading = SECTION_HEADINGS.find(([, pattern]) => pattern.test(line));
+    // A heading is only a heading when it is short; a bullet may quote the word.
+    if (heading && line.length <= 120) {
+      active = heading[0];
+      continue;
+    }
+    if (active && /^\s*[-*\u2022]/.test(raw) && line.length >= 3 && !out[active].includes(line)) out[active].push(line);
   }
-  return [...new Set(results)].slice(0, 50);
+  return out;
+}
+
+/** Required qualifications only. Preferred and responsibilities have their own readers. */
+export function extractRequirements(description: string): string[] {
+  return collectSections(description).required.slice(0, 50);
+}
+
+export function extractPreferredQualifications(description: string): string[] {
+  return collectSections(description).preferred.slice(0, 50);
+}
+
+export function extractResponsibilities(description: string): string[] {
+  return collectSections(description).responsibilities.slice(0, 50);
+}
+
+/**
+ * Fills a draft's bulleted sections from its own description. Run before LLM
+ * enrichment so the deterministic splitter always wins over a model guess.
+ */
+export function withExtractedSections(draft: JobExtractionDraft): JobExtractionDraft {
+  const description = String(draft.description ?? "");
+  if (!description) return draft;
+  const sections = collectSections(description);
+  return {
+    ...draft,
+    requirements: draft.requirements?.length ? draft.requirements : sections.required.slice(0, 50),
+    responsibilities: draft.responsibilities?.length ? draft.responsibilities : sections.responsibilities.slice(0, 50),
+    preferredQualifications: draft.preferredQualifications?.length ? draft.preferredQualifications : sections.preferred.slice(0, 50),
+  };
 }
 
 export function draftFromHtml(html: string, url: string, visibleText?: string): JobExtractionDraft {

@@ -43,4 +43,19 @@ export interface JobPosting {
   postedAt: string | null;
   salaryRange: string | null;
   scrapedAt: string;
+
+  /**
+   * Fields below are best-effort. Deterministic extraction (JSON-LD, provider
+   * APIs, DOM) fills what it can; anything still null may be completed by one
+   * LLM pass over the already-cleaned description. Always nullable.
+   */
+  workArrangement: "remote" | "hybrid" | "onsite" | null;
+  applicationDeadline: string | null;
+  startDate: string | null;
+  termDuration: string | null;
+  responsibilities: string[];
+  preferredQualifications: string[];
+  education: string | null;
+  workAuthorization: string | null;
+  clearance: string | null;
 }
