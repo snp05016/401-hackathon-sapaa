@@ -5,7 +5,7 @@
   "type": "module",
   "main": "./out/main/main.js",
   "scripts": {
-    "dev": "env -u ELECTRON_RUN_AS_NODE electron-vite dev",
+    "dev": "node -e \"const { execSync } = require('node:child_process'); const environment = { ...process.env }; delete environment.ELECTRON_RUN_AS_NODE; const command = process.platform === 'win32' ? 'electron-vite dev' : 'env -u ELECTRON_RUN_AS_NODE electron-vite dev'; execSync(command, { stdio: 'inherit', env: environment });\"",
     "build": "electron-vite build",
     "typecheck": "tsc --noEmit -p ."
   },

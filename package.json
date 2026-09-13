@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "dev": "npm run dev --workspace=apps/desktop",
+    "dev:seed": "npm run db:seed && GHOSTBOARD_DB_PATH=\"$PWD/dev.db\" npm run dev",
     "dev:jobspy": "python3 -m uvicorn main:app --app-dir services/jobspy --host 127.0.0.1 --port 8001",
     "dev:extension": "npm run dev --workspace=apps/extension",
     "build": "npm run build --workspaces --if-present",

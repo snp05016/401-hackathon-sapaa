@@ -13,6 +13,7 @@ import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { PredictiveInput } from "../components/ui/PredictiveInput";
+import { BulletBoard } from "../components/resume/BulletBoard";
 import {
   AnimatedNumber,
   GhostDrift,
@@ -2106,17 +2107,33 @@ export function Resumes() {
                   )}
                 </div>
 
-                <div className="mt-6">
-                  <LatexSourceEditor
-                    value={tailoredLatex}
-                    onChange={setTailoredLatex}
-                    latexId="tailored-latex"
-                    compileError={tailoredPreview.compileError}
-                    pdf={tailoredPreview.pdf}
-                    compiling={tailoredPreview.compiling}
-                    minHeight="min-h-72"
-                  />
+                <div className="mt-6 grid gap-5 xl:grid-cols-2">
+                  <div>
+                    <p className="mb-1.5 text-[12px] font-medium text-ink-2">Bullet points</p>
+                    <BulletBoard latex={tailoredLatex} masterLatex={masterLatex} onChange={setTailoredLatex} />
+                  </div>
+                  <div>
+                    <p className="mb-1.5 text-[12px] font-medium text-ink-2">Preview</p>
+                    <LatexPdfPreview
+                      pdf={tailoredPreview.pdf}
+                      compileError={tailoredPreview.compileError}
+                      compiling={tailoredPreview.compiling}
+                      minHeight="min-h-72"
+                    />
+                  </div>
                 </div>
+
+                <details className="mt-5 border-t border-hairline pt-3">
+                  <summary className="cursor-pointer text-[12px] text-ink-2 marker:text-ink-3">LaTeX source</summary>
+                  <label htmlFor="tailored-latex" className="sr-only">Tailored LaTeX source</label>
+                  <textarea
+                    id="tailored-latex"
+                    spellCheck={false}
+                    value={tailoredLatex}
+                    onChange={(event) => setTailoredLatex(event.target.value)}
+                    className={cn(TEXTAREA_CLASSES, "mt-2 min-h-56")}
+                  />
+                </details>
 
                 <div className="relative mt-5 flex flex-wrap items-center gap-3">
                   <Button

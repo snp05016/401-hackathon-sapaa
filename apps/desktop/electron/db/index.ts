@@ -49,7 +49,7 @@ export async function initDb(): Promise<GhostboardDb> {
   if (db) return db;
   const userDataPath = app.getPath("userData");
   fs.mkdirSync(userDataPath, { recursive: true });
-  const dbPath = path.join(userDataPath, "ghostboard.db");
+  const dbPath = process.env.GHOSTBOARD_DB_PATH ?? path.join(userDataPath, "ghostboard.db");
   const newDb = createDb(dbPath);
 
   // electron-vite bundles electron/main.ts (and everything it imports, this

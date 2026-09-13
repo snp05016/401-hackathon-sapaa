@@ -246,22 +246,60 @@ function parseResumeProjectFormat(sectionBody: string): ParsedExperienceEntry[] 
   return entries;
 }
 
-function parseSkillsFormat(sectionBody: string): ParsedExperienceEntry[] {
-  const entries: ParsedExperienceEntry[] = [];
-  const skillRegex = /\\textbf\{([^{}]+)\}\s*:\s*([^\n]*)/g;
-  let match;
-  while ((match = skillRegex.exec(sectionBody)) !== null && entries.length < 50) {
-    const label = decodeLatexText(match[1]).trim();
-    const skills = match[2]
-      .split(",")
-      .map((skill) => decodeLatexText(skill).trim())
-      .filter(Boolean)
-      .slice(0, 100);
-    if (label && skills.length) {
-      entries.push({ role: label, employer: "Skills", startDate: null, endDate: null, bullets: [], skills, source: "skill" });
+/** Splits on top-level separators only, so "AWS (Lambda, S3)" survives as one skill. */
+function splitTopLevel(value: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let current = "";
+  for (const character of value) {
+    if (character === "(" || character === "[") depth += 1;
+    else if (character === ")" || character === "]") depth = Math.max(0, depth - 1);
+    else if (depth === 0 && (character === "," || character === ";" || character === "|" || character === "\u2022")) {
+      parts.push(current);
+      current = "";
+      continue;
+    }
+    current += character;
+  }
+  parts.push(current);
+  return parts;
+}
+
+/**
+ * Pulls every technical skill out of a skills section as one flat list, whatever
+ * layout the resume uses: `\textbf{Languages:} a, b`, `\item{\textbf{Languages:}}{ a, b }`,
+ * or a plain comma-separated paragraph. Category labels are dropped — a skill is a
+ * skill regardless of the bucket its author filed it under.
+ */
+export function parseSkillList(sectionBody: string): string[] {
+  const skills: string[] = [];
+  const seen = new Set<string>();
+  for (const rawLine of sectionBody.split(/\n|\\\\/)) {
+    let line = rawLine.trim();
+    if (!line || /^\\(?:begin|end|small|vspace|hspace|setlength|renewcommand)\b/.test(line)) continue;
+    line = line.replace(/^\[[^\]]*\]\s*/, ""); // spacing option left behind by a `\\[2pt]` line break
+    line = line.replace(/^\\(?:item|resumeItem)\b/, "");
+    // Drop the category label ("Languages:", "Frameworks & Libraries:") wherever the
+    // colon happens to sit relative to the closing brace.
+    line = line.replace(/\{?\\textbf\{[^{}]*\}\s*:?\s*\}?\s*:?/, "");
+    for (const part of splitTopLevel(decodeLatexText(line))) {
+      const skill = part.trim().replace(/^[-–—·•]\s*/, "").replace(/[.]$/, "").trim();
+      const key = skill.toLowerCase();
+      if (!skill || skill.length > 60 || seen.has(key)) continue;
+      if (skill.includes("=") || skill.startsWith("\\")) continue; // itemize options, stray macros
+      if (!/[a-z0-9]/i.test(skill)) continue;
+      seen.add(key);
+      skills.push(skill);
+      if (skills.length >= 200) return skills;
     }
   }
-  return entries;
+  return skills;
+}
+
+function parseSkillsFormat(sectionBody: string): ParsedExperienceEntry[] {
+  const skills = parseSkillList(sectionBody);
+  if (!skills.length) return [];
+  return [{ role: "Technical Skills", employer: "Skills", startDate: null, endDate: null, bullets: [], skills, source: "skill" }];
 }
 
 function findSection(latex: string, name: string): string {

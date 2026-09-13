@@ -10,6 +10,7 @@ import { GhostDrift, Shimmer } from "../components/motion";
 import { DISTANCE, DURATION, EASE, SPRING, STAGGER, TRANSITION } from "../lib/motion";
 import { playSound } from "../lib/sound";
 import { ipc } from "../lib/ipc";
+import { COUNTRIES, buildLocation, findCountry } from "../lib/locations";
 import { cn } from "../lib/utils";
 
 const PREFERENCES_KEY = "discover-preferences-v2";
@@ -18,6 +19,7 @@ const SITES: Array<{ id: DiscoverSite; label: string }> = [
   { id: "glassdoor", label: "Glassdoor" }, { id: "google", label: "Google Jobs" },
   { id: "zip_recruiter", label: "ZipRecruiter" },
 ];
+const SELECT_CLASS = "mt-2 h-11 w-full border border-hairline bg-transparent px-3 text-[14px] text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-oxblood disabled:opacity-40";
 const JOB_TYPES = [
   { id: "", label: "Any type" }, { id: "fulltime", label: "Full-time" },
   { id: "parttime", label: "Part-time" }, { id: "contract", label: "Contract" },
@@ -34,6 +36,8 @@ interface DiscoverPreferences {
   excludedKeywords: string;
   location: string;
   countryIndeed: string;
+  region: string;
+  city: string;
   distance: number;
   workplace: "any" | "remote";
   jobType: "" | "fulltime" | "parttime" | "contract" | "internship";
@@ -45,13 +49,21 @@ interface DiscoverPreferences {
 const DEFAULT_PREFERENCES: DiscoverPreferences = {
   role: "", alternateTitles: "", experienceLevel: "intern", requiredSkills: "",
   preferredSkills: "", preferredIndustries: "", excludedKeywords: "senior, manager, director, volunteer",
-  location: "Edmonton, AB", countryIndeed: "canada", distance: 50, workplace: "any",
+  location: "Edmonton, AB", countryIndeed: "canada", region: "AB", city: "Edmonton", distance: 50, workplace: "any",
   jobType: "internship", startWindow: "September 2026", duration: "8 month",
   sites: ["linkedin", "indeed", "google"],
 };
 
 function commaList(value: string): string[] {
   return value.split(/[,\n]/).map((entry) => entry.trim()).filter(Boolean);
+}
+
+function splitLegacyLocation(countryId: string, location: string): { region: string; city: string; location: string } {
+  const parts = location.split(",").map((part) => part.trim()).filter(Boolean);
+  const regions = findCountry(countryId)?.regions ?? [];
+  const region = regions.find((entry) => entry.code.toLowerCase() === (parts[1] ?? "").toLowerCase() || entry.label.toLowerCase() === (parts[1] ?? parts[0] ?? "").toLowerCase());
+  const city = region && parts[0]?.toLowerCase() !== region.label.toLowerCase() ? parts[0] ?? "" : "";
+  return { region: region?.code ?? "", city, location: buildLocation(countryId, region?.code ?? "", city) };
 }
 
 function readPreferences(): DiscoverPreferences | null {
@@ -61,7 +73,10 @@ function readPreferences(): DiscoverPreferences | null {
     const parsed = JSON.parse(stored) as Partial<DiscoverPreferences>;
     if (!parsed.role || !Array.isArray(parsed.sites)) return null;
     const legacy = parsed as Partial<DiscoverPreferences> & { experience?: string };
-    return { ...DEFAULT_PREFERENCES, ...parsed, experienceLevel: parsed.experienceLevel ?? legacy.experience ?? DEFAULT_PREFERENCES.experienceLevel };
+    const merged = { ...DEFAULT_PREFERENCES, ...parsed, experienceLevel: parsed.experienceLevel ?? legacy.experience ?? DEFAULT_PREFERENCES.experienceLevel };
+    // Preferences saved before the location dropdowns only have the free-text string.
+    if (parsed.region === undefined && parsed.city === undefined) return { ...merged, ...splitLegacyLocation(merged.countryIndeed, merged.location) };
+    return { ...merged, location: buildLocation(merged.countryIndeed, merged.region, merged.city) };
   } catch { return null; }
 }
 
@@ -145,6 +160,16 @@ function Onboarding({ initial, onComplete }: { initial: DiscoverPreferences; onC
   const [preferences, setPreferences] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const steps = ["Target", "Skills", "Location", "Terms", "Sources"];
+  const country = findCountry(preferences.countryIndeed);
+  const regions = country?.regions ?? [];
+  const cityOptions = preferences.region
+    ? regions.find((entry) => entry.code === preferences.region)?.cities ?? []
+    : regions.flatMap((entry) => entry.cities);
+
+  function setLocation(patch: Partial<Pick<DiscoverPreferences, "countryIndeed" | "region" | "city">>) {
+    const next = { ...preferences, ...patch };
+    setPreferences({ ...next, location: buildLocation(next.countryIndeed, next.region, next.city) });
+  }
 
   function continueOnboarding() {
     if (step === 1 && !preferences.role.trim()) return setError("Add at least one role or job title.");
@@ -234,8 +259,27 @@ function Onboarding({ initial, onComplete }: { initial: DiscoverPreferences; onC
           {step === 3 && <fieldset>
             <legend id="discover-onboarding-heading" className="font-display text-[38px] leading-[1.04] tracking-[-0.02em] text-ink sm:text-[54px]">Set a realistic commute boundary.</legend>
             <p className="mt-4 max-w-[580px] text-[13px] leading-relaxed text-ink-2">Location and radius are sent to JobSpy. Remote-only searches are filtered separately because some sources treat remote inconsistently.</p>
-            <label htmlFor="discover-location" className="mt-9 block text-[12px] text-ink-2">City, region, or country</label>
-            <Input id="discover-location" variant="rule" autoFocus placeholder="e.g. Edmonton, AB" value={preferences.location} onChange={(event) => setPreferences({ ...preferences, location: event.target.value })} className="mt-2 text-[18px]" />
+            <div className="mt-9 grid gap-4 sm:grid-cols-3">
+              <div>
+                <label htmlFor="discover-country" className="block text-[12px] text-ink-2">Country</label>
+                <select id="discover-country" autoFocus value={preferences.countryIndeed} onChange={(event) => setLocation({ countryIndeed: event.target.value, region: "", city: "" })} className={SELECT_CLASS}>
+                  {COUNTRIES.map((country) => <option key={country.id} value={country.id}>{country.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="discover-region" className="block text-[12px] text-ink-2">Province / state</label>
+                <select id="discover-region" value={preferences.region} onChange={(event) => setLocation({ region: event.target.value, city: "" })} className={SELECT_CLASS} disabled={regions.length === 0}>
+                  <option value="">Anywhere in {country?.label ?? "this country"}</option>
+                  {regions.map((region) => <option key={region.code} value={region.code}>{region.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="discover-city" className="block text-[12px] text-ink-2">City <span className="text-ink-3">(optional)</span></label>
+                <input id="discover-city" list="discover-city-options" placeholder={preferences.region ? "Anywhere in this region" : "Any city"} value={preferences.city} onChange={(event) => setLocation({ city: event.target.value })} className={SELECT_CLASS} />
+                <datalist id="discover-city-options">{cityOptions.map((city) => <option key={city} value={city} />)}</datalist>
+              </div>
+            </div>
+            <p className="mt-3 text-[12px] text-ink-2">Searching <span className="text-ink">{preferences.location}</span>{!preferences.city && " — the radius below only applies once you pick a city."}</p>
             <label htmlFor="discover-distance" className="mt-7 block text-[12px] text-ink-2">Maximum distance · <span className="tnum text-ink">{preferences.distance} km</span></label>
             <input id="discover-distance" type="range" min="10" max="200" step="10" value={preferences.distance} onChange={(event) => setPreferences({ ...preferences, distance: Number(event.target.value) })} className="mt-3 w-full accent-[rgb(var(--oxblood))]" />
             <div className="mt-8 grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Workplace preference">{([["any", "On-site, hybrid, or remote"], ["remote", "Remote only"]] as const).map(([id, label]) => <button key={id} type="button" role="radio" aria-checked={preferences.workplace === id} onClick={() => setPreferences({ ...preferences, workplace: id })} className={cn("flex min-h-14 items-center justify-between border px-4 text-left text-[13px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-oxblood", preferences.workplace === id ? "border-oxblood bg-paper-raised text-ink" : "border-hairline text-ink-2 hover:border-ink-3")}>{label}{preferences.workplace === id && <Check size={16} className="text-oxblood" />}</button>)}</div>
@@ -257,7 +301,7 @@ function Onboarding({ initial, onComplete }: { initial: DiscoverPreferences; onC
             <p className="mt-4 max-w-[580px] text-[13px] leading-relaxed text-ink-2">Two or three sources are usually enough. Each exact title runs independently, results are deduplicated, and weak matches are removed.</p>
             <div className="mt-8 text-[12px] text-ink-2">Job sources</div>
             <div className="mt-3 flex flex-wrap gap-2">{SITES.map((site) => { const selected = preferences.sites.includes(site.id); return <button key={site.id} type="button" aria-pressed={selected} onClick={() => toggleSite(site.id)} className={cn("min-h-10 border px-3.5 text-[12px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-oxblood", selected ? "border-ink bg-ink text-paper" : "border-hairline text-ink-2 hover:border-ink-3")}>{selected && <Check size={13} className="mr-1.5 inline" />}{site.label}</button>; })}</div>
-            <div className="mt-8 border-y border-hairline py-5 text-[11px] leading-relaxed text-ink-2"><strong className="block text-[12px] text-ink">Search profile</strong><span className="mt-2 block">{preferences.role}{preferences.alternateTitles ? ` + ${preferences.alternateTitles}` : ""}</span><span className="block">{preferences.location || "Remote"} · {preferences.distance} km · {JOB_TYPES.find((type) => type.id === preferences.jobType)?.label}</span><span className="block">Must mention: {preferences.requiredSkills}</span></div>
+            <div className="mt-8 border-y border-hairline py-5 text-[11px] leading-relaxed text-ink-2"><strong className="block text-[12px] text-ink">Search profile</strong><span className="mt-2 block">{preferences.role}{preferences.alternateTitles ? ` + ${preferences.alternateTitles}` : ""}</span><span className="block">{preferences.location || "Remote"}{preferences.city ? ` · ${preferences.distance} km` : ""} · {JOB_TYPES.find((type) => type.id === preferences.jobType)?.label}</span><span className="block">Must mention: {preferences.requiredSkills}</span></div>
           </fieldset>}
 
           </motion.div>
@@ -404,7 +448,7 @@ export function Discover() {
       <div className="flex shrink-0 flex-wrap gap-2"><Button variant="rule" className="min-h-10" onClick={() => setEditingPreferences(true)}><SlidersHorizontal size={14} />Edit preferences</Button><Button variant="ink" className="min-h-10 px-4" onClick={() => void runSearch(preferences, true)} disabled={searching}><RotateCcw size={14} className={searching ? "animate-spin" : ""} />Refresh</Button></div>
     </motion.header>
     <motion.section initial={{ opacity: 0, y: DISTANCE.rise }} animate={{ opacity: 1, y: 0 }} transition={{ ...TRANSITION.hero, delay: STAGGER.section }} className="mt-5 flex flex-col gap-4 border-b border-hairline pb-5 sm:flex-row sm:items-center sm:justify-between" aria-label="Active search">
-      <div className="flex flex-wrap gap-2"><Badge variant="ink">{preferences.role}</Badge>{preferences.location && <Badge variant="mist">{preferences.location} · {preferences.distance} km</Badge>}<Badge variant="mist">{preferences.workplace === "remote" ? "Remote only" : "Any workplace"}</Badge>{preferences.jobType && <Badge variant="mist">{JOB_TYPES.find((type) => type.id === preferences.jobType)?.label}</Badge>}{commaList(preferences.requiredSkills).slice(0, 3).map((skill) => <Badge key={skill} variant="verdigris">{skill}</Badge>)}</div>
+      <div className="flex flex-wrap gap-2"><Badge variant="ink">{preferences.role}</Badge>{preferences.location && <Badge variant="mist">{preferences.location}{preferences.city ? ` · ${preferences.distance} km` : ""}</Badge>}<Badge variant="mist">{preferences.workplace === "remote" ? "Remote only" : "Any workplace"}</Badge>{preferences.jobType && <Badge variant="mist">{JOB_TYPES.find((type) => type.id === preferences.jobType)?.label}</Badge>}{commaList(preferences.requiredSkills).slice(0, 3).map((skill) => <Badge key={skill} variant="verdigris">{skill}</Badge>)}</div>
       <label className="relative block w-full sm:w-[260px]"><span className="sr-only">Filter loaded jobs</span><Search size={14} className="absolute left-0 top-2.5 text-ink-3" /><Input variant="rule" className="pl-6" placeholder="Filter loaded jobs" value={filter} onChange={(event) => setFilter(event.target.value)} /></label>
     </motion.section>
     <div aria-live="polite">{notice && <p role="status" className="mt-5 border-l-2 border-verdigris pl-3 text-[12px] text-ink">{notice}</p>}{warnings.map((warning) => <p key={warning} className="mt-3 border-l-2 border-brass pl-3 text-[11px] text-ink-2">{warning}</p>)}{error && <div role="alert" className="mt-5 flex flex-wrap items-center justify-between gap-3 border border-oxblood/30 bg-paper-raised p-4 text-[12px] text-ink"><span>{error}</span><Button variant="quiet" onClick={() => results.length ? setError(null) : void runSearch(preferences, true)}>{results.length ? "Dismiss" : "Try again"}</Button></div>}</div>
