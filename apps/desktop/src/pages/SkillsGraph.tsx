@@ -60,14 +60,19 @@ function extractKeywordsFromText(text: string): string[] {
   return [...new Set(commonTechTerms.filter((term) => lowerText.includes(term)))];
 }
 
-function buildSkillList(preferences: DiscoverPreferences | null, applications: Application[]): string[] {
+function buildPreferenceSkills(preferences: DiscoverPreferences | null): string[] {
+  if (!preferences) return [];
   const byKey = new Map<string, string>();
   const add = (term: string) => { const trimmed = term.trim(); if (trimmed) byKey.set(trimmed.toLowerCase(), trimmed); };
-  if (preferences) {
-    commaList(preferences.requiredSkills).forEach(add);
-    commaList(preferences.preferredSkills).forEach(add);
-    commaList(preferences.preferredIndustries).forEach(add);
-  }
+  commaList(preferences.requiredSkills).forEach(add);
+  commaList(preferences.preferredSkills).forEach(add);
+  commaList(preferences.preferredIndustries).forEach(add);
+  return Array.from(byKey.values()).sort((a, b) => a.localeCompare(b));
+}
+
+function buildJobSkills(applications: Application[]): string[] {
+  const byKey = new Map<string, string>();
+  const add = (term: string) => { const trimmed = term.trim(); if (trimmed) byKey.set(trimmed.toLowerCase(), trimmed); };
   applications.forEach((application) => {
     extractKeywordsFromText(application.jobDescription).forEach(add);
   });
@@ -77,7 +82,7 @@ function buildSkillList(preferences: DiscoverPreferences | null, applications: A
 interface NodeData {
   id: string;
   label: string;
-  kind: "skill" | "job";
+  kind: "job" | "preference" | "job-skill";
   size: number;
   application?: Application;
 }
@@ -88,7 +93,14 @@ interface LinkData {
 }
 
 const JOB_COLOR = "rgb(var(--verdigris))";
-const SKILL_COLOR = "rgb(var(--oxblood))";
+const PREFERENCE_SKILL_COLOR = "rgb(var(--oxblood))";
+const JOB_SKILL_COLOR = "rgb(var(--brass))";
+
+const KIND_LABEL = {
+  job: "Job",
+  preference: "Preference skill",
+  "job-skill": "Posting skill",
+} as const;
 
 export function SkillsGraph() {
   const [applications, setApplications] = useState<Application[]>([]);
@@ -141,7 +153,10 @@ export function SkillsGraph() {
   }, []);
 
   const fullGraph = useMemo(() => {
-    const skills = buildSkillList(preferences, applications);
+    const preferenceSkills = buildPreferenceSkills(preferences);
+    const jobSkills = buildJobSkills(applications);
+    const preferenceSkillKeys = new Set(preferenceSkills.map((skill) => skill.toLowerCase()));
+    const derivedSkills = jobSkills.filter((skill) => !preferenceSkillKeys.has(skill.toLowerCase()));
     const nodeList: NodeData[] = [];
     const linkList: LinkData[] = [];
 
@@ -155,20 +170,29 @@ export function SkillsGraph() {
       });
     });
 
-    skills.forEach((skill) => {
+    preferenceSkills.forEach((skill) => {
       nodeList.push({
         id: `skill:${skill.toLowerCase()}`,
         label: skill,
-        kind: "skill",
+        kind: "preference",
         size: 15,
       });
     });
 
+    derivedSkills.forEach((skill) => {
+      nodeList.push({
+        id: `skill:${skill.toLowerCase()}`,
+        label: skill,
+        kind: "job-skill",
+        size: 15,
+      });
+    });
+
+    const skillKeys = [...preferenceSkillKeys, ...derivedSkills.map((skill) => skill.toLowerCase())];
     applications.forEach((application) => {
       const jobId = `job:${application.id}`;
       const jobText = `${application.title} ${application.company} ${application.jobDescription}`.toLowerCase();
-      skills.forEach((skill) => {
-        const skillKey = skill.toLowerCase();
+      skillKeys.forEach((skillKey) => {
         if (skillKey.length >= 2 && jobText.includes(skillKey)) {
           linkList.push({ source: jobId, target: `skill:${skillKey}` });
         }
@@ -179,11 +203,13 @@ export function SkillsGraph() {
     return result;
   }, [preferences, applications]);
 
+  const isSkillKind = (node: NodeData) => node.kind === "preference" || node.kind === "job-skill";
+
   const { nodes, links } = useMemo(() => {
     const query = filter.trim().toLowerCase();
     if (!query) return fullGraph;
     const matchingSkillIds = new Set(
-      fullGraph.nodes.filter((node) => node.kind === "skill" && node.label.toLowerCase().includes(query)).map((node) => node.id),
+      fullGraph.nodes.filter((node) => isSkillKind(node) && node.label.toLowerCase().includes(query)).map((node) => node.id),
     );
     if (matchingSkillIds.size > 0) {
       const visible = new Set(matchingSkillIds);
@@ -207,7 +233,7 @@ export function SkillsGraph() {
     if (matchingJobIds.size > 0) {
       const visible = new Set(matchingJobIds);
       fullGraph.nodes.forEach((node) => {
-        if (node.kind !== "skill") return;
+        if (!isSkillKind(node)) return;
         const connected = fullGraph.links.some((link) => {
           const sourceConnected = matchingJobIds.has(link.source as string);
           const targetConnected = matchingJobIds.has(link.target as string);
@@ -288,7 +314,8 @@ export function SkillsGraph() {
     );
   }
 
-  const skillCount = nodes.filter((node) => node.kind === "skill").length;
+  const preferenceSkillCount = nodes.filter((node) => node.kind === "preference").length;
+  const jobSkillCount = nodes.filter((node) => node.kind === "job-skill").length;
   const jobCount = nodes.filter((node) => node.kind === "job").length;
 
   const emptyReason = applications.length === 0
@@ -327,11 +354,13 @@ export function SkillsGraph() {
         aria-label="Graph summary"
       >
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <span className="flex items-center gap-2 text-[12px] text-ink-2"><span className="h-2.5 w-2.5 rounded-full bg-oxblood" aria-hidden="true" />Skill</span>
           <span className="flex items-center gap-2 text-[12px] text-ink-2"><span className="h-2.5 w-2.5 rounded-full bg-verdigris" aria-hidden="true" />Job posting</span>
-          <Badge variant="oxblood">{skillCount} skills</Badge>
-          <Badge variant="ink">{jobCount} jobs</Badge>
-          <Badge variant="brass">{links.length} connections</Badge>
+          <span className="flex items-center gap-2 text-[12px] text-ink-2"><span className="h-2.5 w-2.5 rounded-full bg-oxblood" aria-hidden="true" />Preference skill</span>
+          <span className="flex items-center gap-2 text-[12px] text-ink-2"><span className="h-2.5 w-2.5 rounded-full bg-brass" aria-hidden="true" />Posting skill</span>
+          <Badge variant="verdigris">{jobCount} jobs</Badge>
+          <Badge variant="oxblood">{preferenceSkillCount} preference skills</Badge>
+          <Badge variant="brass">{jobSkillCount} posting skills</Badge>
+          <Badge variant="ink">{links.length} connections</Badge>
         </div>
         <label className="relative block w-full sm:w-[260px]">
           <span className="sr-only">Filter nodes</span>
@@ -363,7 +392,7 @@ export function SkillsGraph() {
               graphData={graphData}
               width={size.width}
               height={size.height}
-              backgroundColor="transparent"
+              backgroundColor="transparent"  
               nodeId="id"
               nodeVal={(node: any) => Math.pow((node as NodeData).size / 4, 2)}
               nodeCanvasObjectMode="replace"
@@ -379,7 +408,12 @@ export function SkillsGraph() {
                 ctx.globalAlpha = dimmed ? 0.22 : 1;
                 ctx.beginPath();
                 ctx.arc(0, 0, radius, 0, 2 * Math.PI);
-                ctx.fillStyle = data.kind === "job" ? JOB_COLOR : SKILL_COLOR;
+                ctx.fillStyle =
+                  data.kind === "job"
+                    ? JOB_COLOR
+                    : data.kind === "preference"
+                      ? PREFERENCE_SKILL_COLOR
+                      : JOB_SKILL_COLOR;
                 ctx.fill();
                 ctx.restore();
 
@@ -449,16 +483,14 @@ export function SkillsGraph() {
                   transition={{ duration: DURATION.quick, ease: EASE.out }}
                   className={cn(
                     "pointer-events-none absolute z-10 flex flex-col gap-0.5 rounded-sm border bg-paper-raised px-2.5 py-1.5 shadow-[5px_5px_0_0_var(--card-shadow)]",
-                    hoveredNode.kind === "job" ? "border-verdigris/35" : "border-oxblood/35",
+                    hoveredNode.kind === "job" ? "border-verdigris/35" : hoveredNode.kind === "preference" ? "border-oxblood/35" : "border-brass/35",
                   )}
                   style={{ left: Math.min(tooltipX + 12, size.width - 260), top: Math.min(tooltipY + 12, size.height - 60) }}
                 >
-                  <span className={cn("text-[10px] font-medium uppercase tracking-[0.14em]", hoveredNode.kind === "job" ? "text-verdigris" : "text-oxblood")}>
-                    {hoveredNode.kind === "job" ? "Job" : "Skill"}
+                  <span className={cn("text-[10px] font-medium uppercase tracking-[0.14em]", hoveredNode.kind === "job" ? "text-verdigris" : hoveredNode.kind === "preference" ? "text-oxblood" : "text-brass")}>
+                    {KIND_LABEL[hoveredNode.kind]}
                   </span>
-                  {hoveredNode.kind === "skill" ? (
-                    <span className="max-w-[200px] truncate text-[11px] text-ink">{hoveredNode.label}</span>
-                  ) : (
+                  {hoveredNode.kind === "job" ? (
                     <>
                       <span className="max-w-[220px] truncate text-[11px] font-semibold text-ink">
                         {hoveredNode.application?.title ?? hoveredNode.label}
@@ -467,6 +499,8 @@ export function SkillsGraph() {
                         {hoveredNode.application?.company} · {hoveredNode.application?.status}
                       </span>
                     </>
+                  ) : (
+                    <span className="max-w-[200px] truncate text-[11px] text-ink">{hoveredNode.label}</span>
                   )}
                 </motion.div>
               )}
