@@ -24,16 +24,21 @@ import { ipc } from "../../lib/ipc";
 
 const DELETE_DROP_ID = "kanban-delete-drop-zone";
 
-function DeleteDropZone() {
+function DeleteDropZone({ active }: { active: boolean }) {
   const { setNodeRef, isOver } = useDroppable({ id: DELETE_DROP_ID });
-  const [isOpen, setIsOpen] = useState(false);
 
   return (
     <motion.div
       ref={setNodeRef}
       aria-label="Delete application drop zone"
-      animate={{ scale: isOver ? 1.0 : 1 }}
+      aria-hidden={!active}
+      animate={{
+        opacity: active ? 1 : 0,
+        y: active ? 0 : 16,
+        scale: isOver ? 1.06 : 1,
+      }}
       transition={{ type: "spring", stiffness: 380, damping: 30, mass: 0.8 }}
+      className="pointer-events-none fixed bottom-8 left-1/2 z-40 flex -translate-x-1/2 items-end justify-center"
     >
       <motion.span
         aria-hidden="true"
@@ -68,7 +73,6 @@ function DeleteDropZone() {
           </div>
         </div>
       </motion.span>
-      {/* <p className="ml-2 text-[8px] leading-snug text-ink-2">delete here</p> */}
     </motion.div>
   );
 }
@@ -327,7 +331,7 @@ export function KanbanBoard({
             />
           ))}
         </div>
-        <DeleteDropZone />
+        <DeleteDropZone active={draggedApplication !== null} />
         <DragOverlay dropAnimation={null} style={{ zIndex: 100 }}>
           {draggedApplication ? (
             <KanbanCardPreview

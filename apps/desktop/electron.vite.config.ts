@@ -28,6 +28,8 @@ const MAIN_ENVIRONMENT_KEYS = [
   "GHOSTBOARD_SYNC_PORT",
   "GHOSTBOARD_SYNC_DISABLED",
   "JOBSPY_URL",
+  "GOOGLE_CLIENT_ID",
+  "GOOGLE_CLIENT_SECRET",
 ] as const;
 
 export default defineConfig(({ mode }) => {
