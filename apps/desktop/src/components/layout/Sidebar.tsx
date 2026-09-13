@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { LayoutDashboard, KanbanSquare, ListTodo, Compass, FileText, User, LineChart, Mail } from "lucide-react";
+import { LayoutDashboard, KanbanSquare, ListTodo, Compass, FileText, User, LineChart, Mail, Network } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { GhostMark } from "../ui/GhostMark";
 import { ThemeSwitcher, SoundToggle } from "./ThemeSwitcher";
@@ -7,7 +7,7 @@ import { useApplications } from "../../lib/useApplications";
 import { DISTANCE, SCALE, SPRING, STAGGER, TRANSITION } from "../../lib/motion";
 import { playSound } from "../../lib/sound";
 
-export type NavPage = "today" | "todo" | "applications" | "discover" | "resumes" | "profile" | "tracking" | "recruiterInbox";
+export type NavPage = "today" | "todo" | "applications" | "discover" | "resumes" | "profile" | "tracking" | "recruiterInbox" | "skillsGraph";
 
 const NAV_ITEMS: Array<{ id: NavPage; label: string; icon: typeof LayoutDashboard }> = [
   { id: "today", label: "Today", icon: LayoutDashboard },
@@ -18,6 +18,7 @@ const NAV_ITEMS: Array<{ id: NavPage; label: string; icon: typeof LayoutDashboar
   { id: "profile", label: "Profile", icon: User },
   { id: "tracking", label: "Tracking", icon: LineChart },
   { id: "recruiterInbox", label: "Recruiter inbox", icon: Mail },
+  { id: "skillsGraph", label: "Skills graph", icon: Network },
 ];
 
 export function Sidebar({

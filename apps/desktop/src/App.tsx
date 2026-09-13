@@ -14,6 +14,7 @@ import { Resumes } from "./pages/Resumes";
 import { Profile } from "./pages/Profile";
 import { Tracking } from "./pages/Tracking";
 import { RecruiterInbox } from "./pages/RecruiterInbox";
+import { SkillsGraph } from "./pages/SkillsGraph";
 
 const PAGES: Record<NavPage, () => JSX.Element> = {
   today: Today,
@@ -24,6 +25,7 @@ const PAGES: Record<NavPage, () => JSX.Element> = {
   profile: Profile,
   tracking: Tracking,
   recruiterInbox: RecruiterInbox,
+  skillsGraph: SkillsGraph,
 };
 
 // Title card holds, then lifts away; pages mount as it lifts so their own
