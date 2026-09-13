@@ -1,4 +1,4 @@
-import { GhostFigure } from "./GhostFigure";
+import ghostImage from "../../assets/ghost.png";
 import { cn } from "../../lib/utils";
 
 /**
@@ -14,9 +14,16 @@ export function GhostBadge({ days, className }: { days: number; className?: stri
       role="img"
       aria-label={label}
       title={label}
-      className={cn("inline-flex shrink-0 items-center justify-center", className)}
+      className={cn("relative inline-flex h-[26px] w-[26px] shrink-0 items-center justify-center", className)}
     >
-      <GhostFigure size={18} className="animate-haunt drop-shadow-[0_1px_1px_rgba(23,23,19,0.25)]" />
+      <span aria-hidden="true" className="absolute inset-0 -z-10 rounded-full bg-oxblood/25 blur-[7px]" />
+      <img
+        src={ghostImage}
+        alt=""
+        width={22}
+        height={22}
+        className="animate-haunt drop-shadow-[0_2px_3px_rgba(23,23,19,0.35)]"
+      />
     </span>
   );
 }
