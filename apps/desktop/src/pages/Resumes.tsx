@@ -514,6 +514,7 @@ export function Resumes() {
   const [resumeImportResult, setResumeImportResult] = useState<{ added: number; skipped: number } | null>(null);
 
   const [experienceEntries, setExperienceEntries] = useState<ExperienceEntry[] | null>(null);
+  const [bankFilter, setBankFilter] = useState<string | null>(null);
   const [experienceLoading, setExperienceLoading] = useState(true);
   const [experienceError, setExperienceError] = useState<string | null>(null);
   const [experienceActionError, setExperienceActionError] = useState<string | null>(null);
@@ -688,37 +689,48 @@ export function Resumes() {
   }
 
   async function handleResumeUpload(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
+    const files = [...(event.target.files ?? [])];
     event.target.value = "";
-    if (!file) return;
+    if (files.length === 0) return;
 
     setResumeImporting(true);
     setResumeImportError(null);
     setResumeImportResult(null);
 
     try {
-      const name = file.name.toLowerCase();
-      const isLatex = name.endsWith(".tex");
-      if (!isLatex && !/\.(md|markdown|txt|text)$/.test(name)) {
-        throw new Error("Please select a .tex, .md, or .txt file.");
-      }
-
-      const latex = await file.text();
-      if (!latex.trim()) throw new Error("The selected file is empty.");
-
-      const parsedEntries = await ipc().extractExperienceEntries(latex);
-      if (parsedEntries.length === 0) {
-        throw new Error(isLatex
-          ? "No experience entries were detected. Add an Experience or Employment section and try again."
-          : "No experience entries were detected. Give each role a heading line with dashed bullets under it.");
-      }
-
       const previousEntries = experienceEntries ?? [];
       const previousKeys = new Set(
         previousEntries.map((entry) => `${entry.role.trim().toLowerCase()}|${entry.employer.trim().toLowerCase()}`),
       );
-      const savedMaster = isLatex ? await ipc().saveMasterResume(latex) : null;
-      const updatedEntries = await ipc().importExperienceEntries(parsedEntries);
+
+      let parsedCount = 0;
+      let updatedEntries = previousEntries;
+      let savedMaster: Awaited<ReturnType<ReturnType<typeof ipc>["saveMasterResume"]>> | null = null;
+
+      for (const file of files) {
+        const name = file.name.toLowerCase();
+        const isLatex = name.endsWith(".tex");
+        if (!isLatex && !/\.(md|markdown|txt|text)$/.test(name)) {
+          throw new Error(`${file.name} is not a .tex, .md, or .txt file.`);
+        }
+
+        const text = await file.text();
+        if (!text.trim()) throw new Error(`${file.name} is empty.`);
+
+        const bank = file.name.replace(/\.[^.]+$/, "").slice(0, 120);
+        const parsedEntries = (await ipc().extractExperienceEntries(text)).map((entry) => ({ ...entry, bank }));
+        if (parsedEntries.length === 0) {
+          throw new Error(isLatex
+            ? `No experience entries were detected in ${file.name}. Add an Experience or Employment section and try again.`
+            : `No experience entries were detected in ${file.name}. Give each role a heading line with dashed bullets under it.`);
+        }
+
+        parsedCount += parsedEntries.length;
+        // A .tex file is a resume; a text bank is only evidence, so it never replaces the master.
+        if (isLatex) savedMaster = await ipc().saveMasterResume(text);
+        updatedEntries = await ipc().importExperienceEntries(parsedEntries);
+      }
+
       const added = updatedEntries.filter(
         (entry) => !previousKeys.has(`${entry.role.trim().toLowerCase()}|${entry.employer.trim().toLowerCase()}`),
       ).length;
@@ -734,10 +746,10 @@ export function Resumes() {
       }
       setExperienceEntries(updatedEntries);
       setExperienceError(null);
-      setResumeImportResult({ added, skipped: parsedEntries.length - added });
+      setResumeImportResult({ added, skipped: parsedCount - added });
       playSound("success");
     } catch (error) {
-      setResumeImportError(errorMessage(error, "Could not import the LaTeX resume."));
+      setResumeImportError(errorMessage(error, "Could not import the resume."));
       playSound("error");
     } finally {
       setResumeImporting(false);
@@ -830,6 +842,9 @@ export function Resumes() {
     if (source === "skill") return "Skills";
     return source.charAt(0).toUpperCase() + source.slice(1);
   }
+
+  const banks = [...new Set((experienceEntries ?? []).map((entry) => entry.bank).filter((bank): bank is string => Boolean(bank)))];
+  const visibleEntries = (experienceEntries ?? []).filter((entry) => !bankFilter || entry.bank === bankFilter);
 
   function updateBullet(index: number, value: string) {
     setDraft((current) => {
@@ -1299,12 +1314,13 @@ export function Resumes() {
                   )}
                 >
                   <FileUp size={13} />
-                  {resumeImporting ? "Importing…" : "Upload resume or bank"}
+                  {resumeImporting ? "Importing…" : "Upload resumes or banks"}
                 </label>
                 <input
                   id="resume-tex-upload"
                   type="file"
                   accept=".tex,.md,.markdown,.txt,text/plain,text/markdown"
+                  multiple
                   onChange={(event) => void handleResumeUpload(event)}
                   disabled={resumeImporting}
                   className="sr-only"
@@ -1753,6 +1769,27 @@ export function Resumes() {
                 </div>
               </motion.form>
             ) : experienceEntries && experienceEntries.length > 0 ? (
+              <>
+              {banks.length > 1 && (
+                <div className="mb-3 flex flex-wrap gap-1.5" role="group" aria-label="Filter by bank">
+                  {[null, ...banks].map((bank) => (
+                    <button
+                      key={bank ?? "all"}
+                      type="button"
+                      aria-pressed={bankFilter === bank}
+                      onClick={() => setBankFilter(bank)}
+                      className={cn(
+                        "rounded-full border px-2.5 py-1 text-[11px] transition-colors",
+                        bankFilter === bank
+                          ? "border-oxblood bg-paper-raised text-ink"
+                          : "border-hairline text-ink-2 hover:border-ink-3",
+                      )}
+                    >
+                      {bank ?? `All ${experienceEntries.length}`}
+                    </button>
+                  ))}
+                </div>
+              )}
               <motion.ul
                 key="experience-list"
                 className="space-y-3"
@@ -1762,7 +1799,7 @@ export function Resumes() {
                 transition={TRANSITION.base}
               >
                 <AnimatePresence initial={false}>
-                {experienceEntries.map((entry, entryIndex) => {
+                {visibleEntries.map((entry, entryIndex) => {
                   const dateRange = entryDateRange(entry);
                   return (
                     <motion.li
@@ -1782,7 +1819,8 @@ export function Resumes() {
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <h3 className="text-[14px] font-semibold text-ink">{entry.role}</h3>
-                            {entry.source && <Badge>{entry.source}</Badge>}
+                            {entry.source && <Badge>{sourceLabel(entry.source)}</Badge>}
+                            {entry.bank && <Badge variant="mist">{entry.bank}</Badge>}
                           </div>
                           <p className="mt-0.5 text-[12px] text-ink-2">{entry.employer}</p>
                           {dateRange && <p className="tnum mt-0.5 text-[12px] text-ink-3">{dateRange}</p>}
@@ -1868,6 +1906,7 @@ export function Resumes() {
                 })}
                 </AnimatePresence>
               </motion.ul>
+              </>
             ) : null}
             </AnimatePresence>
             <AnimatePresence initial={false}>

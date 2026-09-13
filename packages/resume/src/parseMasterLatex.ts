@@ -6,6 +6,8 @@ export interface ParsedExperienceEntry {
   bullets: string[];
   skills?: string[];
   source?: "experience" | "project" | "skill";
+  /** Set by the importer to the bank file the entry came from. */
+  bank?: string;
 }
 
 const MONTH_MAP: Record<string, string> = {

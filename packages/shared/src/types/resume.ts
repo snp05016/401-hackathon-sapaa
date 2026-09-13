@@ -55,6 +55,8 @@ export interface ExperienceEntry {
   bullets: string[];
   skills: string[];
   source?: string;
+  /** Name of the bank file this entry was imported from, so several uploads stay distinguishable. */
+  bank?: string;
 }
 
 /** A persisted tailored resume version derived from (but separate from) the master resume. */
