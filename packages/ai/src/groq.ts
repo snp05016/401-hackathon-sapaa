@@ -35,6 +35,7 @@ export async function completeWithGroq(request: CompletionRequest): Promise<Comp
         messages: request.messages,
         temperature: request.temperature ?? 0.3,
         max_tokens: request.maxTokens ?? 1024,
+        ...(request.reasoningEffort ? { reasoning_effort: request.reasoningEffort } : {}),
       }),
     });
 

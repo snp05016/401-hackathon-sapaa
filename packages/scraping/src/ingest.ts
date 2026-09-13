@@ -1,6 +1,7 @@
 import type { IngestJobResponse, JobPageSnapshot } from "@ghostboard/shared";
 import { buildCanonicalJob, mergeDrafts } from "./canonical";
-import { draftFromHtml, draftFromJsonLd, greenhouseCompanyFromPageTitle } from "./html";
+import { enrichDraft } from "./enrich";
+import { draftFromHtml, draftFromJsonLd, greenhouseCompanyFromPageTitle, withExtractedSections } from "./html";
 import { normalizeInline, normalizeJobUrl, stableHash } from "./normalization";
 import { detectProvider, extractSourceJobId, fetchProviderDraft } from "./providers";
 import type { JobExtractionDraft, JobIngestionCache, JobIngestionInput, JobIngestionOptions } from "./types";
@@ -181,12 +182,18 @@ export async function ingestJob(input: JobIngestionInput, options: JobIngestionO
 
   if (html) htmlDraft = draftFromHtml(html, resolvedUrl.href, visibleText);
   else if (visibleText || normalizedInput.snapshot) htmlDraft = snapshotDraft(normalizedInput);
-  const draft = mergeDrafts(providerDraft, htmlDraft ?? snapshotDraft(normalizedInput));
+  const merged = withExtractedSections(mergeDrafts(providerDraft, htmlDraft ?? snapshotDraft(normalizedInput)));
+  // Enrich before canonicalization so the LLM sees deterministic extraction's
+  // gaps, and only ever fills them. Cleaned description only -- never raw HTML.
+  const draft = options.llm ? await enrichDraft(merged, options.llm, warnings) : merged;
   const requestedDate = options.now?.() ?? new Date(normalizedInput.snapshot?.capturedAt ?? Date.now());
   const capturedAt = Number.isNaN(requestedDate.getTime()) ? new Date() : requestedDate;
   const built = buildCanonicalJob(draft, capturedAt);
   const detected = detection(draft, html, visibleText, providerDraft !== null);
   const outcome = detected.outcome === "job" && !built.posting ? "uncertain" : detected.outcome;
+  if (built.posting && outcome !== "job") {
+    warnings.push(`A complete posting was extracted but confidence ${detected.confidence} is below the 0.45 threshold, so it was not returned.`);
+  }
   const response: IngestJobResponse = {
     outcome,
     confidence: detected.confidence,
