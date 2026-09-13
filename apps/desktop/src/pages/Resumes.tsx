@@ -697,35 +697,41 @@ export function Resumes() {
     setResumeImportResult(null);
 
     try {
-      if (!file.name.toLowerCase().endsWith(".tex")) {
-        throw new Error("Please select a LaTeX .tex file.");
+      const name = file.name.toLowerCase();
+      const isLatex = name.endsWith(".tex");
+      if (!isLatex && !/\.(md|markdown|txt|text)$/.test(name)) {
+        throw new Error("Please select a .tex, .md, or .txt file.");
       }
 
       const latex = await file.text();
-      if (!latex.trim()) throw new Error("The selected LaTeX file is empty.");
+      if (!latex.trim()) throw new Error("The selected file is empty.");
 
       const parsedEntries = await ipc().extractExperienceEntries(latex);
       if (parsedEntries.length === 0) {
-        throw new Error("No experience entries were detected. Add an Experience or Employment section and try again.");
+        throw new Error(isLatex
+          ? "No experience entries were detected. Add an Experience or Employment section and try again."
+          : "No experience entries were detected. Give each role a heading line with dashed bullets under it.");
       }
 
       const previousEntries = experienceEntries ?? [];
       const previousKeys = new Set(
         previousEntries.map((entry) => `${entry.role.trim().toLowerCase()}|${entry.employer.trim().toLowerCase()}`),
       );
-      const savedMaster = await ipc().saveMasterResume(latex);
+      const savedMaster = isLatex ? await ipc().saveMasterResume(latex) : null;
       const updatedEntries = await ipc().importExperienceEntries(parsedEntries);
       const added = updatedEntries.filter(
         (entry) => !previousKeys.has(`${entry.role.trim().toLowerCase()}|${entry.employer.trim().toLowerCase()}`),
       ).length;
 
-      setMasterId(savedMaster.id);
-      masterEditorValueRef.current = savedMaster.latex;
-      setMasterLatex(savedMaster.latex);
-      setPersistedLatex(savedMaster.latex);
-      setUsingSample(false);
-      setMasterSaveState("saved");
-      setMasterSaveError(null);
+      if (savedMaster) {
+        setMasterId(savedMaster.id);
+        masterEditorValueRef.current = savedMaster.latex;
+        setMasterLatex(savedMaster.latex);
+        setPersistedLatex(savedMaster.latex);
+        setUsingSample(false);
+        setMasterSaveState("saved");
+        setMasterSaveError(null);
+      }
       setExperienceEntries(updatedEntries);
       setExperienceError(null);
       setResumeImportResult({ added, skipped: parsedEntries.length - added });
@@ -1293,18 +1299,19 @@ export function Resumes() {
                   )}
                 >
                   <FileUp size={13} />
-                  {resumeImporting ? "Importing resume…" : "Upload .tex resume"}
+                  {resumeImporting ? "Importing…" : "Upload resume or bank"}
                 </label>
                 <input
                   id="resume-tex-upload"
                   type="file"
-                  accept=".tex,text/plain"
+                  accept=".tex,.md,.markdown,.txt,text/plain,text/markdown"
                   onChange={(event) => void handleResumeUpload(event)}
                   disabled={resumeImporting}
                   className="sr-only"
                 />
                 <p className="text-[12px] text-ink-2">
-                  Upload your LaTeX file to save it as the master resume and add detected experience entries automatically.
+                  A <strong className="font-medium text-ink">.tex</strong> file becomes your master resume and fills the bank. A{" "}
+                  <strong className="font-medium text-ink">.md</strong> or <strong className="font-medium text-ink">.txt</strong> bank — a heading per role, dashed bullets under it — only adds to the bank.
                 </p>
               </div>
               <AnimatePresence initial={false}>
