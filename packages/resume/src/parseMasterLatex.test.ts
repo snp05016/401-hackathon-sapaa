@@ -396,11 +396,34 @@ describe("parseSkillList", () => {
     assert.deepEqual(parseSkillList(inline), ["C++", "Python", "Git", "Docker"]);
   });
 
+  test("reads rows wrapped inline by \\small\\item, as single-line itemize entries", () => {
+    const wrapped = String.raw`
+\begin{itemize}[leftmargin=0.15in, label={}, itemsep=0pt, topsep=0pt]
+  \small{\item{\textbf{Skills}: Excellent teamwork, Coding, Problem Solving}}
+  \small{\item{\textbf{Languages}: English, Cantonese, Mandarin}}
+  \small{\item{\textbf{Software}: Java, JavaScript, Python, Haskell, SQL, HTML}}
+\end{itemize}`;
+    assert.deepEqual(parseSkillList(wrapped), [
+      "Excellent teamwork",
+      "Coding",
+      "Problem Solving",
+      "English",
+      "Cantonese",
+      "Mandarin",
+      "Java",
+      "JavaScript",
+      "Python",
+      "Haskell",
+      "SQL",
+      "HTML",
+    ]);
+  });
+
   test("returns an empty list for a section with no skills", () => {
     assert.deepEqual(parseSkillList("   \n  "), []);
   });
 
-  test("extracts every skills-like section, not just the first", () => {
+  test("extracts every skills-like section and splits labelled rows into categories", () => {
     const latex = String.raw`
 \documentclass{article}
 \begin{document}
@@ -419,10 +442,39 @@ Nothing skill-like in here.
 `;
     const entries = parseMasterLatex(latex);
     const skillEntries = entries.filter((entry) => entry.source === "skill");
-    assert.equal(skillEntries.length, 2);
-    assert.equal(skillEntries[0].role, "Technical Skills");
-    assert.equal(skillEntries[1].role, "Languages");
-    assert.deepEqual(skillEntries[0].skills, ["Python", "TypeScript", "Docker", "Kubernetes"]);
-    assert.deepEqual(skillEntries[1].skills, ["French", "Spanish"]);
+    assert.equal(skillEntries.length, 3);
+    assert.equal(skillEntries[0].role, "Languages");
+    assert.equal(skillEntries[0].employer, "Skills");
+    assert.deepEqual(skillEntries[0].skills, ["Python", "TypeScript"]);
+    assert.equal(skillEntries[1].role, "Infra");
+    assert.deepEqual(skillEntries[1].skills, ["Docker", "Kubernetes"]);
+    assert.equal(skillEntries[2].role, "Languages"); // unlabelled section keeps its title
+    assert.deepEqual(skillEntries[2].skills, ["French", "Spanish"]);
+  });
+
+  test("keeps labelled categories separate in single-line \\small\\item rows", () => {
+    const latex = String.raw`
+\documentclass{article}
+\begin{document}
+\section{Experience}
+\textbf{Role} -- Jan 2022 to Present\\
+\textit{Co}
+\begin{itemize}\item Bullet\end{itemize}
+\section{Skills}
+\begin{itemize}[leftmargin=0.15in, label={}, itemsep=0pt, topsep=0pt]
+  \small{\item{\textbf{Skills}: Excellent teamwork, Coding, Problem Solving}}
+  \small{\item{\textbf{Languages}: English, Cantonese, Mandarin}}
+  \small{\item{\textbf{Software}: Java, JavaScript, Python, Haskell, SQL, HTML}}
+\end{itemize}
+\end{document}
+`;
+    const skillEntries = parseMasterLatex(latex).filter((entry) => entry.source === "skill");
+    assert.deepEqual(
+      skillEntries.map((entry) => entry.role),
+      ["Skills", "Languages", "Software"],
+    );
+    assert.deepEqual(skillEntries[0].skills, ["Excellent teamwork", "Coding", "Problem Solving"]);
+    assert.deepEqual(skillEntries[1].skills, ["English", "Cantonese", "Mandarin"]);
+    assert.deepEqual(skillEntries[2].skills, ["Java", "JavaScript", "Python", "Haskell", "SQL", "HTML"]);
   });
 });

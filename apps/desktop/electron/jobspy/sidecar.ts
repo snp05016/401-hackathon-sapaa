@@ -49,9 +49,10 @@ function runCommand(
   args: string[],
   cwd: string,
   onProcess: (child: ChildProcessWithoutNullStreams | null) => void,
+  env?: NodeJS.ProcessEnv,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { cwd, stdio: "pipe" });
+    const child = spawn(command, args, { cwd, env: env ?? process.env, stdio: "pipe" });
     let errorOutput = "";
     onProcess(child);
     child.stderr.on("data", (chunk: Buffer) => {
@@ -156,11 +157,12 @@ export function createJobSpySidecar(serviceDirectory: string): JobSpySidecar {
       if (installedHash !== requirementsHash) {
         await runCommand(
           virtualEnvironmentPython,
-          ["-m", "pip", "install", "--disable-pip-version-check", "-r", requirementsPath],
+          ["-m", "pip", "install", "--no-user", "--disable-pip-version-check", "-r", requirementsPath],
           serviceDirectory,
           (child) => {
             activeProcess = child;
           },
+          { ...process.env, PIP_USER: "0", PIP_NO_INPUT: "1" },
         );
         await writeFile(markerPath, `${requirementsHash}\n`, "utf8");
       }
@@ -172,7 +174,7 @@ export function createJobSpySidecar(serviceDirectory: string): JobSpySidecar {
         ["-m", "uvicorn", "main:app", "--app-dir", serviceDirectory, "--host", "127.0.0.1", "--port", "8001"],
         {
           cwd: serviceDirectory,
-          env: { ...process.env, PYTHONUNBUFFERED: "1" },
+          env: { ...process.env, PYTHONUNBUFFERED: "1", PIP_USER: "0" },
           stdio: "pipe",
         },
       );

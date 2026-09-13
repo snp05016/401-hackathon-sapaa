@@ -53,6 +53,10 @@ export function registerIpcHandlers(
     if (!gemmaCompletionService) throw new Error("Local job summaries are unavailable.");
     return gemmaCompletionService.summarizeJobDescription(description);
   });
+  ipcMain.handle(IPC_CHANNELS.tailorFollowUpMessage, (_event, request: unknown) => {
+    if (!gemmaCompletionService) throw new Error("Local follow-up tailoring is unavailable.");
+    return gemmaCompletionService.tailorFollowUpMessage(request);
+  });
   ipcMain.handle(IPC_CHANNELS.saveDiscoveredJob, (_event, job: DiscoveredJob) => {
     return saveDiscoveredJob(db, job);
   });

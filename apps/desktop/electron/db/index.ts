@@ -4,12 +4,13 @@ import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createDb, runMigrations, type GhostboardDb } from "@ghostboard/database";
 import type { ExperienceEntry, MasterResume, Profile, ProfileField, TailoredResumeRecord } from "@ghostboard/shared";
+import { orderExperienceEntries } from "../resume/import";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 let db: GhostboardDb | null = null;
 
-const DEFAULT_PROFILE_FIELDS: ProfileField[] = [
+export const DEFAULT_PROFILE_FIELDS: ProfileField[] = [
   { key: "firstName", label: "First name", value: "", category: "personal" },
   { key: "lastName", label: "Last name", value: "", category: "personal" },
   { key: "email", label: "Email", value: "", category: "contact" },
@@ -19,10 +20,11 @@ const DEFAULT_PROFILE_FIELDS: ProfileField[] = [
   { key: "linkedin", label: "LinkedIn URL", value: "", category: "links" },
   { key: "github", label: "GitHub URL", value: "", category: "links" },
   { key: "veteranStatus", label: "Veteran status", value: "", category: "eeo" },
+  { key: "lgbtqStatus", label: "LGBTQ+ status", value: "", category: "eeo" },
   { key: "gender", label: "Gender", value: "", category: "eeo" },
 ];
 
-function normalizeProfileFields(fields: ProfileField[] | undefined): ProfileField[] {
+export function normalizeProfileFields(fields: ProfileField[] | undefined): ProfileField[] {
   const byKey = new Map<string, ProfileField>();
 
   for (const field of DEFAULT_PROFILE_FIELDS) {
@@ -168,16 +170,18 @@ export function writeMasterResume(latex: string): MasterResume {
 }
 
 export function readExperienceBank(): ExperienceEntry[] {
-  return readJsonFile(
+  const entries = readJsonFile(
     experienceBankPath(),
     isExperienceBankFile,
     (): { version: 1; entries: ExperienceEntry[] } => ({ version: 1, entries: [] }),
   ).entries;
+  return orderExperienceEntries(entries);
 }
 
 export function writeExperienceBank(entries: ExperienceEntry[]): ExperienceEntry[] {
-  fs.writeFileSync(experienceBankPath(), JSON.stringify({ version: 1, entries }, null, 2));
-  return entries;
+  const ordered = orderExperienceEntries(entries);
+  fs.writeFileSync(experienceBankPath(), JSON.stringify({ version: 1, entries: ordered }, null, 2));
+  return ordered;
 }
 
 export function readTailoredResumes(): TailoredResumeRecord[] {

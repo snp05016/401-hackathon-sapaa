@@ -266,29 +266,70 @@ function splitTopLevel(value: string): string[] {
 }
 
 /**
+ * Strips a leading `\small` command and then unwraps whole-line brace groups, so
+ * `\small{\item{\textbf{Languages:}}{ a, b }}` reads as `\textbf{Languages:}}{ a, b }`
+ * and a plain `\textbf{Languages:} a, b` line reads unchanged.
+ */
+function unwrapSkillLine(line: string): string {
+  let result = line.trim().replace(/^\\small\b/, "");
+  while (result.startsWith("{")) {
+    let depth = 0;
+    let closeIndex = -1;
+    for (let index = 0; index < result.length; index += 1) {
+      if (result[index] === "{") depth += 1;
+      else if (result[index] === "}") {
+        depth -= 1;
+        if (depth === 0) {
+          closeIndex = index;
+          break;
+        }
+      }
+    }
+    if (closeIndex !== result.length - 1) break;
+    result = result.slice(1, -1).trim();
+  }
+  return result;
+}
+
+function cleanSkillLine(rawLine: string): string {
+  let line = unwrapSkillLine(rawLine);
+  if (!line || /^\\(?:begin|end|vspace|hspace|setlength|renewcommand)\b/.test(line)) return "";
+  line = line.replace(/^\[[^\]]*\]\s*/, ""); // spacing option left behind by a `\\[2pt]` line break
+  line = line.replace(/^\\(?:item|resumeItem)\b/, "");
+  return line;
+}
+
+function extractSkillsFromLine(line: string, seen: Set<string>): string[] {
+  const skills: string[] = [];
+  for (const part of splitTopLevel(decodeLatexText(line))) {
+    const skill = part.trim().replace(/^[-–—·•]\s*/, "").replace(/[.]$/, "").trim();
+    const key = skill.toLowerCase();
+    if (!skill || skill.length > 60 || seen.has(key)) continue;
+    if (skill.includes("=") || skill.startsWith("\\")) continue; // itemize options, stray macros
+    if (!/[a-z0-9]/i.test(skill)) continue;
+    seen.add(key);
+    skills.push(skill);
+  }
+  return skills;
+}
+
+/**
  * Pulls every technical skill out of a skills section as one flat list, whatever
  * layout the resume uses: `\textbf{Languages:} a, b`, `\item{\textbf{Languages:}}{ a, b }`,
- * or a plain comma-separated paragraph. Category labels are dropped — a skill is a
- * skill regardless of the bucket its author filed it under.
+ * `\small{\item{\textbf{...}: ...}}`, or a plain comma-separated paragraph.
+ * Category labels are dropped — a skill is a skill regardless of the bucket its
+ * author filed it under.
  */
 export function parseSkillList(sectionBody: string): string[] {
   const skills: string[] = [];
   const seen = new Set<string>();
   for (const rawLine of sectionBody.split(/\n|\\\\/)) {
-    let line = rawLine.trim();
-    if (!line || /^\\(?:begin|end|small|vspace|hspace|setlength|renewcommand)\b/.test(line)) continue;
-    line = line.replace(/^\[[^\]]*\]\s*/, ""); // spacing option left behind by a `\\[2pt]` line break
-    line = line.replace(/^\\(?:item|resumeItem)\b/, "");
+    let line = cleanSkillLine(rawLine);
+    if (!line) continue;
     // Drop the category label ("Languages:", "Frameworks & Libraries:") wherever the
     // colon happens to sit relative to the closing brace.
     line = line.replace(/\{?\\textbf\{[^{}]*\}\s*:?\s*\}?\s*:?/, "");
-    for (const part of splitTopLevel(decodeLatexText(line))) {
-      const skill = part.trim().replace(/^[-–—·•]\s*/, "").replace(/[.]$/, "").trim();
-      const key = skill.toLowerCase();
-      if (!skill || skill.length > 60 || seen.has(key)) continue;
-      if (skill.includes("=") || skill.startsWith("\\")) continue; // itemize options, stray macros
-      if (!/[a-z0-9]/i.test(skill)) continue;
-      seen.add(key);
+    for (const skill of extractSkillsFromLine(unwrapSkillLine(line), seen)) {
       skills.push(skill);
       if (skills.length >= 200) return skills;
     }
@@ -296,11 +337,54 @@ export function parseSkillList(sectionBody: string): string[] {
   return skills;
 }
 
+const SKILL_LABEL_REGEX = /^\{?\\textbf\{([^{}]*)\}\s*:?\s*\}?\s*:?/;
+
+/**
+ * Turns a skills section into separate bank entries, keeping the resume's own
+ * category buckets ("Skills:", "Languages:", "Software:") as distinct rows
+ * instead of flattening them. Lines without a category label fall under the
+ * section title, so a resume that splits categories into separate sections still
+ * yields one entry per section.
+ */
 function parseSkillsFormat(sectionBody: string, sectionTitle: string): ParsedExperienceEntry[] {
-  const skills = parseSkillList(sectionBody);
-  if (!skills.length) return [];
-  const role = sectionTitle.trim().slice(0, 200) || "Technical Skills";
-  return [{ role, employer: "Skills", startDate: null, endDate: null, bullets: [], skills, source: "skill" }];
+  const defaultLabel = sectionTitle.trim().slice(0, 200) || "Technical Skills";
+  const buckets: Array<{ label: string; skills: string[] }> = [];
+  const seen = new Set<string>();
+  let currentLabel = defaultLabel;
+  let totalSkills = 0;
+  for (const rawLine of sectionBody.split(/\n|\\\\/)) {
+    let line = cleanSkillLine(rawLine);
+    if (!line) continue;
+    const labelMatch = line.match(SKILL_LABEL_REGEX);
+    if (labelMatch) {
+      const label = decodeLatexText(labelMatch[1]).trim().replace(/:+$/, "").slice(0, 200);
+      if (label) {
+        currentLabel = label;
+        line = line.slice(labelMatch[0].length);
+      }
+    }
+    let bucket = buckets.find((candidate) => candidate.label === currentLabel);
+    if (!bucket) {
+      bucket = { label: currentLabel, skills: [] };
+      buckets.push(bucket);
+    }
+    for (const skill of extractSkillsFromLine(unwrapSkillLine(line), seen)) {
+      bucket.skills.push(skill);
+      totalSkills += 1;
+    }
+    if (totalSkills >= 200) break;
+  }
+  return buckets
+    .filter((bucket) => bucket.skills.length)
+    .map(({ label, skills }) => ({
+      role: label,
+      employer: "Skills",
+      startDate: null,
+      endDate: null,
+      bullets: [],
+      skills,
+      source: "skill" as const,
+    }));
 }
 
 function findSection(latex: string, name: string): string {

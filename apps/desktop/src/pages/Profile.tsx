@@ -10,6 +10,7 @@ import { DISTANCE, DURATION, EASE, SPRING, STAGGER, TRANSITION } from "../lib/mo
 import { playSound } from "../lib/sound";
 
 const VETERAN_OPTIONS = ["Yes", "No", "Prefer not to say"];
+const LGBTQ_OPTIONS = ["Yes", "No"];
 
 export function Profile() {
   const [fields, setFields] = useState<ProfileField[]>([]);
@@ -42,28 +43,22 @@ export function Profile() {
   }
 
   function renderField(field: ProfileField) {
-    if (field.key === "veteranStatus") {
+    if (field.key === "veteranStatus" || field.key === "lgbtqStatus") {
+      const options = field.key === "veteranStatus" ? VETERAN_OPTIONS : LGBTQ_OPTIONS;
       return (
-        <div className="flex flex-wrap gap-3 pt-1">
-          {VETERAN_OPTIONS.map((option) => {
-            const checked = field.value === option;
-            return (
-              <motion.label
-                key={option}
-                className="flex cursor-pointer items-center gap-2 text-[12px] text-ink-2"
-                whileHover={{ x: 2, transition: SPRING.hover }}
-                whileTap={{ scale: 0.975, transition: SPRING.press }}
-              >
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={() => updateValue(field.key, option)}
-                />
-                {option}
-              </motion.label>
-            );
-          })}
-        </div>
+        <select
+          id={`profile-${field.key}`}
+          value={field.value}
+          onChange={(e) => updateValue(field.key, e.target.value)}
+          className="focus-rule w-full border-0 border-b border-hairline bg-transparent pb-2 pt-1 text-[14px] text-ink transition-colors focus:border-oxblood focus:outline-none focus:ring-0"
+        >
+          <option value="">Select an option</option>
+          {options.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
       );
     }
 
@@ -88,6 +83,7 @@ export function Profile() {
       "linkedin",
       "github",
       "veteranStatus",
+      "lgbtqStatus",
       "gender",
     ];
 
@@ -148,6 +144,12 @@ export function Profile() {
               <label htmlFor={`profile-${field.key}`} className="mb-2 block text-[12px] text-ink-2">
                 {field.label}
               </label>
+              {field.key === "veteranStatus" && (
+                <p className="mb-2 text-[11px] leading-relaxed text-ink-3">Are you a veteran?</p>
+              )}
+              {field.key === "lgbtqStatus" && (
+                <p className="mb-2 text-[11px] leading-relaxed text-ink-3">Are you a member of the LGBTQ+ community? (lesbian, gay, bisexual, transgender, queer, intersex, asexual, pansexual, nonbinary, etc.)</p>
+              )}
               {renderField(field)}
             </StaggerItem>
           ))}

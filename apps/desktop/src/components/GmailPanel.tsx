@@ -204,9 +204,11 @@ export function GmailPanel({ onUpdated, heading = "Gmail status updates" }: { on
                     </motion.span>
                   )}
                 </AnimatePresence>
+                <span>·</span>
+                <span className="text-ink-2">Antigravity AI classifier</span>
               </div>
               <h2 id="gmail-heading" className="mt-3 font-display text-[29px] leading-tight text-ink">{state?.connected ? state.account : heading}</h2>
-              <p className="mt-2 max-w-[570px] text-[12px] leading-relaxed text-ink-2">{state?.connected ? "Recruiting messages are checked only when you ask, or on the schedule you enable below." : "Connect Gmail to bring confirmations, interviews, offers, and explicit rejections into the same place as your applications."}</p>
+              <p className="mt-2 max-w-[570px] text-[12px] leading-relaxed text-ink-2">{state?.connected ? "Recruiting messages are checked and classified by Antigravity only when you ask, or on the schedule you enable below." : "Connect Gmail to bring confirmations, interviews, offers, and explicit rejections into the same place as your applications."}</p>
             </div>
             {state?.lastCheckedAt && <div className="flex items-center gap-2 text-[10px] text-ink-3"><Clock3 size={12} />Last checked {new Date(state.lastCheckedAt).toLocaleString()}</div>}
           </div>
@@ -217,7 +219,7 @@ export function GmailPanel({ onUpdated, heading = "Gmail status updates" }: { on
           <div className="mt-6 flex flex-wrap gap-2">
             {!state?.connected && <Button variant="ink" disabled={busy} onClick={() => { void perform(() => ipc().connectGmail()); }}><Mail size={14} />{state?.configured ? "Connect Gmail" : "Choose credentials & connect"}</Button>}
             {!state?.connected && <Button variant="rule" disabled={busy} onClick={() => { void perform(() => ipc().importGmailCredentials()); }}>Import credentials JSON</Button>}
-            {state?.connected && <Button variant="ink" disabled={busy} onClick={() => { void perform(() => ipc().checkGmail()); }}>{busy ? <LoaderCircle size={14} className="animate-spin" /> : <RefreshCw size={14} />}{state.hasMore ? "Check next batch" : "Check for updates"}</Button>}
+            {state?.connected && <Button variant="ink" disabled={busy} onClick={() => { void perform(() => ipc().checkGmail()); }}>{busy ? <LoaderCircle size={14} className="animate-spin" /> : <RefreshCw size={14} />}{busy ? "Checking with Antigravity…" : state.hasMore ? "Check next batch with Antigravity" : "Check for updates with Antigravity"}</Button>}
             {(state?.connected || state?.configured) && <Button variant="rule" disabled={busy} onClick={() => { void perform(() => ipc().disconnectGmail()); }}><Unplug size={14} />Disconnect</Button>}
             {busy && <Button variant="quiet" onClick={() => { void ipc().cancelGmail().catch(() => setError("Could not cancel. Please wait for the operation to finish.")); }}>Cancel</Button>}
             {error && <Button variant="quiet" onClick={() => { void load(); }}>Retry</Button>}
@@ -232,7 +234,9 @@ export function GmailPanel({ onUpdated, heading = "Gmail status updates" }: { on
               >
                 <Mail size={13} strokeWidth={1.8} />
               </motion.span>
-              Working… If a sign-in window opened, finish Google consent in your browser.
+              {state?.connected
+                ? "Reading emails and classifying recruiter updates with Antigravity AI…"
+                : "Working… If a sign-in window opened, finish Google consent in your browser."}
             </p>
           )}
         </div>

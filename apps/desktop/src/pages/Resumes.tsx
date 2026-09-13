@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { PredictiveInput } from "../components/ui/PredictiveInput";
 import { BulletBoard } from "../components/resume/BulletBoard";
+import { ResumeDiffView } from "../components/resume/ResumeDiffView";
 import {
   AnimatedNumber,
   GhostDrift,
@@ -383,37 +384,6 @@ function LatexPdfPreview({
   );
 }
 
-function ChangeLine({ line, index }: { line: string; index: number }) {
-  const added = line.startsWith("Added");
-  const removed = line.startsWith("Removed");
-  return (
-    <motion.li
-      className="flex gap-2 text-[12px] leading-relaxed"
-      initial={{ opacity: 0, y: DISTANCE.riseSmall }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ ...TRANSITION.base, delay: Math.min(index, 11) * STAGGER.list }}
-    >
-      <motion.span
-        aria-hidden="true"
-        className={cn(
-          "mt-px inline-block origin-left select-none font-semibold",
-          added ? "text-verdigris" : removed ? "text-oxblood" : "text-ink-3",
-        )}
-        initial={{ scaleX: 0 }}
-        animate={{ scaleX: 1 }}
-        transition={{
-          duration: DURATION.base,
-          ease: EASE.out,
-          delay: Math.min(index, 11) * STAGGER.list + 0.08,
-        }}
-      >
-        {added ? "+" : removed ? "–" : "·"}
-      </motion.span>
-      <span className={cn(added ? "text-verdigris" : removed ? "text-oxblood" : "text-ink-2")}>{line}</span>
-    </motion.li>
-  );
-}
-
 function LatexSourceEditor({
   value,
   onChange,
@@ -679,6 +649,11 @@ export function Resumes() {
       setUsingSample(false);
       setMasterSaveState("saved");
       playSound("success");
+
+      const parsedEntries = await ipc().extractExperienceEntries(submitted);
+      const updatedEntries = await ipc().importExperienceEntries(parsedEntries);
+      setExperienceEntries(updatedEntries);
+      setExperienceError(null);
     } catch (error) {
       setMasterSaveState("error");
       setMasterSaveError(errorMessage(error, "Could not save the master resume."));
@@ -2075,7 +2050,7 @@ export function Resumes() {
               </Button>
               <Button variant="outline" silent onClick={() => void handleTailor()} disabled={!canTailorWithAi}>
                 <Sparkles size={13} aria-hidden="true" />
-                {isTailoring ? "Tailoring with Groq…" : "Tailor with Groq AI"}
+                {isTailoring ? "Tailoring with Antigravity…" : "Tailor with Antigravity"}
               </Button>
               <AnimatePresence initial={false} mode="wait">
                 {isTailoring && (
@@ -2110,8 +2085,8 @@ export function Resumes() {
                   {!masterReady
                     ? "Write a master resume above before tailoring."
                     : !jobReady
-                      ? "You can start editing manually now. Add a job description to enable Groq AI."
-                      : "Start with a manual copy, or ask Groq AI to create a first draft. Nothing is saved until you choose."}
+                      ? "You can start editing manually now. Add a job description to enable Antigravity."
+                      : "Start with a manual copy, or ask Antigravity to create a first draft. Nothing is saved until you choose."}
                 </p>
               )}
             </div>
@@ -2127,14 +2102,14 @@ export function Resumes() {
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="font-display text-[20px] text-ink">Review and edit the draft</h3>
                     <Badge variant="outline">
-                      {tailoredDraftSource === "ai" ? "Groq AI draft" : "Manual copy"}
+                      {tailoredDraftSource === "ai" ? "Antigravity draft" : "Manual copy"}
                     </Badge>
                     {tailoredDraftEdited && <Badge>Edited</Badge>}
                   </div>
                   <div className="flex items-center gap-4">
                     {tailoredDraftEdited && (
                       <Button variant="quiet" onClick={() => handleTailoredDraftChange(tailoredResult.latex)}>
-                        {tailoredDraftSource === "ai" ? "Reset to Groq draft" : "Reset to master copy"}
+                        {tailoredDraftSource === "ai" ? "Reset to Antigravity draft" : "Reset to master copy"}
                       </Button>
                     )}
                     <p className="text-[12px] text-ink-2">Your master resume is never modified.</p>
@@ -2142,20 +2117,11 @@ export function Resumes() {
                 </div>
 
                 {tailoredDraftSource === "ai" && (
-                  <div className="mt-5">
-                    <h4 className="text-[11px] font-medium uppercase tracking-wide text-ink-3">AI changes</h4>
-                    {tailoredResult.changesSummary.length === 0 ? (
-                      <p className="mt-2 text-[12px] text-ink-2">
-                        Groq did not make any line-level changes. You can still edit the bullets below.
-                      </p>
-                    ) : (
-                      <ul className="mt-2 max-h-56 space-y-1 overflow-y-auto pr-1">
-                        {tailoredResult.changesSummary.map((line, index) => (
-                          <ChangeLine key={index} line={line} index={index} />
-                        ))}
-                      </ul>
-                    )}
-                  </div>
+                  <ResumeDiffView
+                    masterLatex={masterLatex}
+                    tailoredLatex={tailoredLatex}
+                    changesSummary={tailoredResult.changesSummary}
+                  />
                 )}
 
                 <div className="mt-6 grid gap-5 xl:grid-cols-2">

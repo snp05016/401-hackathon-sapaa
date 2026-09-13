@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
 import { applications, type GhostboardDb } from "@ghostboard/database";
 import { ingestJob } from "@ghostboard/scraping";
-import { getProvider } from "@ghostboard/ai";
+import { getProvider, isAgyAvailable } from "@ghostboard/ai";
 import type {
   CreateJobRequest,
   CreateJobResponse,
@@ -103,7 +103,7 @@ export async function handleCreateJob(db: GhostboardDb, body: CreateJobRequest):
  * for fields JSON-LD, provider APIs, and the DOM left empty.
  */
 function enrichmentProvider() {
-  if (!process.env.GROQ_API_KEY && !process.env.GEMINI_API_KEY) return undefined;
+  if (!process.env.GROQ_API_KEY && !process.env.GEMINI_API_KEY && !isAgyAvailable()) return undefined;
   try {
     return getProvider();
   } catch {
