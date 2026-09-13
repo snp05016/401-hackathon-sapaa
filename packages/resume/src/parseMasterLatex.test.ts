@@ -399,4 +399,30 @@ describe("parseSkillList", () => {
   test("returns an empty list for a section with no skills", () => {
     assert.deepEqual(parseSkillList("   \n  "), []);
   });
+
+  test("extracts every skills-like section, not just the first", () => {
+    const latex = String.raw`
+\documentclass{article}
+\begin{document}
+\section{Experience}
+\textbf{Role} -- Jan 2022 to Present\\
+\textit{Co}
+\begin{itemize}\item Bullet\end{itemize}
+\section{Technical Skills}
+\textbf{Languages:} Python, TypeScript \\
+\textbf{Infra:} Docker, Kubernetes
+\section{Languages}
+French, Spanish
+\section{Professional Summary}
+Nothing skill-like in here.
+\end{document}
+`;
+    const entries = parseMasterLatex(latex);
+    const skillEntries = entries.filter((entry) => entry.source === "skill");
+    assert.equal(skillEntries.length, 2);
+    assert.equal(skillEntries[0].role, "Technical Skills");
+    assert.equal(skillEntries[1].role, "Languages");
+    assert.deepEqual(skillEntries[0].skills, ["Python", "TypeScript", "Docker", "Kubernetes"]);
+    assert.deepEqual(skillEntries[1].skills, ["French", "Spanish"]);
+  });
 });
