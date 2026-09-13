@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import ForceGraph2D from "react-force-graph-2d";
 import { AnimatePresence, motion } from "framer-motion";
 import { Network, RefreshCw, Search, Sparkles, X } from "lucide-react";
@@ -188,16 +188,22 @@ export function SkillsGraph() {
     return () => { active = false; };
   }, []);
 
-  useEffect(() => {
+useLayoutEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const observer = new ResizeObserver((entries) => {
-      const rect = entries[0]?.contentRect;
-      if (rect) setSize({ width: Math.max(320, rect.width), height: Math.max(320, rect.height) });
-    });
+    const measure = () => {
+      const { clientWidth: width, clientHeight: height } = container;
+      if (width > 0 && height > 0) {
+        setSize((current) =>
+          current.width === width && current.height === height ? current : { width, height },
+        );
+      }
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
     observer.observe(container);
     return () => observer.disconnect();
-  }, []);
+  }, [loading]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
