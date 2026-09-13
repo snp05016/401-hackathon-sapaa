@@ -53,40 +53,148 @@ const EXPERIENCE_SOURCES = ["experience", "project", "skill", "education", "volu
 const TEXTAREA_CLASSES =
   "w-full resize-y rounded-md border border-hairline bg-paper p-3 font-mono text-xs leading-5 text-ink placeholder:text-ink-3 focus:border-oxblood focus:outline-none focus:ring-1 focus:ring-oxblood";
 
+// This is deliberately fictional: it mirrors the compact, macro-driven
+// template users commonly bring in without carrying over a user's identity or
+// work history. Every identity, employer, date, and accomplishment below is
+// fictional mock content and should be replaced before saving.
 const SAMPLE_MASTER_LATEX = String.raw`
-\documentclass{article}
-\pagestyle{empty}
+\documentclass[letterpaper,11pt]{article}
+
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\input{glyphtounicode}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+\addtolength{\oddsidemargin}{-0.75in}
+\addtolength{\evensidemargin}{-0.75in}
+\addtolength{\textwidth}{1.5in}
+\addtolength{\topmargin}{-1.0in}
+\addtolength{\textheight}{1.5in}
+
+\urlstyle{same}
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+\titleformat{\section}{
+  \vspace{-4pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]
+
+\pdfgentounicode=1
+
+\newcommand{\resumeItem}[1]{%
+  \item\small{ {#1 \vspace{-2pt}} }
+}
+\newcommand{\resumeSubheading}[4]{%
+  \vspace{-2pt}\item
+  \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{#1} & #2 \\
+      \textit{\small#3} & \textit{\small #4} \\
+  \end{tabular*}\vspace{-7pt}
+}
+\newcommand{\resumeProjectHeading}[2]{%
+  \item
+  \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \small#1 & #2 \\
+  \end{tabular*}\vspace{-7pt}
+}
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.15in, label={}]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-5pt}}
+
 \begin{document}
 
 \begin{center}
-{\Huge\textbf{Your Name}}
-
-Your City, Province | your.email@example.com | (555) 555-0100
+    \textbf{\Huge \scshape YOUR NAME} \\ \vspace{1pt}
+    \small City, Country $|$ +1 (000)-000-0000 $|$ \href{mailto:you@example.com}{\underline{you@example.com}} $|$
+    \href{https://www.linkedin.com/in/your-handle}{\underline{LinkedIn}} $|$
+    \href{https://github.com/your-handle}{\underline{github.com/your-handle}}
 \end{center}
 
-\section{Professional Summary}
-Write two or three truthful sentences here, for example what you do, who you work with, and what you are known for.
+\section{Education}
+\resumeSubHeadingListStart
+    \resumeSubheading
+      {Example University}{City, Country}
+      {B.Sc. in Your Field}{20XX -- Present}
+        \resumeItemListStart
+            \resumeItem{\textbf{Coursework:} Data Structures, Databases, Systems Programming, Distributed Systems}
+        \resumeItemListEnd
+\resumeSubHeadingListEnd
 
 \section{Experience}
+\resumeSubHeadingListStart
+    \resumeSubheading
+      {Example Technology Company}{20XX -- 20XX}
+      {Software Engineering Intern}{Remote}
+      \resumeItemListStart
+            \resumeItem{Automated a recurring data-entry workflow with Python and REST APIs, reducing manual processing time by 30\% in a team pilot.}
+            \resumeItem{Integrated a service with a SQL database and added validation checks, reducing duplicate records by 25\% during testing.}
+      \resumeItemListEnd
 
-\textbf{Your most recent role} -- Jan 2022 to Present\\
-\textit{Your Employer, Your City}
-\begin{itemize}
-  \item One concrete accomplishment, with a number if you have one.
-  \item A second accomplishment that shows scope or ownership.
+    \resumeSubheading
+      {Example University Lab}{20XX -- 20XX}
+      {Teaching or Research Assistant}{City, Country}
+      \resumeItemListStart
+            \resumeItem{Explained systems programming concepts through labs and debugging sessions, helping a cohort of 40 learners complete weekly assignments.}
+            \resumeItem{Evaluated two implementation approaches with repeatable benchmarks, documenting a 20\% reduction in median runtime for the selected approach.}
+      \resumeItemListEnd
+
+    \resumeSubheading
+      {Independent Project Team}{20XX -- 20XX}
+      {Software Developer}{Remote}
+      \resumeItemListStart
+            \resumeItem{Designed a role-based dashboard for a small project team, using TypeScript and SQLite to track work across three workflow stages.}
+            \resumeItem{Investigated a recurring timeout with structured logs and a local load test, reducing median response time from 900 ms to 420 ms.}
+      \resumeItemListEnd
+\resumeSubHeadingListEnd
+
+\section{Projects}
+\resumeSubHeadingListStart
+    \resumeProjectHeading
+      {\textbf{Workflow Automation Toolkit} \emph{$|$ Python, FastAPI, SQLite, Docker}}{20XX}
+      \resumeItemListStart
+            \resumeItem{Built a Python/FastAPI workflow service with SQLite persistence, turning a manual request queue into a repeatable local workflow.}
+            \resumeItem{Added schema validation, unit tests, and structured logs that caught malformed requests before release.}
+      \resumeItemListEnd
+
+    \resumeProjectHeading
+      {\textbf{Data Quality Dashboard} \emph{$|$ TypeScript, React, PostgreSQL, CI}}{20XX}
+      \resumeItemListStart
+            \resumeItem{Created a TypeScript/React dashboard backed by PostgreSQL, surfacing status and trend data for a small operations team.}
+            \resumeItem{Shipped a CI check for data-quality regressions, reducing repeated review fixes across sample runs by 35\%.}
+      \resumeItemListEnd
+\resumeSubHeadingListEnd
+
+\section{Technical Skills}
+\begin{itemize}[leftmargin=0.15in, label={}]
+  \small{
+    \item{
+      \textbf{Languages}{: C, C++, Python, JavaScript, TypeScript, SQL, Shell}
+    }
+    \item{
+      \textbf{Systems \& tools}{: Linux, Git, Docker, CMake, GDB, CI/CD, REST APIs}
+    }
+    \item{
+      \textbf{Backend \& data}{: FastAPI, Flask, PostgreSQL, SQLite, MongoDB, testing}
+    }
+  }
 \end{itemize}
 
-\textbf{An earlier role} -- Jun 2019 to Dec 2021\\
-\textit{Your Employer, Your City}
-\begin{itemize}
-  \item One concrete accomplishment.
-  \item A second accomplishment.
-\end{itemize}
-
-\section{Education}
-
-\textbf{Your degree} -- Graduation year\\
-\textit{Your University, Your City}
 \end{document}
 `;
 
@@ -1367,7 +1475,7 @@ export function Resumes() {
               {usingSample && (
                 <div className="flex items-center gap-3">
                   <p role="status" className="text-[12px] text-ink-2">
-                    You are editing sample text.
+                    You are editing a fictional mock resume.
                   </p>
                   <Button variant="ghost" onClick={clearSample}>
                     Clear sample
