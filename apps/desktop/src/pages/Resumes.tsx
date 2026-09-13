@@ -12,6 +12,7 @@ import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader } from "../components/ui/card";
 import { Input } from "../components/ui/input";
+import { PredictiveInput } from "../components/ui/PredictiveInput";
 import {
   AnimatedNumber,
   GhostDrift,
@@ -1996,12 +1997,13 @@ export function Resumes() {
                     <label htmlFor="job-title" className="mb-1.5 block text-[12px] font-medium text-ink-2">
                       Title
                     </label>
-                    <Input
+                    <PredictiveInput
                       id="job-title"
                       variant="default"
                       value={jobTitle}
-                      onChange={(event) => updateJobField(setJobTitle, event.target.value)}
+                      onValueChange={(value) => updateJobField(setJobTitle, value)}
                       disabled={isTailoring}
+                      microPrompt="Complete this job posting title for resume tailoring returning only its continuation: "
                     />
                   </div>
                   <div>

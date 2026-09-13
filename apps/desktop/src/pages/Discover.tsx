@@ -5,6 +5,7 @@ import type { DiscoveredJob, DiscoverSearchRequest, DiscoverSite } from "../../e
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
+import { PredictiveInput } from "../components/ui/PredictiveInput";
 import { GhostDrift, Shimmer } from "../components/motion";
 import { DISTANCE, DURATION, EASE, SPRING, STAGGER, TRANSITION } from "../lib/motion";
 import { playSound } from "../lib/sound";
@@ -192,9 +193,25 @@ function Onboarding({ initial, onComplete }: { initial: DiscoverPreferences; onC
             <legend id="discover-onboarding-heading" className="max-w-[650px] font-display text-[38px] leading-[1.04] tracking-[-0.02em] text-ink sm:text-[54px]">Name the exact work you want.</legend>
             <p className="mt-4 max-w-[580px] text-[13px] leading-relaxed text-ink-2">Use one focused primary title. We run alternate titles as separate searches, then merge and rank the results.</p>
             <label htmlFor="discover-role" className="mt-9 block text-[12px] text-ink-2">Primary target title <span className="text-oxblood">required</span></label>
-            <Input id="discover-role" variant="rule" autoFocus placeholder="e.g. Firmware Engineering Intern" value={preferences.role} onChange={(event) => setPreferences({ ...preferences, role: event.target.value })} className="mt-2 text-[18px]" />
+            <PredictiveInput
+              id="discover-role"
+              autoFocus
+              placeholder="e.g. Firmware Engineering Intern"
+              className="text-[18px]"
+              displayClassName="text-[18px]"
+              value={preferences.role}
+              onValueChange={(role) => setPreferences({ ...preferences, role })}
+              microPrompt="Complete this target job title for a job search returning only its continuation: "
+            />
             <label htmlFor="discover-alternates" className="mt-7 block text-[12px] text-ink-2">Alternate titles <span className="text-ink-3">comma-separated, up to two</span></label>
-            <Input id="discover-alternates" variant="rule" placeholder="Embedded Software Intern, Firmware Developer Intern" value={preferences.alternateTitles} onChange={(event) => setPreferences({ ...preferences, alternateTitles: event.target.value })} />
+            <PredictiveInput
+              id="discover-alternates"
+              variant="rule"
+              placeholder="Embedded Software Intern, Firmware Developer Intern"
+              value={preferences.alternateTitles}
+              onValueChange={(alternateTitles) => setPreferences({ ...preferences, alternateTitles })}
+              microPrompt="Complete this alternate job title for a job search returning only its continuation: "
+            />
             <label htmlFor="discover-level" className="mt-7 block text-[12px] text-ink-2">Career level</label>
             <select id="discover-level" value={preferences.experienceLevel} onChange={(event) => setPreferences({ ...preferences, experienceLevel: event.target.value })} className="mt-2 w-full border-0 border-b border-hairline bg-transparent pb-2 text-[14px] text-ink focus:border-oxblood focus:outline-none">
               {["student", "intern", "new grad", "entry level", "junior", "mid level", "senior"].map((level) => <option key={level} value={level}>{level.replace(/^./, (character) => character.toUpperCase())}</option>)}
