@@ -271,6 +271,8 @@ export function createGmailService(db: GhostboardDb, dependencies: GmailDependen
             location: null,
             jobUrl: `https://mail.google.com/mail/u/0/#inbox/${encodeURIComponent(update.threadId)}`,
             jobDescription: "",
+            // Gmail-derived applications never went through job-page ingestion.
+            jobDetails: null,
             status: update.newStatus!,
             dateFound: update.receivedAt,
             dateApplied: update.receivedAt,

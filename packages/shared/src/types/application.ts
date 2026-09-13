@@ -21,6 +21,8 @@ export interface Application {
   nextActionDate: string | null;
   resumeId: string | null;
   source: string;
+  /** Best-effort posting details captured at ingestion; null when the page stated none. */
+  jobDetails?: import("./job").JobDetails | null;
   createdAt: string;
   updatedAt: string;
 }

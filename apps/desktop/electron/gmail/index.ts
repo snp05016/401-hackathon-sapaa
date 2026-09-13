@@ -18,6 +18,15 @@ export function registerGmailHandlers(db: GhostboardDb): void {
   const service = createGmailService(db, {
     store,
     chooseCredentials: async () => {
+      // A Desktop-app OAuth client is public by design (PKCE + loopback), so a
+      // bundled client id removes the per-user "download a JSON from Google
+      // Cloud" step. Falls back to the file picker when unset.
+      const clientId = process.env.GOOGLE_CLIENT_ID;
+      if (clientId) {
+        return parseGmailCredentials(JSON.stringify({
+          installed: { client_id: clientId, client_secret: process.env.GOOGLE_CLIENT_SECRET },
+        }));
+      }
       const selection = await dialog.showOpenDialog({ title: "Choose Google Desktop app credentials", properties: ["openFile"], filters: [{ name: "Google OAuth credentials", extensions: ["json"] }] });
       if (selection.canceled || !selection.filePaths[0]) return null;
       const file = selection.filePaths[0];

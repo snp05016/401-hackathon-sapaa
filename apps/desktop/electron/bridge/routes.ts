@@ -21,7 +21,7 @@ import type {
   TailoredAutofillRequest,
   TailoredAutofillResponse,
 } from "@ghostboard/shared";
-import { APPLICATION_STAGES, STAGE_LABELS } from "@ghostboard/shared";
+import { APPLICATION_STAGES, STAGE_LABELS, calendarDateOrNull, jobDetailsOf } from "@ghostboard/shared";
 import {
   readExperienceBank,
   readProfile,
@@ -152,17 +152,15 @@ export async function handleCreateJob(db: GhostboardDb, body: CreateJobRequest):
     postedAt: body.postedAt,
     salaryRange: body.salaryRange,
     scrapedAt: body.scrapedAt ?? now,
-    // The bridge's create-job write path does not carry best-effort fields yet;
-    // ingestion fills them, this route defaults them.
-    workArrangement: null,
-    applicationDeadline: null,
-    startDate: null,
-    termDuration: null,
-    responsibilities: [],
-    preferredQualifications: [],
-    education: null,
-    workAuthorization: null,
-    clearance: null,
+    workArrangement: body.workArrangement ?? null,
+    applicationDeadline: body.applicationDeadline ?? null,
+    startDate: body.startDate ?? null,
+    termDuration: body.termDuration ?? null,
+    responsibilities: body.responsibilities ?? [],
+    preferredQualifications: body.preferredQualifications ?? [],
+    education: body.education ?? null,
+    workAuthorization: body.workAuthorization ?? null,
+    clearance: body.clearance ?? null,
   };
 
   const applicationId = crypto.randomUUID();
@@ -181,6 +179,8 @@ export async function handleCreateJob(db: GhostboardDb, body: CreateJobRequest):
     nextActionDate: null,
     resumeId: null,
     source: job.source,
+    deadline: calendarDateOrNull(job.applicationDeadline),
+    jobDetails: jobDetailsOf(job),
     createdAt: now,
     updatedAt: now,
   });

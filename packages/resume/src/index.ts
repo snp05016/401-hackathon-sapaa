@@ -3,3 +3,4 @@ export * from "./latex";
 export * from "./customizeResume";
 export * from "./parseMasterLatex";
 export * from "./parseExperience";
+export * from "./bulletDocument";

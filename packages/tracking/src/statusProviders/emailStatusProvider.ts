@@ -6,7 +6,7 @@ export const GMAIL_READONLY_SCOPE = "https://www.googleapis.com/auth/gmail.reado
 const GMAIL_API_BASE = "https://gmail.googleapis.com/gmail/v1/users";
 const DEFAULT_MAX_RESULTS = 50;
 const DEFAULT_LOOKBACK_DAYS = 90;
-const MAX_EMAIL_TEXT_LENGTH = 2_000;
+const MAX_EMAIL_TEXT_LENGTH = 800;
 const MODEL_BATCH_SIZE = 5;
 
 interface GmailMessageReference { id: string }
