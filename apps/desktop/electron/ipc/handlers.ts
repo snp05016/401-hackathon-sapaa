@@ -1,7 +1,7 @@
 import { registerGmailHandlers } from "../gmail";
 
 import { registerResumeHandlers } from "../resume";
-import { ipcMain } from "electron";
+import { ipcMain, shell } from "electron";
 import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
 import { applications, applicationEvents, type GhostboardDb } from "@ghostboard/database";
@@ -21,7 +21,7 @@ import { readBridgeFile } from "../bridge/token";
 import { IPC_CHANNELS } from "./channels";
 import { updateApplicationDeadline } from "../db/deadlines";
 
-export function registerIpcHandlers(db: GhostboardDb): void {
+export function registerIpcHandlers(db: GhostboardDb, ensureJobSpyReady: () => Promise<void> = async () => undefined): void {
   registerGmailHandlers(db);
   registerResumeHandlers();
   ipcMain.handle(IPC_CHANNELS.updateDeadline, (_event, applicationId: unknown, deadline: unknown) => {
@@ -30,7 +30,13 @@ export function registerIpcHandlers(db: GhostboardDb): void {
   ipcMain.handle(IPC_CHANNELS.listApplications, async () => {
     return db.select().from(applications);
   });
-  ipcMain.handle(IPC_CHANNELS.searchDiscoveredJobs, (_event, request: DiscoverSearchRequest) => {
+  ipcMain.handle(IPC_CHANNELS.searchDiscoveredJobs, async (_event, request: DiscoverSearchRequest) => {
+    try {
+      await ensureJobSpyReady();
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "unknown startup error";
+      throw new Error(`Job discovery could not start: ${detail}`);
+    }
     return searchDiscoveredJobs(request);
   });
   ipcMain.handle(IPC_CHANNELS.saveDiscoveredJob, (_event, job: DiscoveredJob) => {
@@ -274,7 +280,7 @@ async function searchDiscoveredJobs(value: unknown): Promise<DiscoverSearchRespo
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") throw new Error("Job search took too long. Try fewer sources.");
     if (error instanceof Error && error.message.startsWith("JobSpy")) throw error;
-    throw new Error("Job discovery is offline. Start the local JobTrail JobSpy service, then try again.");
+    throw new Error("Job discovery is offline. The local JobSpy service could not be reached.");
   } finally {
     clearTimeout(timeout);
   }
