@@ -69,3 +69,25 @@ test("parseResumeReference builds autofill-ready resume JSON", () => {
   assert.match(reference.plainText, /local-first job search tools/);
   assert.doesNotMatch(reference.plainText, /itemize/);
 });
+
+test("parseResumeReference preserves multiple education entries and their date ranges", () => {
+  const multipleEducation = String.raw`
+\documentclass{article}
+\begin{document}
+\section{Education}
+\textbf{Master of Science in Data Science} -- Sep 2020 to Apr 2022\\
+\textit{University of Toronto, Toronto, ON}
+\textbf{Bachelor of Science in Computer Science} -- Sep 2016 to Apr 2020\\
+\textit{University of Alberta, Edmonton, AB}
+\end{document}`;
+  const reference = parseResumeReference(multipleEducation);
+  assert.equal(reference.education.length, 2);
+  assert.deepEqual(reference.education.map((entry) => ({
+    degree: entry.degree,
+    school: entry.school,
+    dateRange: entry.dateRange,
+  })), [
+    { degree: "Master of Science in Data Science", school: "University of Toronto", dateRange: "Sep 2020 to Apr 2022" },
+    { degree: "Bachelor of Science in Computer Science", school: "University of Alberta", dateRange: "Sep 2016 to Apr 2020" },
+  ]);
+});

@@ -592,6 +592,10 @@ The model may:
 - incorporate truthful keywords already supported by the resume;
 - remove less relevant content when necessary.
 
+Tailoring is limited to the Experience section. Name, contact information,
+summary, skills, projects, education, and document structure are copied exactly
+from the master resume rather than accepted from model output.
+
 The model must never invent:
 
 - skills or technologies;
@@ -610,9 +614,9 @@ content must fail safely and remain reviewable.
 
 The local applicant profile may include:
 
-- first and last name;
-- email and phone;
-- city, region, country, and postal code;
+- first, optional middle, and last name;
+- email, phone, and optional phone extension;
+- street address, city, region, country, and postal code;
 - university, degree, major, graduation date, and GPA;
 - LinkedIn, GitHub, portfolio, and other links;
 - employment history;
@@ -631,6 +635,16 @@ type, and confidence. Ambiguous fields should remain for user attention.
 Autofill occurs only after the user clicks an explicit action. The extension must
 dispatch the events needed by controlled web forms without triggering final
 submission.
+
+The extension offers separate master-resume and tailored-resume autofill actions.
+Tailored autofill uses job context already captured from the active tab, preferring
+a saved matching tailored version, then a single active-job cache, and otherwise
+generating and caching a version. Moving through a multi-page application reuses
+that cache; tailoring for a different job replaces it without deleting reviewed
+tailored resumes;
+it does not require the user to paste the job description into the desktop app.
+Manual radio, checkbox, and select answers may be remembered locally and reused
+when the normalized question is encountered again.
 
 ## 26. Custom application questions
 
@@ -1293,6 +1307,9 @@ These may be revisited after the hackathon only through explicit decisions.
 - Deterministic methods own core extraction and ranking.
 - Cloud AI is narrow and truth-constrained.
 - User manually submits applications.
+- Applicant name, address, and phone defaults use separate optional middle-name,
+  street, city, province/state, and optional phone-extension fields.
+- Autofill offers explicit master and active-job-tailored resume modes.
 - Silence never equals rejection.
 - Team size is seven.
 - AI workflow roles are vendor-neutral and live in `.agents/`.
@@ -1304,7 +1321,6 @@ These may be revisited after the hackathon only through explicit decisions.
 - Which exact job site will be the primary live demo target?
 - Which cloud model provider will be the default for tailoring?
 - How will LaTeX compile across teammate machines?
-- Which applicant fields are required for the first autofill demonstration?
 - What stale thresholds should be defaults for each stage?
 - Which public source should power the first similar-job discovery demo?
 - Is email tracking worth implementing after P0 and P1 are stable?

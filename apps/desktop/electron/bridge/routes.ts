@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { applications, type GhostboardDb } from "@ghostboard/database";
 import { ingestJob } from "@ghostboard/scraping";
 import { getProvider } from "@ghostboard/ai";
+import { applyTailoredExperience, customizeResume, parseResumeReference } from "@ghostboard/resume";
 import type {
   CreateJobRequest,
   CreateJobResponse,
@@ -17,9 +18,18 @@ import type {
   ExternalKanbanResponse,
   ExternalResumeTemplateResponse,
   ApplicationStage,
+  TailoredAutofillRequest,
+  TailoredAutofillResponse,
 } from "@ghostboard/shared";
 import { APPLICATION_STAGES, STAGE_LABELS, calendarDateOrNull, jobDetailsOf } from "@ghostboard/shared";
-import { readProfile, readMasterResume } from "../db/index";
+import {
+  readExperienceBank,
+  readProfile,
+  readMasterResume,
+  readTailoredAutofillCache,
+  readTailoredResumes,
+  writeTailoredAutofillCache,
+} from "../db/index";
 
 export function handleGetProfile(): ProfileResponse {
   return { profile: readProfile() };
@@ -39,6 +49,87 @@ export async function handleGetKanban(db: GhostboardDb): Promise<ExternalKanbanR
 /** Read-only: no route accepts writes to the master resume; it is only ever set by the desktop app itself. */
 export function handleGetResumeTemplate(): ExternalResumeTemplateResponse {
   return { resume: readMasterResume() };
+}
+
+function sameJob(
+  record: { company: string | null; title: string | null; jobUrl: string | null },
+  job: TailoredAutofillRequest["job"],
+): boolean {
+  const normalize = (value: string | null) => value?.normalize("NFKC").toLowerCase().replace(/\s+/g, " ").trim() ?? "";
+  if (record.jobUrl && job.jobUrl) return normalize(record.jobUrl) === normalize(job.jobUrl);
+  return !!record.company && !!record.title
+    && normalize(record.company) === normalize(job.company)
+    && normalize(record.title) === normalize(job.title);
+}
+
+/** Reuses a reviewed version or the active-job cache before invoking the tailoring provider. */
+export async function handleGetTailoredAutofillResume(
+  body: TailoredAutofillRequest,
+): Promise<TailoredAutofillResponse> {
+  if (!body?.job || typeof body.job.jobDescription !== "string" || !body.job.jobDescription.trim()) {
+    throw new Error("A job description could not be detected on this page.");
+  }
+  if (
+    typeof body.job.company !== "string"
+    || typeof body.job.title !== "string"
+    || typeof body.job.jobUrl !== "string"
+    || body.job.company.length > 200
+    || body.job.title.length > 200
+    || body.job.jobUrl.length > 2_000
+  ) {
+    throw new Error("The detected job details are invalid.");
+  }
+  const job = {
+    company: body.job.company.trim(),
+    title: body.job.title.trim(),
+    jobUrl: body.job.jobUrl.trim(),
+    jobDescription: body.job.jobDescription.trim(),
+  };
+
+  const master = readMasterResume();
+  const saved = [...readTailoredResumes()].reverse().find((record) => sameJob(record, job));
+  if (saved) {
+    const experienceOnlyLatex = applyTailoredExperience(master.latex, saved.latex);
+    return {
+      source: "saved",
+      resume: {
+        id: saved.id,
+        latex: experienceOnlyLatex,
+        reference: parseResumeReference(experienceOnlyLatex),
+        updatedAt: saved.createdAt,
+      },
+    };
+  }
+
+  const cached = readTailoredAutofillCache();
+  if (cached && cached.masterUpdatedAt === master.updatedAt && sameJob(cached.job, job)) {
+    return { source: "cached", resume: cached.resume };
+  }
+
+  const result = await customizeResume({
+    masterLatex: master.latex,
+    jobDescription: job.jobDescription,
+    jobContext: {
+      company: job.company,
+      title: job.title,
+      jobUrl: job.jobUrl,
+    },
+    experienceBank: readExperienceBank(),
+  });
+  const resume = {
+    id: `tailored-${crypto.randomUUID()}`,
+    latex: result.latex,
+    reference: parseResumeReference(result.latex),
+    updatedAt: new Date().toISOString(),
+  };
+  writeTailoredAutofillCache({
+    policyVersion: "experience-only-v1",
+    job,
+    masterUpdatedAt: master.updatedAt,
+    resume,
+    cachedAt: new Date().toISOString(),
+  });
+  return { source: "generated", resume };
 }
 
 export async function handleCreateJob(db: GhostboardDb, body: CreateJobRequest): Promise<CreateJobResponse> {

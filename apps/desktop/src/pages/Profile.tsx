@@ -80,10 +80,14 @@ export function Profile() {
   function fallbackFieldOrder(fields: ProfileField[]) {
     const desiredOrder = [
       "firstName",
+      "middleName",
       "lastName",
       "email",
       "phone",
-      "address",
+      "phoneExtension",
+      "street",
+      "city",
+      "province",
       "country",
       "linkedin",
       "github",

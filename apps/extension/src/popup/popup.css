@@ -44,6 +44,24 @@ button:disabled {
   cursor: default;
 }
 
+.autofill-actions {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+button.secondary {
+  border: 1px solid #cbd5e1;
+  background: white;
+  color: #0f172a;
+}
+
+.autofill-note {
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 .settings input {
   width: 100%;
   box-sizing: border-box;

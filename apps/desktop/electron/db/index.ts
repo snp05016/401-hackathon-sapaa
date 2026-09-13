@@ -3,7 +3,8 @@ import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createDb, runMigrations, type GhostboardDb } from "@ghostboard/database";
-import type { ExperienceEntry, MasterResume, Profile, ProfileField, TailoredResumeRecord } from "@ghostboard/shared";
+import { parseResumeReference } from "@ghostboard/resume";
+import type { ExperienceEntry, MasterResume, Profile, ProfileField, TailoredAutofillRequest, TailoredResumeRecord } from "@ghostboard/shared";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -11,10 +12,14 @@ let db: GhostboardDb | null = null;
 
 const DEFAULT_PROFILE_FIELDS: ProfileField[] = [
   { key: "firstName", label: "First name", value: "", category: "personal" },
+  { key: "middleName", label: "Middle name (optional)", value: "", category: "personal" },
   { key: "lastName", label: "Last name", value: "", category: "personal" },
   { key: "email", label: "Email", value: "", category: "contact" },
   { key: "phone", label: "Phone", value: "", category: "contact" },
-  { key: "address", label: "Address", value: "", category: "personal" },
+  { key: "phoneExtension", label: "Phone extension (optional)", value: "", category: "contact" },
+  { key: "street", label: "Street address", value: "", category: "personal" },
+  { key: "city", label: "City", value: "", category: "personal" },
+  { key: "province", label: "Province or state", value: "", category: "personal" },
   { key: "country", label: "Country", value: "", category: "personal" },
   { key: "linkedin", label: "LinkedIn URL", value: "", category: "links" },
   { key: "github", label: "GitHub URL", value: "", category: "links" },
@@ -24,15 +29,20 @@ const DEFAULT_PROFILE_FIELDS: ProfileField[] = [
 
 function normalizeProfileFields(fields: ProfileField[] | undefined): ProfileField[] {
   const byKey = new Map<string, ProfileField>();
+  const legacyAddress = fields?.find((field) => field.key === "address")?.value?.trim() ?? "";
 
   for (const field of DEFAULT_PROFILE_FIELDS) {
     byKey.set(field.key, { ...field });
   }
 
   for (const field of fields ?? []) {
-    if (field.key === "fullName") continue;
+    if (field.key === "fullName" || field.key === "address") continue;
     if (!field.key || !field.label) continue;
     byKey.set(field.key, { ...field, label: field.label.trim() || byKey.get(field.key)?.label || field.key });
+  }
+
+  if (legacyAddress && !byKey.get("street")?.value.trim()) {
+    byKey.set("street", { ...byKey.get("street")!, value: legacyAddress });
   }
 
   const normalized = [...DEFAULT_PROFILE_FIELDS].map((field) => ({ ...field, value: byKey.get(field.key)?.value ?? "" }));
@@ -105,6 +115,18 @@ function tailoredResumesPath(): string {
   return path.join(app.getPath("userData"), "tailored-resumes.json");
 }
 
+function tailoredAutofillCachePath(): string {
+  return path.join(app.getPath("userData"), "tailored-autofill-cache.json");
+}
+
+export interface TailoredAutofillCache {
+  policyVersion: "experience-only-v1";
+  job: TailoredAutofillRequest["job"];
+  masterUpdatedAt: string;
+  resume: MasterResume;
+  cachedAt: string;
+}
+
 function isMasterResume(value: unknown): value is MasterResume {
   return !!value && typeof value === "object" && typeof (value as { id?: unknown }).id === "string";
 }
@@ -137,6 +159,20 @@ function isTailoredResumeFile(value: unknown): value is { version: 1; records: T
   return candidate.version === 1 && Array.isArray(candidate.records) && candidate.records.every(isTailoredResumeRecord);
 }
 
+function isTailoredAutofillCache(value: unknown): value is TailoredAutofillCache {
+  if (!value || typeof value !== "object") return false;
+  const cache = value as Record<string, unknown>;
+  if (!cache.job || typeof cache.job !== "object" || !isMasterResume(cache.resume)) return false;
+  const job = cache.job as Record<string, unknown>;
+  return typeof job.company === "string"
+    && typeof job.title === "string"
+    && typeof job.jobUrl === "string"
+    && typeof job.jobDescription === "string"
+    && cache.policyVersion === "experience-only-v1"
+    && typeof cache.masterUpdatedAt === "string"
+    && typeof cache.cachedAt === "string";
+}
+
 /**
  * Seed a fresh JSON file on first read and fall back to a seeded value on
  * corrupt content so main never crashes on a hand-edited or partial file.
@@ -158,11 +194,21 @@ function readJsonFile<T>(file: string, isWellFormed: (value: unknown) => value i
 
 /** Read-only: nothing currently persists a master resume from the UI, so this seeds an empty placeholder on first read. */
 export function readMasterResume(): MasterResume {
-  return readJsonFile(masterResumePath(), isMasterResume, () => ({ id: "local", latex: "", updatedAt: new Date().toISOString() }));
+  const master = readJsonFile<MasterResume>(masterResumePath(), isMasterResume, () => ({ id: "local", latex: "", updatedAt: new Date().toISOString() }));
+  if (!master.reference && master.latex.trim()) {
+    master.reference = parseResumeReference(master.latex);
+    fs.writeFileSync(masterResumePath(), JSON.stringify(master, null, 2));
+  }
+  return master;
 }
 
 export function writeMasterResume(latex: string): MasterResume {
-  const master: MasterResume = { id: "local", latex, updatedAt: new Date().toISOString() };
+  const master: MasterResume = {
+    id: "local",
+    latex,
+    reference: parseResumeReference(latex),
+    updatedAt: new Date().toISOString(),
+  };
   fs.writeFileSync(masterResumePath(), JSON.stringify(master, null, 2));
   return master;
 }
@@ -191,4 +237,20 @@ export function readTailoredResumes(): TailoredResumeRecord[] {
 export function writeTailoredResumes(records: TailoredResumeRecord[]): TailoredResumeRecord[] {
   fs.writeFileSync(tailoredResumesPath(), JSON.stringify({ version: 1, records }, null, 2));
   return records;
+}
+
+export function readTailoredAutofillCache(): TailoredAutofillCache | null {
+  const file = tailoredAutofillCachePath();
+  if (!fs.existsSync(file)) return null;
+  try {
+    const parsed: unknown = JSON.parse(fs.readFileSync(file, "utf-8"));
+    return isTailoredAutofillCache(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeTailoredAutofillCache(cache: TailoredAutofillCache): TailoredAutofillCache {
+  fs.writeFileSync(tailoredAutofillCachePath(), JSON.stringify(cache, null, 2));
+  return cache;
 }

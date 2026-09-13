@@ -68,7 +68,7 @@ export async function completeWithGroq(request: CompletionRequest): Promise<Comp
     }
     if (!response.ok) {
       const detail = (await response.text()).slice(0, 500);
-      if (response.status === 429) throw new Error(rateLimitMessage(response, detail, "click Check Gmail again"));
+      if (response.status === 429) throw new Error(rateLimitMessage(response, detail, "try again"));
       throw new Error(`Groq API error ${response.status}${detail ? `: ${detail}` : ""}`);
     }
 

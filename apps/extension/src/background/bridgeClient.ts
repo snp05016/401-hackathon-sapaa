@@ -4,7 +4,7 @@ import {
   BRIDGE_EXTENSION_MESSAGES_PATH,
   isExtensionAuthenticationMessage,
 } from "@ghostboard/shared";
-import type { MasterResume, Profile } from "@ghostboard/shared";
+import type { MasterResume, Profile, TailoredAutofillRequest, TailoredAutofillResponse } from "@ghostboard/shared";
 import type { BridgeSettings } from "../shared/messages";
 
 export type JsonMessage = null | boolean | number | string | JsonMessage[] | { [key: string]: JsonMessage };
@@ -156,10 +156,18 @@ export async function getResumeTemplateFromBridge(): Promise<MasterResume | null
   }
 }
 
+export async function getTailoredResumeFromBridge(
+  request: TailoredAutofillRequest,
+): Promise<TailoredAutofillResponse> {
+  return postJson<TailoredAutofillResponse>("/external/tailored-autofill-resume", request);
+}
+
 export async function postJson<T>(path: string, body: unknown): Promise<T> {
   const res = await bridgeFetch(path, { method: "POST", body: JSON.stringify(body) });
   if (!res.ok) {
     if (res.status === 401) throw new Error("Bridge token does not match. Copy the current token from Ghostboard Profile, paste it into the extension, and save settings.");
+    const payload = await res.json().catch(() => null) as { error?: unknown } | null;
+    if (typeof payload?.error === "string" && payload.error.trim()) throw new Error(payload.error);
     throw new Error(`Bridge request to ${path} failed: ${res.status}`);
   }
   return (await res.json()) as T;
