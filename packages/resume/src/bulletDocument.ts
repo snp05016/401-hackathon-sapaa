@@ -35,16 +35,47 @@ const LIST_DELIMITERS: Array<{ open: string; close: string; style: BulletList["s
 ];
 
 export function decodeBulletText(latex: string): string {
+  const literal: Record<string, string> = {
+    "\\": "\uE000",
+    "{": "\uE001",
+    "}": "\uE002",
+    "$": "\uE003",
+    "%": "\uE004",
+    "&": "\uE005",
+    "#": "\uE006",
+    "_": "\uE007",
+  };
   return latex
+    .replace(/\\textbackslash\{\}/g, literal["\\"])
+    .replace(/\\textasciitilde\{\}/g, "~")
+    .replace(/\\textasciicircum\{\}/g, "^")
     .replace(/\\(?:textbf|textit|emph|texttt|underline|textrm)\{([^{}]*)\}/g, "$1")
     .replace(/\\href\{[^{}]*\}\{([^{}]*)\}/g, "$1")
     .replace(/\\(?:vspace|hspace)\*?\{[^{}]*\}/g, " ")
     .replace(/\\(?:large|Large|LARGE|small|footnotesize|normalsize|scshape|bfseries|itshape)\b/g, " ")
     .replace(/\\\\\s*(?:\[[^\]]*\])?/g, " ")
-    .replace(/\\([%&#$_{}])/g, "$1")
+    .replace(/\\([%&#$_{}])/g, (_match, character: string) => literal[character])
     .replace(/[${}]/g, "")
+    .replace(/[\uE000-\uE007]/g, (marker) => Object.entries(literal).find(([, value]) => value === marker)?.[0] ?? "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/** Escapes user-entered plain text so an inline bullet edit remains valid LaTeX. */
+export function encodeBulletText(text: string): string {
+  const replacements: Record<string, string> = {
+    "\\": "\\textbackslash{}",
+    "{": "\\{",
+    "}": "\\}",
+    "$": "\\$",
+    "&": "\\&",
+    "#": "\\#",
+    "%": "\\%",
+    "_": "\\_",
+    "~": "\\textasciitilde{}",
+    "^": "\\textasciicircum{}",
+  };
+  return text.replace(/[\\{}$&#%_~^]/g, (character) => replacements[character]);
 }
 
 function readBracedArgument(source: string, openIndex: number): { value: string; nextIndex: number } | null {
