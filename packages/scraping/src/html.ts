@@ -64,6 +64,15 @@ function tagText(html: string, tag: string): string | null {
   return match ? normalizeInline(htmlToText(match[1])) || null : null;
 }
 
+function attributeText(html: string, attributePattern: string): string | null {
+  const region = new RegExp(
+    `<([a-z][\\w-]*)\\b[^>]*(?:id|class|data-testid|data-automation-id|aria-label)=["'][^"']*(?:${attributePattern})[^"']*["'][^>]*>([\\s\\S]*?)<\\/\\1>`,
+    "i",
+  );
+  const match = html.match(region);
+  return match ? normalizeInline(htmlToText(match[2])) || null : null;
+}
+
 export function greenhouseCompanyFromPageTitle(value: string | null | undefined): string | null {
   const title = normalizeInline(value);
   const match = title.match(/^Job Application for .+\s+at\s+(.+)$/i);
@@ -272,16 +281,17 @@ export function draftFromHtml(html: string, url: string, visibleText?: string): 
   const h1 = tagText(html, "h1");
   const ogTitle = metaContent(html, ["og:title", "twitter:title"]);
   const site = metaContent(html, ["og:site_name", "application-name"]);
-  const title = ogTitle || h1 || documentTitle?.split(/\s[-|·]\s/)[0] || null;
+  const title = ogTitle || h1 || attributeText(html, "job[-_ ]?title|posting[-_ ]?title") || documentTitle?.split(/\s[-|·]\s/)[0] || null;
   const description = candidateDescription(html) || normalizeWhitespace(visibleText);
   return {
     source: provider,
     sourceJobId: extractSourceJobId(url, provider),
     url,
-    company: site || (provider === "greenhouse" ? greenhouseCompanyFromPageTitle(documentTitle) : null)
+    company: site || attributeText(html, "company|employer|hiring[-_ ]?organization")
+      || (provider === "greenhouse" ? greenhouseCompanyFromPageTitle(documentTitle) : null)
       || (documentTitle?.split(/\s[-|·]\s/).at(-1) ?? null),
     title,
-    location: metaContent(html, ["job:location", "geo.placename"]),
+    location: metaContent(html, ["job:location", "geo.placename"]) || attributeText(html, "job[-_ ]?location|location"),
     salaryRange: metaContent(html, ["job:salary"]),
     description,
     requirements: extractRequirements(description),

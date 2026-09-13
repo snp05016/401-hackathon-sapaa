@@ -71,6 +71,15 @@ export interface CreateJobRequest {
   postedAt: string | null;
   salaryRange: string | null;
   scrapedAt?: string;
+  workArrangement?: JobPosting["workArrangement"];
+  applicationDeadline?: string | null;
+  startDate?: string | null;
+  termDuration?: string | null;
+  responsibilities?: JobPosting["responsibilities"];
+  preferredQualifications?: JobPosting["preferredQualifications"];
+  education?: string | null;
+  workAuthorization?: string | null;
+  clearance?: string | null;
 }
 
 export interface CreateJobResponse {

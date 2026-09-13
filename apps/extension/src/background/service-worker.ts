@@ -3,7 +3,7 @@ import type { IngestJobResponse, JobPosting } from "@ghostboard/shared";
 import { getProfileFromBridge, getResumeTemplateFromBridge, postJson, startBridgeMessageReceiver } from "./bridgeClient";
 
 // ponytail: in-memory per-tab state, resets on service-worker restart — fine for a hackathon popup
-const detectedJobByTab = new Map<number, { job: JobPosting; confidence: number }>();
+const detectedJobByTab = new Map<number, { job: JobPosting; confidence: number; url: string }>();
 
 startBridgeMessageReceiver();
 
@@ -22,7 +22,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
   if (tabId === undefined) return;
 
   if (message.type === "job-detected") {
-    detectedJobByTab.set(tabId, { job: message.job, confidence: message.confidence });
+    detectedJobByTab.set(tabId, { job: message.job, confidence: message.confidence, url: message.url });
   } else if (message.type === "job-cleared") {
     detectedJobByTab.delete(tabId);
   } else if (message.type === "page-snapshot") {
@@ -30,7 +30,11 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
       url: message.snapshot.url,
       snapshot: message.snapshot,
     }).then((result) => {
-      if (result.posting) detectedJobByTab.set(tabId, { job: result.posting, confidence: result.confidence });
+      if (result.posting) detectedJobByTab.set(tabId, {
+        job: result.posting,
+        confidence: result.confidence,
+        url: message.snapshot.url,
+      });
       // The local content-script detector decides whether a job is present;
       // a stale or uncertain server ingest result must not delete that
       // decision, because the two run concurrently with no happens-before

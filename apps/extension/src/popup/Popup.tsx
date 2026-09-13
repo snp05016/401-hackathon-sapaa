@@ -12,6 +12,22 @@ interface SavedJobMarker {
   savedAt: string;
 }
 
+interface JobCandidateResponse {
+  job?: JobPosting;
+  confidence?: number;
+  url?: string;
+}
+
+function comparableUrl(value: string): string {
+  try {
+    const url = new URL(value);
+    url.hash = "";
+    return url.href;
+  } catch {
+    return value;
+  }
+}
+
 async function readSavedJobs(): Promise<SavedJobMarker[]> {
   const stored = await chrome.storage.local.get(SAVED_JOBS_KEY);
   return Array.isArray(stored[SAVED_JOBS_KEY]) ? (stored[SAVED_JOBS_KEY] as SavedJobMarker[]) : [];
@@ -56,15 +72,37 @@ export function Popup() {
 
     chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
       if (!tab?.id) return;
-      chrome.tabs.sendMessage(tab.id, { type: "get-current-job" }, (liveResponse) => {
-        if (liveResponse?.job) {
-          setJob(liveResponse.job as JobPosting);
-          return;
+      const activeUrl = tab.url ? comparableUrl(tab.url) : null;
+      let best: { job: JobPosting; confidence: number; descriptionLength: number } | null = null;
+
+      const consider = (response: JobCandidateResponse | null | undefined) => {
+        if (!response?.job) return;
+        if (response.url && activeUrl && comparableUrl(response.url) !== activeUrl) return;
+        const candidate = {
+          job: response.job,
+          confidence: typeof response.confidence === "number" ? response.confidence : 0,
+          descriptionLength: response.job.jobDescription?.length ?? 0,
+        };
+        if (
+          !best
+          || candidate.confidence > best.confidence
+          || (candidate.confidence === best.confidence && candidate.descriptionLength > best.descriptionLength)
+        ) {
+          best = candidate;
+          setJob(candidate.job);
         }
+      };
+
+      // The service worker receives the full bridge/parser result in the
+      // background. Ask for it in parallel with the fast local DOM scrape and
+      // keep whichever same-page result has the stronger evidence.
+      chrome.runtime.sendMessage({ type: "get-detected-job", tabId: tab.id }, (cachedResponse) => {
         void chrome.runtime.lastError;
-        chrome.runtime.sendMessage({ type: "get-detected-job", tabId: tab.id }, (cachedResponse) => {
-          if (cachedResponse?.job) setJob(cachedResponse.job as JobPosting);
-        });
+        consider(cachedResponse as JobCandidateResponse | null | undefined);
+      });
+      chrome.tabs.sendMessage(tab.id, { type: "get-current-job" }, (liveResponse) => {
+        void chrome.runtime.lastError;
+        consider(liveResponse as JobCandidateResponse | null | undefined);
       });
     });
   }, []);
@@ -111,6 +149,15 @@ export function Popup() {
         postedAt: job.postedAt,
         salaryRange: job.salaryRange,
         scrapedAt: job.scrapedAt,
+        workArrangement: job.workArrangement,
+        applicationDeadline: job.applicationDeadline,
+        startDate: job.startDate,
+        termDuration: job.termDuration,
+        responsibilities: job.responsibilities,
+        preferredQualifications: job.preferredQualifications,
+        education: job.education,
+        workAuthorization: job.workAuthorization,
+        clearance: job.clearance,
       });
       await markJobSaved(job);
       setIsSaved(true);
