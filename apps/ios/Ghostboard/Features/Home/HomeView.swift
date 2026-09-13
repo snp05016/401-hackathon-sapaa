@@ -15,7 +15,7 @@ struct HomeView: View {
                     .padding(.top, AppSpacing.xl)
                 } else if !store.hasLoadedOnce {
                     LoadingState(message: "Preparing today’s briefing…")
-                } else if store.applications.isEmpty {
+                } else if store.applications.isEmpty && store.recruiterSignals.isEmpty {
                     AppEmptyState(
                         title: "Your search starts here",
                         message: "Save a job with the browser extension. Its deadline, history, and next action will appear here.",
