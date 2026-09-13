@@ -49,6 +49,10 @@ export default {
           from: { transform: "translateY(0)" },
           to: { transform: "translateY(-101%)" },
         },
+        haunt: {
+          "0%, 100%": { transform: "translateY(0) rotate(0deg)", opacity: "0.6" },
+          "50%": { transform: "translateY(-3px) rotate(-4deg)", opacity: "1" },
+        },
       },
       animation: {
         reveal: "reveal 0.7s cubic-bezier(0.16, 1, 0.3, 1) both",
@@ -56,6 +60,7 @@ export default {
         "letter-rise": "letter-rise 0.8s cubic-bezier(0.16, 1, 0.3, 1) both",
         "mark-in": "mark-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) both",
         curtain: "curtain 0.8s cubic-bezier(0.76, 0, 0.24, 1) both",
+        haunt: "haunt 2.4s ease-in-out infinite",
       },
     },
   },
