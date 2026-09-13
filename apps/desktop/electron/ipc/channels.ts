@@ -23,6 +23,7 @@ export const IPC_CHANNELS = {
   getMasterResume: "resume:get-master",
   saveMasterResume: "resume:save-master",
   bridgeInfo: "bridge:info",
+  syncInfo: "sync:info",
   resumeMasterGet: "resume:master:get",
   resumeMasterSave: "resume:master:save",
   resumeExperienceList: "resume:experience:list",
