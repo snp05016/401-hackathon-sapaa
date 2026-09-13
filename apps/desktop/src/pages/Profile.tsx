@@ -29,6 +29,12 @@ export function Profile() {
     ipc().getSyncInfo().then(setSync);
   }, []);
 
+  useEffect(() => {
+    if (!syncCopied) return;
+    const timeout = window.setTimeout(() => setSyncCopied(false), 1600);
+    return () => window.clearTimeout(timeout);
+  }, [syncCopied]);
+
   function updateValue(key: string, value: string) {
     setFields((prev) => prev.map((f) => (f.key === key ? { ...f, value } : f)));
     setSaved(false);
@@ -115,6 +121,12 @@ export function Profile() {
 
   async function refreshSyncInfo() {
     setSync(await ipc().getSyncInfo());
+  }
+
+  async function copySyncToken() {
+    setSyncCopied(false);
+    await navigator.clipboard.writeText(sync?.token ?? "");
+    setSyncCopied(true);
   }
 
   return (
@@ -210,7 +222,7 @@ export function Profile() {
             <label className="mt-5 block text-[12px] text-ink-2" htmlFor="sync-token">Pairing token</label>
             <Input id="sync-token" variant="rule" readOnly value={sync.token} onFocus={(event) => event.currentTarget.select()} />
             <div className="mt-4 flex items-center gap-4">
-              <Button variant="outline" onClick={() => { void navigator.clipboard.writeText(sync.token).then(() => setSyncCopied(true)); }}>Copy token</Button>
+              <Button variant="outline" onClick={() => { void copySyncToken(); }}>Copy token</Button>
               {syncCopied && <span role="status" className="text-[12px] text-verdigris">Token copied.</span>}
             </div>
           </>}
