@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import ForceGraph2D from "react-force-graph-2d";
 import { AnimatePresence, motion } from "framer-motion";
 import { Network, RefreshCw, Search, Sparkles, X } from "lucide-react";
-import type { Application } from "@ghostboard/shared";
+import type { Application, ExperienceEntry } from "@ghostboard/shared";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -79,6 +79,17 @@ function buildJobSkills(applications: Application[]): string[] {
   return Array.from(byKey.values()).sort((a, b) => a.localeCompare(b));
 }
 
+// The Resume page stores its Skills section as experience entries with source "skill".
+function buildResumeSkills(entries: ExperienceEntry[]): string[] {
+  const byKey = new Map<string, string>();
+  const add = (term: string) => { const trimmed = term.trim(); if (trimmed) byKey.set(trimmed.toLowerCase(), trimmed); };
+  entries.forEach((entry) => {
+    if (entry.source !== "skill") return;
+    entry.skills.forEach(add);
+  });
+  return Array.from(byKey.values()).sort((a, b) => a.localeCompare(b));
+}
+
 function resolveCssColor(cssVar: string): string {
   const value = getComputedStyle(document.documentElement)
     .getPropertyValue(cssVar)
@@ -89,7 +100,7 @@ function resolveCssColor(cssVar: string): string {
 interface NodeData {
   id: string;
   label: string;
-  kind: "job" | "preference" | "job-skill";
+  kind: "job" | "preference" | "job-skill" | "resume";
   color: string
   size: number;
   application?: Application;
@@ -103,15 +114,39 @@ interface LinkData {
 const JOB_COLOR = "rgb(var(--verdigris))";
 const PREFERENCE_SKILL_COLOR = "rgb(var(--oxblood))";
 const JOB_SKILL_COLOR = "rgb(var(--brass))";
+const RESUME_SKILL_COLOR = "rgb(var(--ink))";
+
+const NODE_FILL_COLORS: Record<NodeData["kind"], string> = {
+  job: JOB_COLOR,
+  preference: PREFERENCE_SKILL_COLOR,
+  "job-skill": JOB_SKILL_COLOR,
+  resume: RESUME_SKILL_COLOR,
+};
 
 const KIND_LABEL = {
   job: "Job",
   preference: "Preference skill",
   "job-skill": "Posting skill",
+  resume: "Resume skill",
+} as const;
+
+const KIND_BORDER = {
+  job: "border-verdigris/35",
+  preference: "border-oxblood/35",
+  "job-skill": "border-brass/35",
+  resume: "border-ink/35",
+} as const;
+
+const KIND_TEXT = {
+  job: "text-verdigris",
+  preference: "text-oxblood",
+  "job-skill": "text-brass",
+  resume: "text-ink",
 } as const;
 
 export function SkillsGraph() {
   const [applications, setApplications] = useState<Application[]>([]);
+  const [experienceEntries, setExperienceEntries] = useState<ExperienceEntry[]>([]);
   const [preferences] = useState<DiscoverPreferences | null>(readPreferences);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
@@ -128,14 +163,21 @@ export function SkillsGraph() {
   const jobColor =  useMemo(() => resolveCssColor("--verdigris"), []);
   const postingSkillColor = useMemo(() => resolveCssColor("--brass"), []);
   const preferenceSkillColor = useMemo(() => resolveCssColor("--oxblood"), []);
+  const resumeSkillColor = useMemo(() => resolveCssColor("--ink"), []);
 
 
   useEffect(() => {
     let active = true;
     async function loadApplications() {
       try {
-        const apps = await ipc().listApplications();
-        if (active) setApplications(apps);
+        const [apps, entries] = await Promise.all([
+          ipc().listApplications(),
+          ipc().listExperienceEntries(),
+        ]);
+        if (active) {
+          setApplications(apps);
+          setExperienceEntries(entries);
+        }
       } catch (error) {
         console.error("Failed to load applications:", error);
       } finally {
@@ -168,6 +210,7 @@ export function SkillsGraph() {
   const fullGraph = useMemo(() => {
     const preferenceSkills = buildPreferenceSkills(preferences);
     const jobSkills = buildJobSkills(applications);
+    const resumeSkills = buildResumeSkills(experienceEntries);
     const preferenceSkillKeys = new Set(preferenceSkills.map((skill) => skill.toLowerCase()));
     const derivedSkills = jobSkills.filter((skill) => !preferenceSkillKeys.has(skill.toLowerCase()));
     const nodeList: NodeData[] = [];
@@ -204,6 +247,16 @@ export function SkillsGraph() {
       });
     });
 
+    resumeSkills.forEach((skill) => {
+      nodeList.push({
+        id: `resume:${skill.toLowerCase()}`,
+        label: skill,
+        kind: "resume",
+        color: resumeSkillColor,
+        size: 15,
+      });
+    });
+
     const skillKeys = [...preferenceSkillKeys, ...derivedSkills.map((skill) => skill.toLowerCase())];
     applications.forEach((application) => {
       const jobId = `job:${application.id}`;
@@ -215,24 +268,41 @@ export function SkillsGraph() {
       });
     });
 
+    const knownSkillKeys = new Set(skillKeys);
+    resumeSkills.forEach((skill) => {
+      const resumeId = `resume:${skill.toLowerCase()}`;
+      if (knownSkillKeys.has(skill.toLowerCase())) {
+        linkList.push({ source: resumeId, target: `skill:${skill.toLowerCase()}` });
+      }
+    });
+
     const result = { nodes: nodeList, links: linkList };
     return result;
-  }, [preferences, applications, jobColor, postingSkillColor]);
+  }, [preferences, applications, experienceEntries, jobColor, postingSkillColor, preferenceSkillColor, resumeSkillColor]);
 
-  const isSkillKind = (node: NodeData) => node.kind === "preference" || node.kind === "job-skill";
+  const isSkillLike = (node: NodeData) => node.kind !== "job";
 
   const { nodes, links } = useMemo(() => {
     const query = filter.trim().toLowerCase();
     if (!query) return fullGraph;
     const matchingSkillIds = new Set(
-      fullGraph.nodes.filter((node) => isSkillKind(node) && node.label.toLowerCase().includes(query)).map((node) => node.id),
+      fullGraph.nodes.filter((node) => isSkillLike(node) && node.label.toLowerCase().includes(query)).map((node) => node.id),
     );
     if (matchingSkillIds.size > 0) {
       const visible = new Set(matchingSkillIds);
       fullGraph.nodes.forEach((node) => {
+        if (node.kind === "job" || visible.has(node.id)) return;
+        const connected = fullGraph.links.some(
+          (link) =>
+            (link.source === node.id && visible.has(link.target as string)) ||
+            (link.target === node.id && visible.has(link.source as string)),
+        );
+        if (connected && isSkillLike(node)) visible.add(node.id);
+      });
+      fullGraph.nodes.forEach((node) => {
         if (node.kind !== "job") return;
         const connected = fullGraph.links.some(
-          (link) => link.target === node.id && matchingSkillIds.has(link.source as string),
+          (link) => link.target === node.id && visible.has(link.source as string),
         );
         if (connected) visible.add(node.id);
       });
@@ -249,7 +319,7 @@ export function SkillsGraph() {
     if (matchingJobIds.size > 0) {
       const visible = new Set(matchingJobIds);
       fullGraph.nodes.forEach((node) => {
-        if (!isSkillKind(node)) return;
+        if (!isSkillLike(node)) return;
         const connected = fullGraph.links.some((link) => {
           const sourceConnected = matchingJobIds.has(link.source as string);
           const targetConnected = matchingJobIds.has(link.target as string);
@@ -332,6 +402,7 @@ export function SkillsGraph() {
 
   const preferenceSkillCount = nodes.filter((node) => node.kind === "preference").length;
   const jobSkillCount = nodes.filter((node) => node.kind === "job-skill").length;
+  const resumeSkillCount = nodes.filter((node) => node.kind === "resume").length;
   const jobCount = nodes.filter((node) => node.kind === "job").length;
 
   const emptyReason = applications.length === 0
@@ -352,7 +423,7 @@ export function SkillsGraph() {
           </div>
           <h1 className="font-display text-[42px] leading-[0.9] tracking-[-0.02em] text-ink sm:text-[56px]">Skills Graph</h1>
           <p className="mt-4 max-w-[640px] text-[12px] leading-relaxed text-ink-2">
-            Skills and keywords from your Discover preferences are linked to saved postings whenever one is contained in the other. Hover a skill to reveal its label or a job for a preview; click a job to open its details.
+            Skills and keywords from your Discover preferences and resume are linked to saved postings and to each other whenever one is contained in the other. Hover a skill to reveal its label or a job for a preview; click a job to open its details.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
@@ -373,10 +444,12 @@ export function SkillsGraph() {
           <span className="flex items-center gap-2 text-[12px] text-ink-2"><span className="h-2.5 w-2.5 rounded-full bg-verdigris" aria-hidden="true" />Job posting</span>
           <span className="flex items-center gap-2 text-[12px] text-ink-2"><span className="h-2.5 w-2.5 rounded-full bg-oxblood" aria-hidden="true" />Preference skill</span>
           <span className="flex items-center gap-2 text-[12px] text-ink-2"><span className="h-2.5 w-2.5 rounded-full bg-brass" aria-hidden="true" />Posting skill</span>
+          <span className="flex items-center gap-2 text-[12px] text-ink-2"><span className="h-2.5 w-2.5 rounded-full bg-ink" aria-hidden="true" />Resume skill</span>
           <Badge variant="verdigris">{jobCount} jobs</Badge>
           <Badge variant="oxblood">{preferenceSkillCount} preference skills</Badge>
           <Badge variant="brass">{jobSkillCount} posting skills</Badge>
-          <Badge variant="ink">{links.length} connections</Badge>
+          <Badge variant="ink">{resumeSkillCount} resume skills</Badge>
+          <Badge variant="mist">{links.length} connections</Badge>
         </div>
         <label className="relative block w-full sm:w-[260px]">
           <span className="sr-only">Filter nodes</span>
@@ -424,12 +497,7 @@ export function SkillsGraph() {
                 ctx.globalAlpha = dimmed ? 0.22 : 1;
                 ctx.beginPath();
                 ctx.arc(0, 0, radius, 0, 2 * Math.PI);
-                ctx.fillStyle =
-                  data.kind === "job"
-                    ? JOB_COLOR
-                    : data.kind === "preference"
-                      ? PREFERENCE_SKILL_COLOR
-                      : JOB_SKILL_COLOR;
+                ctx.fillStyle = NODE_FILL_COLORS[data.kind];
                 ctx.fill();
                 ctx.restore();
 
@@ -499,11 +567,11 @@ export function SkillsGraph() {
                   transition={{ duration: DURATION.quick, ease: EASE.out }}
                   className={cn(
                     "pointer-events-none absolute z-10 flex flex-col gap-0.5 rounded-sm border bg-paper-raised px-2.5 py-1.5 shadow-[5px_5px_0_0_var(--card-shadow)]",
-                    hoveredNode.kind === "job" ? "border-verdigris/35" : hoveredNode.kind === "preference" ? "border-oxblood/35" : "border-brass/35",
+                    KIND_BORDER[hoveredNode.kind],
                   )}
                   style={{ left: Math.min(tooltipX + 12, size.width - 260), top: Math.min(tooltipY + 12, size.height - 60) }}
                 >
-                  <span className={cn("text-[10px] font-medium uppercase tracking-[0.14em]", hoveredNode.kind === "job" ? "text-verdigris" : hoveredNode.kind === "preference" ? "text-oxblood" : "text-brass")}>
+                  <span className={cn("text-[10px] font-medium uppercase tracking-[0.14em]", KIND_TEXT[hoveredNode.kind])}>
                     {KIND_LABEL[hoveredNode.kind]}
                   </span>
                   {hoveredNode.kind === "job" ? (

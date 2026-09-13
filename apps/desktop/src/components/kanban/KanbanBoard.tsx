@@ -11,7 +11,6 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Trash2 } from "lucide-react";
 import type { Application, ApplicationStage } from "@ghostboard/shared";
 import { APPLICATION_STAGES } from "@ghostboard/shared";
 import { EmojiBurst, type EmojiBurstEffect } from "./EmojiBurst";
@@ -25,21 +24,21 @@ import { ipc } from "../../lib/ipc";
 
 const DELETE_DROP_ID = "kanban-delete-drop-zone";
 
-function DeleteDropZone() {
+function DeleteDropZone({ active }: { active: boolean }) {
   const { setNodeRef, isOver } = useDroppable({ id: DELETE_DROP_ID });
 
   return (
     <motion.div
       ref={setNodeRef}
       aria-label="Delete application drop zone"
-      animate={{ scale: isOver ? 1.04 : 1 }}
+      aria-hidden={!active}
+      animate={{
+        opacity: active ? 1 : 0,
+        y: active ? 0 : 16,
+        scale: isOver ? 1.06 : 1,
+      }}
       transition={{ type: "spring", stiffness: 380, damping: 30, mass: 0.8 }}
-      className={[
-        "mt-3 flex h-14 w-full items-center justify-center gap-2 rounded-sm border text-[12px] font-semibold uppercase tracking-[0.16em] transition-colors duration-200",
-        isOver
-          ? "border-oxblood/70 bg-oxblood/20 text-oxblood/75"
-          : "border-oxblood/30 bg-oxblood/10 text-oxblood/55",
-      ].join(" ")}
+      className="pointer-events-none fixed bottom-8 left-1/2 z-40 flex -translate-x-1/2 items-end justify-center"
     >
       <motion.span
         aria-hidden="true"
@@ -51,9 +50,29 @@ function DeleteDropZone() {
             : { duration: DURATION.quick, ease: EASE.subtle }
         }
       >
-        <Trash2 size={14} strokeWidth={1.8} />
+        <div className="relative mt-3 ml-2 h-[48px] w-[40px] cursor-pointer">
+          {/* Animating Container: Holds both the lid and the handle so they rotate together */}
+          <div 
+            className={`absolute left-0 w-[40px] origin-left transition-all duration-200 ease-out
+              ${isOver ? '-top-[8px] -rotate-35' : '-top-[.5px] rotate-0'}`}
+          >
+            {/* Handle (Centered precisely on top of the lid) */}
+            <div className="absolute -top-[6px] left-[10px] h-[10px] w-[20px] rounded-t-[3px] border-4 border-ink border-b-0" />
+            
+            {/* The Lid Bar */}
+            <div className="absolute top-0 -left-[5px] h-[8px] w-[50px] rounded-[4px] bg-ink" />
+          </div>
+          {/* The Bin */}
+          <div className="absolute bottom-0 h-[38px] w-[40px] rounded-b-[6px] bg-ink">
+            {/* Left Line */}
+            <div className="absolute top-[8px] left-[8px] w-[4px] h-[24px] rounded-full bg-paper" />
+            {/* Middle Line */}
+            <div className="absolute top-[8px] left-[18px] w-[4px] h-[24px] rounded-full bg-paper" />
+            {/* Right Line */}
+            <div className="absolute top-[8px] right-[8px] w-[4px] h-[24px] rounded-full bg-paper" />
+          </div>
+        </div>
       </motion.span>
-      Delete
     </motion.div>
   );
 }
@@ -312,7 +331,7 @@ export function KanbanBoard({
             />
           ))}
         </div>
-        <DeleteDropZone />
+        <DeleteDropZone active={draggedApplication !== null} />
         <DragOverlay dropAnimation={null} style={{ zIndex: 100 }}>
           {draggedApplication ? (
             <KanbanCardPreview

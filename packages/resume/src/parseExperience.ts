@@ -1,3 +1,4 @@
+import { parseSkillList } from "./parseMasterLatex";
 import type { ResumeEducation, ResumeExperience, ResumeProject, ResumeReference } from "@ghostboard/shared";
 
 export type JobExperience = ResumeExperience;
@@ -184,12 +185,7 @@ function parseContact(latex: string, sections: Array<{ heading: string; latex: s
   return { name: name || null, email, phone, location, links: [...new Set(links.concat(summary.match(/https?:\/\/\S+/g) ?? []))] };
 }
 
-function parseSkills(sectionLatex: string | undefined): string[] {
-  if (!sectionLatex) return [];
-  const bulletSkills = parseBullets(sectionLatex);
-  const source = bulletSkills.length > 0 ? bulletSkills.join(", ") : cleanupLatexText(sectionLatex);
-  return [...new Set(source.split(/[,;|]/).map((skill) => skill.replace(/^[^:]+:\s*/, "").trim()).filter(Boolean))];
-}
+
 
 function parseEducation(sectionLatex: string | undefined): ResumeEducation[] {
   if (!sectionLatex) return [];
@@ -246,7 +242,7 @@ export function parseResumeReference(latex: string): ResumeReference {
   return {
     contact: parseContact(latex, sections),
     summary,
-    skills: parseSkills(skillsSection?.latex),
+    skills: parseSkillList(skillsSection?.latex ?? ""),
     experience: parseJobExperiences(latex),
     education: parseEducation(educationSection?.latex),
     projects: parseProjects(projectSection?.latex),
