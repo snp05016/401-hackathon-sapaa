@@ -4,7 +4,7 @@ import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 import type { Application, ExperienceEntry, TailoredResumeRecord } from "@ghostboard/shared";
-import type { ResumeCustomizeResult } from "@ghostboard/resume";
+import { applyBulletEdits, parseBullets, validateLatex, type BulletProposal, type ResumeCustomizeResult } from "@ghostboard/resume";
 import { FileDown, FileUp, FolderDown, Mic, Pencil, Plus, Save, Square, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
 import { ipc } from "../lib/ipc";
 import { cn, formatDate } from "../lib/utils";
@@ -32,6 +32,7 @@ import {
   TRANSITION,
 } from "../lib/motion";
 import { playSound } from "../lib/sound";
+import { BulletProposalPanel } from "../components/resume/BulletProposalPanel";
 
 const MAX_RECORDING_SECONDS = 120;
 
@@ -554,11 +555,21 @@ export function Resumes() {
   const [exportOutcome, setExportOutcome] = useState<{ kind: "success" | "cancel" | "error"; message: string } | null>(null);
   const [exportStamp, setExportStamp] = useState(false);
   const [tailorErrorNonce, setTailorErrorNonce] = useState(0);
+  const [bulletProposals, setBulletProposals] = useState<BulletProposal[]>([]);
+  const [bulletProposalWarnings, setBulletProposalWarnings] = useState<string[]>([]);
+  const [bulletProposalError, setBulletProposalError] = useState<string | null>(null);
+  const [bulletProposalLoading, setBulletProposalLoading] = useState(false);
+  const [bulletProposalRequested, setBulletProposalRequested] = useState(false);
+  const [acceptedBulletIds, setAcceptedBulletIds] = useState<Set<string>>(new Set());
+  const [rejectedBulletIds, setRejectedBulletIds] = useState<Set<string>>(new Set());
+  const [bulletApplyError, setBulletApplyError] = useState<string | null>(null);
+  const [bulletApplying, setBulletApplying] = useState(false);
 
   const masterRequestRef = useRef(0);
   const experienceRequestRef = useRef(0);
   const applicationsRequestRef = useRef(0);
   const tailorRequestRef = useRef(0);
+  const bulletProposalRequestRef = useRef(0);
   const masterEditorValueRef = useRef("");
 
   const masterPreview = useLatexPdf(masterLatex);
@@ -657,6 +668,15 @@ export function Resumes() {
     tailorRequestRef.current += 1;
     setIsTailoring(false);
     setTailoredResult(null);
+    bulletProposalRequestRef.current += 1;
+    setBulletProposalLoading(false);
+    setBulletProposalRequested(false);
+    setBulletProposals([]);
+    setBulletProposalWarnings([]);
+    setBulletProposalError(null);
+    setAcceptedBulletIds(new Set());
+    setRejectedBulletIds(new Set());
+    setBulletApplyError(null);
   }
 
   async function handleSaveMaster() {
@@ -690,6 +710,22 @@ export function Resumes() {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+
+    // An uploaded master supersedes any in-flight or previously reviewed
+    // proposals. Invalidate them before the async parse/save work begins so a
+    // late response cannot be applied to the new document.
+    tailorRequestRef.current += 1;
+    setIsTailoring(false);
+    setTailoredResult(null);
+    bulletProposalRequestRef.current += 1;
+    setBulletProposalLoading(false);
+    setBulletProposalRequested(false);
+    setBulletProposals([]);
+    setBulletProposalWarnings([]);
+    setBulletProposalError(null);
+    setAcceptedBulletIds(new Set());
+    setRejectedBulletIds(new Set());
+    setBulletApplyError(null);
 
     setResumeImporting(true);
     setResumeImportError(null);
@@ -746,6 +782,15 @@ export function Resumes() {
     tailorRequestRef.current += 1;
     setIsTailoring(false);
     setTailoredResult(null);
+    bulletProposalRequestRef.current += 1;
+    setBulletProposalLoading(false);
+    setBulletProposalRequested(false);
+    setBulletProposals([]);
+    setBulletProposalWarnings([]);
+    setBulletProposalError(null);
+    setAcceptedBulletIds(new Set());
+    setRejectedBulletIds(new Set());
+    setBulletApplyError(null);
   }
 
   function clearSample() {
@@ -756,6 +801,15 @@ export function Resumes() {
     tailorRequestRef.current += 1;
     setIsTailoring(false);
     setTailoredResult(null);
+    bulletProposalRequestRef.current += 1;
+    setBulletProposalLoading(false);
+    setBulletProposalRequested(false);
+    setBulletProposals([]);
+    setBulletProposalWarnings([]);
+    setBulletProposalError(null);
+    setAcceptedBulletIds(new Set());
+    setRejectedBulletIds(new Set());
+    setBulletApplyError(null);
   }
 
   function openAddDraft() {
@@ -1041,6 +1095,15 @@ export function Resumes() {
     setSelectedApplicationId(id);
     setTailorError(null);
     setTailoredResult(null);
+    bulletProposalRequestRef.current += 1;
+    setBulletProposalLoading(false);
+    setBulletProposalRequested(false);
+    setBulletProposals([]);
+    setBulletProposalWarnings([]);
+    setBulletProposalError(null);
+    setAcceptedBulletIds(new Set());
+    setRejectedBulletIds(new Set());
+    setBulletApplyError(null);
     const application = applications?.find((candidate) => candidate.id === id);
     if (application) {
       setJobCompany(application.company);
@@ -1058,6 +1121,15 @@ export function Resumes() {
   function updateJobField(setter: (value: string) => void, value: string) {
     setter(value);
     if (tailoredResult) setTailoredResult(null);
+    bulletProposalRequestRef.current += 1;
+    setBulletProposalLoading(false);
+    setBulletProposalRequested(false);
+    setBulletProposals([]);
+    setBulletProposalWarnings([]);
+    setBulletProposalError(null);
+    setAcceptedBulletIds(new Set());
+    setRejectedBulletIds(new Set());
+    setBulletApplyError(null);
   }
 
   const masterReady = masterLatex.trim().length > 0;
@@ -1090,6 +1162,84 @@ export function Resumes() {
       playSound("error");
     } finally {
       if (requestId === tailorRequestRef.current) setIsTailoring(false);
+    }
+  }
+
+  async function handleSuggestBulletEdits() {
+    if (!masterReady || !jobReady || bulletProposalLoading) return;
+    const requestId = ++bulletProposalRequestRef.current;
+    setBulletProposalRequested(true);
+    setBulletProposalLoading(true);
+    setBulletProposalError(null);
+    setBulletProposalWarnings([]);
+    setBulletProposals([]);
+    setAcceptedBulletIds(new Set());
+    setRejectedBulletIds(new Set());
+    setBulletApplyError(null);
+    try {
+      const result = await ipc().proposeBulletRewrites({ masterLatex, jobDescription: jobDescription.trim() });
+      if (requestId !== bulletProposalRequestRef.current) return;
+      setBulletProposals(result.proposals);
+      setBulletProposalWarnings(result.warnings);
+    } catch (error) {
+      if (requestId !== bulletProposalRequestRef.current) return;
+      setBulletProposalError(errorMessage(error, "Could not suggest bullet edits. Try again."));
+    } finally {
+      if (requestId === bulletProposalRequestRef.current) setBulletProposalLoading(false);
+    }
+  }
+
+  function acceptBulletProposal(id: string) {
+    setBulletApplyError(null);
+    setRejectedBulletIds((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+    setAcceptedBulletIds((current) => {
+      const next = new Set(current);
+      next.add(id);
+      return next;
+    });
+  }
+
+  function rejectBulletProposal(id: string) {
+    setBulletApplyError(null);
+    setAcceptedBulletIds((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+    setRejectedBulletIds((current) => {
+      const next = new Set(current);
+      next.add(id);
+      return next;
+    });
+  }
+
+  function applyAcceptedBulletEdits() {
+    if (bulletApplying || acceptedBulletIds.size === 0) return;
+    setBulletApplying(true);
+    setBulletApplyError(null);
+    try {
+      const bullets = parseBullets(masterLatex);
+      const accepted = bulletProposals.filter((proposal) => acceptedBulletIds.has(proposal.id));
+      const candidate = applyBulletEdits(masterLatex, bullets, accepted.map((proposal) => ({ id: proposal.id, text: proposal.after })));
+      const validation = validateLatex(candidate);
+      if (!validation.valid) throw new Error(`The tailored draft is not valid LaTeX: ${validation.errors.join(" ")}`);
+      setTailoredLatex(candidate);
+      setTailoredResult({
+        latex: candidate,
+        changesSummary: accepted.map((proposal) => `Updated bullet: ${proposal.rationale || proposal.after}`),
+      });
+      setReviewSaving("idle");
+      setReviewSaveError(null);
+      playSound("success");
+    } catch (error) {
+      setBulletApplyError(errorMessage(error, "Could not prepare the tailored draft. The master resume was not changed."));
+      playSound("error");
+    } finally {
+      setBulletApplying(false);
     }
   }
 
@@ -2076,6 +2226,23 @@ export function Resumes() {
                 </p>
               )}
             </div>
+
+            <BulletProposalPanel
+              requested={bulletProposalRequested}
+              canRequest={masterReady && jobReady && !isTailoring}
+              proposals={bulletProposals}
+              warnings={bulletProposalWarnings}
+              loading={bulletProposalLoading}
+              error={bulletProposalError}
+              applying={bulletApplying}
+              applyError={bulletApplyError}
+              acceptedIds={acceptedBulletIds}
+              rejectedIds={rejectedBulletIds}
+              onRequest={() => void handleSuggestBulletEdits()}
+              onAccept={acceptBulletProposal}
+              onReject={rejectBulletProposal}
+              onApply={applyAcceptedBulletEdits}
+            />
 
             {tailoredResult && (
               <motion.div

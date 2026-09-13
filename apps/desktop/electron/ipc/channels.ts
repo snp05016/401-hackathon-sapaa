@@ -30,6 +30,7 @@ export const IPC_CHANNELS = {
   resumeExperienceUpsert: "resume:experience:upsert",
   resumeExperienceDelete: "resume:experience:delete",
   resumeGenerate: "resume:generate",
+  resumeProposeBullets: "resume:propose-bullets",
   resumeTailoredList: "resume:tailored:list",
   resumeTailoredSave: "resume:tailored:save",
   resumePrintPdf: "resume:print-pdf",

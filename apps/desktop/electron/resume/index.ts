@@ -4,7 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { transcribeWithGroq } from "@ghostboard/ai";
-import { customizeResume, parseMasterLatex, type ParsedExperienceEntry, type ResumeCustomizeRequest, type ResumeCustomizeResult } from "@ghostboard/resume";
+import { customizeResume, parseMasterLatex, proposeBulletRewrites, validateLatex, type ParsedExperienceEntry, type ResumeCustomizeRequest, type ResumeCustomizeResult } from "@ghostboard/resume";
 import type { ExperienceEntry, TailoredResumeRecord } from "@ghostboard/shared";
 import {
   readExperienceBank,
@@ -25,6 +25,8 @@ const MAX_TAILORED_LATEX_LENGTH = 500_000;
 const MAX_HTML_LENGTH = 5_000_000;
 const MAX_PDF_BYTES = 50_000_000;
 const MAX_SUMMARY_LENGTH = 100_000;
+const MAX_EXPERIENCE_BANK_ENTRIES_FOR_PROPOSALS = 200;
+const MAX_EXPERIENCE_BANK_CHARACTERS_FOR_PROPOSALS = 80_000;
 
 function requiredText(value: unknown, field: string, maxLength: number): string {
   if (typeof value !== "string" || !value.trim()) throw new Error(`Invalid ${field}: expected non-empty text.`);
@@ -148,6 +150,46 @@ async function generateTailoredResume(value: unknown): Promise<ResumeCustomizeRe
   const request = asCustomizeRequest(value);
   try {
     return await customizeResume(request);
+  } catch (error) {
+    throw readableTailoringError(error);
+  }
+}
+
+interface ResumeBulletProposalRequest {
+  masterLatex: string;
+  jobDescription: string;
+}
+
+function asResumeBulletProposalRequest(value: unknown): ResumeBulletProposalRequest {
+  if (!value || typeof value !== "object") throw new Error("Invalid bullet proposal request.");
+  const request = value as Record<string, unknown>;
+  const masterLatex = plainText(request.masterLatex, "master LaTeX", MAX_MASTER_LATEX_LENGTH);
+  if (!masterLatex.trim()) throw new Error("Master LaTeX is required.");
+  const jobDescription = requiredText(request.jobDescription, "job description", MAX_JOB_DESCRIPTION_LENGTH);
+  const validation = validateLatex(masterLatex);
+  if (!validation.valid) throw new Error(`Master resume is not valid LaTeX: ${validation.errors.join(" ")}`);
+  return { masterLatex, jobDescription };
+}
+
+function validatedExperienceBankForProposals(): ExperienceEntry[] {
+  const entries = readExperienceBank();
+  if (entries.length > MAX_EXPERIENCE_BANK_ENTRIES_FOR_PROPOSALS) {
+    throw new Error("Experience bank contains too many entries (200 maximum).");
+  }
+  const normalized = entries.map((entry) => normalizeExperienceEntry(entry));
+  const totalCharacters = normalized.reduce((sum, entry) => sum + JSON.stringify(entry).length, 0);
+  if (totalCharacters > MAX_EXPERIENCE_BANK_CHARACTERS_FOR_PROPOSALS) {
+    throw new Error("Experience bank is too large to tailor safely.");
+  }
+  return normalized;
+}
+
+async function proposeResumeBullets(value: unknown) {
+  const request = asResumeBulletProposalRequest(value);
+  try {
+    return await proposeBulletRewrites(request.masterLatex, request.jobDescription, {
+      experienceBank: validatedExperienceBankForProposals(),
+    });
   } catch (error) {
     throw readableTailoringError(error);
   }
@@ -303,6 +345,7 @@ export function registerResumeHandlers(): void {
     [IPC_CHANNELS.resumeExtractExperience, (latex) => extractExperienceEntries(latex)],
     [IPC_CHANNELS.resumeExperienceImport, (entries) => importExperienceEntries(entries)],
     [IPC_CHANNELS.resumeGenerate, (request) => generateTailoredResume(request)],
+    [IPC_CHANNELS.resumeProposeBullets, (request) => proposeResumeBullets(request)],
     [IPC_CHANNELS.resumeTailoredList, () => readTailoredResumes()],
     [IPC_CHANNELS.resumeTailoredSave, (record) => saveTailoredResume(record)],
     [IPC_CHANNELS.resumePrintPdf, (html) => printResumePdf(html)],

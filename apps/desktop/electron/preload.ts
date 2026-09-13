@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { Application, ApplicationStage, ApplicationEvent, FollowUpSuggestion, GmailState } from "@ghostboard/shared";
 import type { ProfileField, Profile } from "@ghostboard/shared";
 import type { ExperienceEntry, MasterResume, TailoredResumeRecord } from "@ghostboard/shared";
-import type { ParsedExperienceEntry, ResumeCustomizeRequest, ResumeCustomizeResult } from "@ghostboard/resume";
+import type { BulletProposal, ParsedExperienceEntry, ResumeCustomizeRequest, ResumeCustomizeResult } from "@ghostboard/resume";
 import { IPC_CHANNELS } from "./ipc/channels";
 
 export type DiscoverSite = "linkedin" | "indeed" | "glassdoor" | "google" | "zip_recruiter";
@@ -80,6 +80,11 @@ export interface SyncPairingInfo {
   error: string | null;
 }
 
+export interface ResumeBulletProposalResult {
+  proposals: BulletProposal[];
+  warnings: string[];
+}
+
 export interface GhostboardApi {
   getGmailState(): Promise<GmailState>;
   importGmailCredentials(): Promise<GmailState>;
@@ -112,6 +117,7 @@ export interface GhostboardApi {
   extractExperienceEntries(latex: string): Promise<ParsedExperienceEntry[]>;
   importExperienceEntries(entries: ParsedExperienceEntry[]): Promise<ExperienceEntry[]>;
   generateTailoredResume(request: ResumeCustomizeRequest): Promise<ResumeCustomizeResult>;
+  proposeBulletRewrites(request: { masterLatex: string; jobDescription: string }): Promise<ResumeBulletProposalResult>;
   listTailoredResumes(): Promise<TailoredResumeRecord[]>;
   saveTailoredResume(record: TailoredResumeRecord): Promise<TailoredResumeRecord>;
   transcribeAudio(input: { audio: Uint8Array; mimeType: string }): Promise<{ text: string }>;
@@ -153,6 +159,7 @@ const api: GhostboardApi = {
   extractExperienceEntries: (latex) => ipcRenderer.invoke(IPC_CHANNELS.resumeExtractExperience, latex),
   importExperienceEntries: (entries) => ipcRenderer.invoke(IPC_CHANNELS.resumeExperienceImport, entries),
   generateTailoredResume: (request) => ipcRenderer.invoke(IPC_CHANNELS.resumeGenerate, request),
+  proposeBulletRewrites: (request) => ipcRenderer.invoke(IPC_CHANNELS.resumeProposeBullets, request),
   listTailoredResumes: () => ipcRenderer.invoke(IPC_CHANNELS.resumeTailoredList),
   saveTailoredResume: (record) => ipcRenderer.invoke(IPC_CHANNELS.resumeTailoredSave, record),
   transcribeAudio: (input) => ipcRenderer.invoke(IPC_CHANNELS.resumeTranscribe, input),
