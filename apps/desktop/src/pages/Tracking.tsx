@@ -6,6 +6,11 @@ import { useApplications } from "../lib/useApplications";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
+import { GhostBadge } from "../components/ui/GhostBadge";
+
+// Stages where silence plausibly means the employer stopped responding — see
+// the matching guard in KanbanCard.tsx.
+const GHOSTABLE_STAGES = new Set<Application["status"]>(["applied", "interviewing"]);
 
 const deadlineColors = {
   green: "border-verdigris/35 text-verdigris",
@@ -191,10 +196,14 @@ export function Tracking() {
               {applications?.map((application) => {
                 const staleness = evaluateApplicationStaleness(application, now);
                 const deadline = evaluateDeadline(application.deadline, now);
+                const isGhosting = staleness.isStale && GHOSTABLE_STAGES.has(application.status);
                 return (
                   <tr key={application.id} className="border-b border-hairline transition-colors hover:bg-paper-raised">
                     <td className="min-w-[170px] max-w-xs break-words px-3 py-5 pl-0">
-                      <div className="font-semibold text-ink">{application.company}</div>
+                      <div className="flex items-start gap-2">
+                        <div className="font-semibold text-ink">{application.company}</div>
+                        {isGhosting && <GhostBadge days={staleness.daysSinceLastActivity} className="mt-0.5" />}
+                      </div>
                       <div className="mt-0.5 text-ink-2">{application.title}</div>
                       {mixedKeysByApplicationId.has(application.id) && (
                         <div className="mt-1.5">
