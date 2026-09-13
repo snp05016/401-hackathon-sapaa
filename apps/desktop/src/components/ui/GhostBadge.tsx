@@ -1,4 +1,4 @@
-import { GhostMark } from "./GhostMark";
+import { GhostFigure } from "./GhostFigure";
 import { cn } from "../../lib/utils";
 
 /**
@@ -14,9 +14,9 @@ export function GhostBadge({ days, className }: { days: number; className?: stri
       role="img"
       aria-label={label}
       title={label}
-      className={cn("inline-flex shrink-0 items-center justify-center text-oxblood/75", className)}
+      className={cn("inline-flex shrink-0 items-center justify-center", className)}
     >
-      <GhostMark size={14} className="animate-haunt" />
+      <GhostFigure size={18} className="animate-haunt drop-shadow-[0_1px_1px_rgba(23,23,19,0.25)]" />
     </span>
   );
 }
