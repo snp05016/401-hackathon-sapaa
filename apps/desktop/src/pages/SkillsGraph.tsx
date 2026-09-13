@@ -79,10 +79,18 @@ function buildJobSkills(applications: Application[]): string[] {
   return Array.from(byKey.values()).sort((a, b) => a.localeCompare(b));
 }
 
+function resolveCssColor(cssVar: string): string {
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue(cssVar)
+    .trim();
+  return `rgb(${value})`;
+}
+
 interface NodeData {
   id: string;
   label: string;
   kind: "job" | "preference" | "job-skill";
+  color: string
   size: number;
   application?: Application;
 }
@@ -116,6 +124,11 @@ export function SkillsGraph() {
   const hoveredNodeRef = useRef<NodeData | null>(null);
   const lastOpenedApplicationId = useRef<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+
+  const jobColor =  useMemo(() => resolveCssColor("--verdigris"), []);
+  const postingSkillColor = useMemo(() => resolveCssColor("--brass"), []);
+  const preferenceSkillColor = useMemo(() => resolveCssColor("--oxblood"), []);
+
 
   useEffect(() => {
     let active = true;
@@ -165,6 +178,7 @@ export function SkillsGraph() {
         id: `job:${application.id}`,
         label: application.title || application.company,
         kind: "job",
+        color: jobColor, 
         size: 22,
         application,
       });
@@ -175,6 +189,7 @@ export function SkillsGraph() {
         id: `skill:${skill.toLowerCase()}`,
         label: skill,
         kind: "preference",
+        color: preferenceSkillColor,
         size: 15,
       });
     });
@@ -184,6 +199,7 @@ export function SkillsGraph() {
         id: `skill:${skill.toLowerCase()}`,
         label: skill,
         kind: "job-skill",
+        color: postingSkillColor,
         size: 15,
       });
     });
@@ -201,7 +217,7 @@ export function SkillsGraph() {
 
     const result = { nodes: nodeList, links: linkList };
     return result;
-  }, [preferences, applications]);
+  }, [preferences, applications, jobColor, postingSkillColor]);
 
   const isSkillKind = (node: NodeData) => node.kind === "preference" || node.kind === "job-skill";
 
