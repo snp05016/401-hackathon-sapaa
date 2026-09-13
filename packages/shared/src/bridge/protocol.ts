@@ -1,4 +1,4 @@
-import type { JobPosting } from "../types/job";
+import type { JobDetails, JobPosting } from "../types/job";
 import type { Application, ApplicationStage } from "../types/application";
 import type { Profile } from "../types/profile";
 import type { MasterResume } from "../types/resume";
@@ -54,7 +54,7 @@ export interface ProfileResponse {
   profile: Profile;
 }
 
-export interface CreateJobRequest {
+export interface CreateJobRequest extends Partial<JobDetails> {
   id?: string;
   fingerprint?: string;
   contentFingerprint?: string | null;

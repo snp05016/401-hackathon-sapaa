@@ -2,6 +2,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { motion } from "framer-motion";
 import type { Application, ApplicationStage } from "@ghostboard/shared";
+import { jobDetailBadges } from "@ghostboard/shared";
 import { cn, daysSince, formatDate } from "../../lib/utils";
 
 const STAGE_EDGE: Record<ApplicationStage, string> = {
@@ -12,6 +13,24 @@ const STAGE_EDGE: Record<ApplicationStage, string> = {
   rejected: "hover:border-oxblood",
   ghosted: "hover:border-ink-3",
 };
+
+/** Detail chips from ingestion. Renders nothing for a manually added application. */
+function DetailBadges({ application }: { application: Application }) {
+  const badges = jobDetailBadges(application.jobDetails, 2);
+  if (!badges.length) return null;
+  return (
+    <div className="mt-2 flex flex-wrap gap-1">
+      {badges.map((badge) => (
+        <span
+          key={badge}
+          className="rounded-sm border border-hairline px-1.5 py-px text-[9px] lowercase tracking-wide text-ink-3"
+        >
+          {badge}
+        </span>
+      ))}
+    </div>
+  );
+}
 
 export function KanbanCardPreview({
   application,
@@ -54,6 +73,7 @@ export function KanbanCardPreview({
     >
       <h4 className="text-[13px] font-semibold leading-tight text-ink">{application.company}</h4>
       <p className="mt-0.5 text-[12px] leading-snug text-ink-2">{application.title}</p>
+      <DetailBadges application={application} />
       <div className="mt-3 flex items-baseline justify-between gap-2 border-t border-hairline pt-2 text-[11px] text-ink-3">
         <span className="tnum">{daysSince(application.lastActivityAt)}d quiet</span>
         {dateApplied && <span className="tnum">applied on {dateApplied}</span>}
@@ -105,6 +125,7 @@ export function KanbanCard({ application, stage, onOpen }: { application: Applic
       >
         <h4 className="text-[13px] font-semibold leading-tight text-ink">{application.company}</h4>
         <p className="mt-0.5 text-[12px] leading-snug text-ink-2">{application.title}</p>
+        <DetailBadges application={application} />
         <div className="mt-3 flex items-baseline justify-between gap-2 border-t border-hairline pt-2 text-[11px] text-ink-3">
           <span className="tnum">{daysSince(application.lastActivityAt)}d quiet</span>
           {dateApplied && <span className="tnum">applied on {dateApplied}</span>}

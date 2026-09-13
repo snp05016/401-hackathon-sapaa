@@ -21,6 +21,9 @@ export const applications = sqliteTable("applications", {
   nextActionDate: text("next_action_date"),
   resumeId: text("resume_id"),
   source: text("source").notNull().default("manual"),
+  // ponytail: one JSON blob, not nine sparse columns. Split it out if any of
+  // these ever needs an index or a WHERE clause.
+  jobDetails: text("job_details", { mode: "json" }).$type<import("@ghostboard/shared").JobDetails>(),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
