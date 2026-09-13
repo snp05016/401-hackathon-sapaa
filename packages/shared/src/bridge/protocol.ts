@@ -5,7 +5,7 @@ import type { MasterResume } from "../types/resume";
 import type { DetectedFormField } from "../types/form";
 
 export const BRIDGE_DEFAULT_PORT = 4173;
-export const BRIDGE_EXTENSION_MESSAGES_DEFAULT_PORT = 4174;
+export const BRIDGE_EXTENSION_MESSAGES_DEFAULT_PORT = 42786;
 export const BRIDGE_EXTENSION_MESSAGES_PATH = "/extension-messages";
 export const BRIDGE_TOKEN_HEADER = "authorization";
 
@@ -153,4 +153,3 @@ export interface ExternalKanbanResponse {
 export interface ExternalResumeTemplateResponse {
   resume: MasterResume;
 }
-

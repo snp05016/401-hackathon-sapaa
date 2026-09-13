@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Three grounds, one language. Stage meaning never moves between themes —
+/* Five grounds, one language. Stage meaning never moves between themes —
    oxblood is always closed, brass always in progress, verdigris always good
    news — each is only re-tuned for contrast against its ground. */
 :root,
@@ -54,6 +54,40 @@
   --card-shadow: rgba(26, 25, 20, 0.1);
   --wash: 255 255 255;
   --wash-a: 0.9;
+  --grain-a: 0.16;
+}
+
+:root[data-theme="clay"] {
+  --paper: 231 216 204;
+  --paper-raised: 247 239 232;
+  --paper-rail: 218 198 184;
+  --ink: 47 35 29;
+  --ink-2: 104 82 70;
+  --ink-3: 149 121 105;
+  --oxblood: 138 62 45;
+  --verdigris: 54 104 82;
+  --brass: 138 91 28;
+  --hairline: rgba(47, 35, 29, 0.15);
+  --card-shadow: rgba(71, 43, 31, 0.12);
+  --wash: 255 246 238;
+  --wash-a: 0.68;
+  --grain-a: 0.18;
+}
+
+:root[data-theme="tide"] {
+  --paper: 221 232 232;
+  --paper-raised: 242 248 247;
+  --paper-rail: 204 220 220;
+  --ink: 24 49 54;
+  --ink-2: 67 98 103;
+  --ink-3: 109 140 143;
+  --oxblood: 151 61 70;
+  --verdigris: 37 111 96;
+  --brass: 135 91 23;
+  --hairline: rgba(24, 49, 54, 0.15);
+  --card-shadow: rgba(20, 63, 69, 0.12);
+  --wash: 247 255 253;
+  --wash-a: 0.72;
   --grain-a: 0.16;
 }
 
@@ -123,4 +157,181 @@
 
 .animate-slide-in {
   animation: slideIn 0.3s ease-out forwards;
+}
+
+/* ---------------------------------------------------------------------------
+   Motion utilities. Colors come from theme variables only, so every class
+   below survives a `data-theme` swap.
+   --------------------------------------------------------------------------- */
+
+@keyframes sheen-sweep {
+  from {
+    transform: translateX(-130%);
+  }
+  to {
+    transform: translateX(130%);
+  }
+}
+
+.sheen-sweep {
+  position: absolute;
+  overflow: hidden;
+}
+
+.sheen-sweep::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 18%, rgb(var(--ink) / 0.06) 50%, transparent 82%);
+  transform: translateX(-130%);
+  animation: sheen-sweep var(--sheen-duration, 900ms) cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes shimmer-band {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.shimmer-band {
+  background-image: linear-gradient(
+    90deg,
+    rgb(var(--wash) / calc(var(--wash-a) * 0.35)) 0%,
+    rgb(var(--wash) / calc(var(--wash-a) * 0.85)) 45%,
+    rgb(var(--wash) / calc(var(--wash-a) * 0.35)) 90%
+  );
+  background-color: rgb(var(--ink) / 0.07);
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: shimmer-band 1.6s linear infinite;
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.62;
+  }
+}
+
+.pulse-soft {
+  animation: pulse-soft 2.4s cubic-bezier(0.33, 1, 0.68, 1) infinite;
+}
+
+@keyframes drift-soft {
+  0%,
+  100% {
+    transform: translateY(-3px) rotate(-0.6deg);
+  }
+  50% {
+    transform: translateY(3px) rotate(0.6deg);
+  }
+}
+
+.drift-slow {
+  animation: drift-soft 6s cubic-bezier(0.33, 1, 0.68, 1) infinite;
+}
+
+.drift-slower {
+  animation: drift-soft 9s cubic-bezier(0.33, 1, 0.68, 1) infinite;
+}
+
+/* Underline that draws in from the left when the field takes focus. */
+.focus-rule {
+  background-image: linear-gradient(to right, rgb(var(--oxblood)), rgb(var(--oxblood)));
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  background-size: 0% 2px;
+  transition:
+    background-size 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.16s cubic-bezier(0.33, 1, 0.68, 1),
+    color 0.16s cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+.focus-rule:focus,
+.focus-rule:focus-within {
+  background-size: 100% 2px;
+}
+
+.hover-raise {
+  transition:
+    transform 0.16s cubic-bezier(0.33, 1, 0.68, 1),
+    box-shadow 0.16s cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+.hover-raise:hover {
+  transform: translateY(-3px);
+  box-shadow: 5px 5px 0 0 var(--card-shadow);
+}
+
+.press-crisp {
+  transition: transform 0.09s cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+.press-crisp:active {
+  transform: scale(0.975);
+}
+
+/* CSS-only cascade helper for rows that cannot carry a motion wrapper. */
+.stagger-rows > * {
+  animation: reveal 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.stagger-rows > *:nth-child(1) {
+  animation-delay: 0.045s;
+}
+.stagger-rows > *:nth-child(2) {
+  animation-delay: 0.09s;
+}
+.stagger-rows > *:nth-child(3) {
+  animation-delay: 0.135s;
+}
+.stagger-rows > *:nth-child(4) {
+  animation-delay: 0.18s;
+}
+.stagger-rows > *:nth-child(5) {
+  animation-delay: 0.225s;
+}
+.stagger-rows > *:nth-child(6) {
+  animation-delay: 0.27s;
+}
+.stagger-rows > *:nth-child(7) {
+  animation-delay: 0.315s;
+}
+.stagger-rows > *:nth-child(8) {
+  animation-delay: 0.36s;
+}
+.stagger-rows > *:nth-child(9) {
+  animation-delay: 0.405s;
+}
+.stagger-rows > *:nth-child(10) {
+  animation-delay: 0.45s;
+}
+.stagger-rows > *:nth-child(11) {
+  animation-delay: 0.495s;
+}
+.stagger-rows > *:nth-child(n + 12) {
+  animation-delay: 0.54s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheen-sweep::after,
+  .shimmer-band,
+  .pulse-soft,
+  .drift-slow,
+  .drift-slower,
+  .stagger-rows > * {
+    animation: none !important;
+  }
+
+  .hover-raise,
+  .press-crisp,
+  .focus-rule {
+    transition: none !important;
+  }
 }

@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { motion } from "framer-motion";
+import { EASE } from "../../lib/motion";
 
-const GHOST_COUNT = 18;
+const GHOST_COUNT = 24;
 
 function createRandom(seed: number) {
   let value = seed;
@@ -14,58 +15,91 @@ function createRandom(seed: number) {
 export function GhostScatter() {
   const ghosts = useMemo(() => {
     const random = createRandom(401);
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
+
+    // Color/brightness variants for subtle shifts in tone & luminance
+    const colorShifts = [
+      { color: "rgb(var(--oxblood))", brightness: 1.0, opacity: 0.95 },
+      { color: "rgb(var(--oxblood))", brightness: 1.3, opacity: 1.0 },
+      { color: "rgb(var(--oxblood))", brightness: 1.55, opacity: 1.0 },
+      { color: "rgb(var(--oxblood))", brightness: 0.85, opacity: 0.85 },
+      { color: "rgb(var(--brass))", brightness: 1.2, opacity: 0.9 },
+      { color: "rgb(var(--oxblood))", brightness: 1.4, opacity: 0.95 },
+      { color: "rgb(var(--verdigris))", brightness: 1.15, opacity: 0.85 },
+      { color: "rgb(var(--oxblood))", brightness: 1.65, opacity: 1.0 },
+    ];
 
     return Array.from({ length: GHOST_COUNT }, (_, index) => {
-      const edge = index % 4;
-      const horizontalDirection = edge === 0 ? -1 : edge === 1 ? 1 : random() > 0.5 ? 1 : -1;
-      const verticalDirection = edge === 2 ? -1 : edge === 3 ? 1 : random() > 0.5 ? 1 : -1;
+      // Distribute evenly across screen width with jitter
+      const basePercent = (index / (GHOST_COUNT - 1)) * 90 + 5; // 5% to 95%
+      const jitter = (random() - 0.5) * 6;
+      const left = Math.max(3, Math.min(97, basePercent + jitter));
+
+      const shift = colorShifts[index % colorShifts.length];
+      const brightness = shift.brightness + (random() - 0.5) * 0.2;
+      const maxOpacity = Math.min(1, Math.max(0.7, shift.opacity + (random() - 0.5) * 0.1));
+
+      // Pop-up height from the bottom: varied levels for depth
+      const targetHeight = 140 + random() * 320;
+      const driftX = (random() - 0.5) * 50;
+      const rotation = (random() - 0.5) * 26;
 
       return {
         id: index,
-        startX: 32 + random() * 36,
-        startY: 34 + random() * 34,
-        x:
-          edge < 2
-            ? horizontalDirection * (viewportWidth * (0.68 + random() * 0.28))
-            : horizontalDirection * viewportWidth * (0.2 + random() * 0.45),
-        y:
-          edge >= 2
-            ? verticalDirection * (viewportHeight * (0.7 + random() * 0.3))
-            : verticalDirection * viewportHeight * (0.18 + random() * 0.48),
-        delay: random() * 0.2,
-        duration: 1.05 + random() * 0.65,
-        size: 24 + Math.round(random() * 22),
-        rotation: horizontalDirection * (18 + random() * 38),
+        left,
+        size: 20 + Math.round(random() * 24),
+        targetHeight,
+        driftX,
+        rotation,
+        color: shift.color,
+        brightness: Math.round(brightness * 100) / 100,
+        maxOpacity: Math.round(maxOpacity * 100) / 100,
+        delay: 0.12 + (index % 6) * 0.11 + random() * 0.2,
+        duration: 1.15 + random() * 0.45,
       };
     });
   }, []);
 
   return (
-    <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-40 overflow-hidden">
+    <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-[60] overflow-hidden">
       {ghosts.map((ghost) => (
-        <motion.span
+        <motion.div
           key={ghost.id}
-          className="absolute block select-none leading-none drop-shadow-md"
-          style={{ left: `${ghost.startX}%`, top: `${ghost.startY}%`, fontSize: ghost.size }}
-          initial={{ opacity: 0, scale: 0.45, x: 0, y: 0, rotate: 0 }}
+          className="absolute bottom-0 block select-none leading-none will-change-transform"
+          style={{
+            left: `${ghost.left}%`,
+            color: ghost.color,
+            filter: `brightness(${ghost.brightness}) drop-shadow(0 2px 8px rgba(0,0,0,0.18))`,
+          }}
+          initial={{ opacity: 0, scale: 0.4, y: 50, x: 0, rotate: 0 }}
           animate={{
-            opacity: [0, 1, 1, 0.9],
-            scale: [0.45, 1.15, 0.95, 0.8],
-            x: [0, ghost.x * 0.18, ghost.x * 0.55, ghost.x],
-            y: [0, ghost.y * 0.22 - 12, ghost.y * 0.58 + 10, ghost.y],
-            rotate: [0, -ghost.rotation * 0.25, ghost.rotation * 0.35, ghost.rotation],
+            opacity: [0, ghost.maxOpacity, ghost.maxOpacity * 0.9, 0],
+            scale: [0.4, 1.18, 1.0, 0.75],
+            y: [50, -ghost.targetHeight * 1.05, -ghost.targetHeight, -ghost.targetHeight - 40],
+            x: [0, ghost.driftX * 0.3, ghost.driftX * 0.7, ghost.driftX],
+            rotate: [0, -ghost.rotation * 0.5, ghost.rotation * 0.8, ghost.rotation],
           }}
           transition={{
             duration: ghost.duration,
-            delay: 0.62 + ghost.delay,
-            times: [0, 0.18, 0.58, 1],
-            ease: [0.4, 0, 0.2, 1],
+            delay: ghost.delay,
+            times: [0, 0.28, 0.65, 1],
+            ease: EASE.out,
           }}
         >
-          👻
-        </motion.span>
+          <svg
+            width={ghost.size}
+            height={ghost.size}
+            viewBox="0 0 24 24"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              fillRule="evenodd"
+              clipRule="evenodd"
+              d="M4.4 21.2V10.4a7.6 7.6 0 0 1 15.2 0v10.8l-2.53-2.05-2.53 2.05-2.54-2.05-2.53 2.05-2.54-2.05-2.53 2.05ZM9.6 8.7a1.15 1.5 0 1 0 0 3 1.15 1.5 0 1 0 0-3ZM14.4 8.7a1.15 1.5 0 1 0 0 3 1.15 1.5 0 1 0 0-3Z"
+              fill="currentColor"
+            />
+          </svg>
+        </motion.div>
       ))}
     </div>
   );
