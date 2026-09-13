@@ -89,6 +89,8 @@ export function Today() {
   const [followUps, setFollowUps] = useState<FollowUpSuggestion[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [dismissingAll, setDismissingAll] = useState(false);
+  const [dismissError, setDismissError] = useState<string | null>(null);
   const [heatmapSheen, setHeatmapSheen] = useState(false);
   const prefersReducedMotion = useReducedMotion();
   const counts = summarizeToday(applications ?? [], now);
@@ -126,6 +128,24 @@ export function Today() {
     setModalOpen(false);
   }
 
+  async function dismissAllFollowUps() {
+    if (dismissingAll || followUps.length === 0) return;
+    setDismissingAll(true);
+    setDismissError(null);
+    try {
+      await Promise.all(followUps.map((item) => ipc().dismissFollowUp(item.applicationId)));
+      setFollowUps([]);
+      setModalOpen(false);
+      reload();
+      playSound("success");
+    } catch {
+      setDismissError("Could not dismiss these reminders. Please try again.");
+      playSound("error");
+    } finally {
+      setDismissingAll(false);
+    }
+  }
+
   useEffect(() => {
     if (!applications || applications.length === 0) return;
     const loaded = applications;
@@ -134,6 +154,7 @@ export function Today() {
       try {
         const suggestions = await ipc().evaluateFollowUps();
         if (!active) return;
+        setDismissError(null);
         setFollowUps(suggestions);
         if (suggestions.length > 0) {
           setModalOpen(true);
@@ -365,8 +386,29 @@ export function Today() {
                   );
                 })}
               </div>
-              <footer className="border-t border-hairline px-7 py-4 text-[12px] text-ink-2">
-                Dismiss these reminders to check them again later from wherever you left off.
+              <footer className="border-t border-hairline px-7 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="max-w-md text-[11px] leading-relaxed text-ink-2">
+                    Closing hides this for now. Dismissing keeps these messages hidden until new interview activity arrives.
+                  </p>
+                  <div className="flex items-center gap-3">
+                    <Button variant="quiet" onClick={closeModal} disabled={dismissingAll}>
+                      Close for now
+                    </Button>
+                    <Button variant="outline" silent onClick={() => void dismissAllFollowUps()} disabled={dismissingAll}>
+                      {dismissingAll
+                        ? "Dismissing…"
+                        : followUps.length === 1
+                          ? "Don’t show this again"
+                          : "Dismiss all reminders"}
+                    </Button>
+                  </div>
+                </div>
+                {dismissError && (
+                  <p role="alert" className="mt-3 text-[11px] text-oxblood">
+                    {dismissError}
+                  </p>
+                )}
               </footer>
             </motion.div>
           </div>
