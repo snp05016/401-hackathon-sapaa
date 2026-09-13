@@ -5,7 +5,7 @@ import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 import type { Application, ExperienceEntry, TailoredResumeRecord } from "@ghostboard/shared";
 import type { ResumeCustomizeResult } from "@ghostboard/resume";
-import { FileDown, FileUp, FolderDown, Mic, Pencil, Plus, Save, Square, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
+import { FileDown, FileUp, FolderDown, Mic, Pencil, Plus, Save, Sparkles, Square, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
 import { ipc } from "../lib/ipc";
 import { cn, formatDate } from "../lib/utils";
 import { Badge } from "../components/ui/badge";
@@ -547,6 +547,7 @@ export function Resumes() {
   const [isTailoring, setIsTailoring] = useState(false);
   const [tailorError, setTailorError] = useState<string | null>(null);
   const [tailoredResult, setTailoredResult] = useState<ResumeCustomizeResult | null>(null);
+  const [tailoredDraftSource, setTailoredDraftSource] = useState<"manual" | "ai" | null>(null);
   const [tailoredLatex, setTailoredLatex] = useState("");
   const [reviewSaving, setReviewSaving] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [reviewSaveError, setReviewSaveError] = useState<string | null>(null);
@@ -1059,19 +1060,43 @@ export function Resumes() {
 
   function updateJobField(setter: (value: string) => void, value: string) {
     setter(value);
-    if (tailoredResult) setTailoredResult(null);
+    // A manual copy is independent of the job text and should stay open while the
+    // user refers to or corrects it. An AI draft becomes stale when its prompt changes.
+    if (tailoredResult && tailoredDraftSource === "ai") setTailoredResult(null);
   }
 
   const masterReady = masterLatex.trim().length > 0;
   const jobReady = jobDescription.trim().length > 0;
-  const canTailor = masterReady && jobReady && !isTailoring;
+  const canEditManually = masterReady && !isTailoring;
+  const canTailorWithAi = masterReady && jobReady && !isTailoring;
+
+  function resetReviewState() {
+    setReviewSaving("idle");
+    setReviewSaveError(null);
+    setPdfOutcome(null);
+    setExportOutcome(null);
+    setExportStamp(false);
+  }
+
+  function handleManualTailor() {
+    if (!canEditManually) return;
+    tailorRequestRef.current += 1;
+    setIsTailoring(false);
+    setTailorError(null);
+    setTailoredDraftSource("manual");
+    setTailoredResult({ latex: masterLatex, changesSummary: [] });
+    setTailoredLatex(masterLatex);
+    resetReviewState();
+  }
 
   async function handleTailor() {
-    if (!canTailor) return;
+    if (!canTailorWithAi) return;
     const requestId = ++tailorRequestRef.current;
     setIsTailoring(true);
     setTailorError(null);
     setTailoredResult(null);
+    setTailoredDraftSource(null);
+    resetReviewState();
     const jobContext = { company: jobCompany.trim(), title: jobTitle.trim(), jobUrl: jobUrl.trim() };
     try {
       const request = {
@@ -1083,6 +1108,7 @@ export function Resumes() {
       const result = await ipc().generateTailoredResume(request);
       if (requestId !== tailorRequestRef.current) return;
       setTailoredResult(result);
+      setTailoredDraftSource("ai");
       setTailoredLatex(result.latex);
       playSound("success");
     } catch (error) {
@@ -1093,6 +1119,11 @@ export function Resumes() {
     } finally {
       if (requestId === tailorRequestRef.current) setIsTailoring(false);
     }
+  }
+
+  function handleTailoredDraftChange(value: string) {
+    setTailoredLatex(value);
+    resetReviewState();
   }
 
   // id "" and empty masterId ask the backend to assign or resolve identifiers for the saved version.
@@ -1186,6 +1217,7 @@ export function Resumes() {
   }
 
   const exportDisabled = pdfBusy || exportBusy || reviewSaving === "saving" || tailoredPreview.compiling || tailoredPreview.compileError !== null || !tailoredPreview.pdf;
+  const tailoredDraftEdited = tailoredResult !== null && tailoredLatex !== tailoredResult.latex;
   const masterDirty = !masterLoading && !masterError && masterLatex !== persistedLatex;
 
   return (
@@ -2038,8 +2070,12 @@ export function Resumes() {
             </div>
 
             <div className="mt-6 flex flex-wrap items-center gap-4 border-t border-hairline pt-5">
-              <Button variant="ink" silent onClick={() => void handleTailor()} disabled={!canTailor}>
-                {isTailoring ? "Tailoring…" : "Tailor resume to this job"}
+              <Button variant="ink" onClick={handleManualTailor} disabled={!canEditManually}>
+                Tailor manually
+              </Button>
+              <Button variant="outline" silent onClick={() => void handleTailor()} disabled={!canTailorWithAi}>
+                <Sparkles size={13} aria-hidden="true" />
+                {isTailoring ? "Tailoring with Groq…" : "Tailor with Groq AI"}
               </Button>
               <AnimatePresence initial={false} mode="wait">
                 {isTailoring && (
@@ -2074,8 +2110,8 @@ export function Resumes() {
                   {!masterReady
                     ? "Write a master resume above before tailoring."
                     : !jobReady
-                      ? "Choose a saved application or paste a job description to tailor against."
-                      : "Tailored drafts appear here for review — nothing is saved until you choose."}
+                      ? "You can start editing manually now. Add a job description to enable Groq AI."
+                      : "Start with a manual copy, or ask Groq AI to create a first draft. Nothing is saved until you choose."}
                 </p>
               )}
             </div>
@@ -2088,32 +2124,47 @@ export function Resumes() {
                 transition={TRANSITION.slow}
               >
                 <div className="flex flex-wrap items-baseline justify-between gap-4">
-                  <h3 className="font-display text-[20px] text-ink">Review the tailored resume</h3>
-                  <p className="text-[12px] text-ink-2">Your master resume is never modified.</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="font-display text-[20px] text-ink">Review and edit the draft</h3>
+                    <Badge variant="outline">
+                      {tailoredDraftSource === "ai" ? "Groq AI draft" : "Manual copy"}
+                    </Badge>
+                    {tailoredDraftEdited && <Badge>Edited</Badge>}
+                  </div>
+                  <div className="flex items-center gap-4">
+                    {tailoredDraftEdited && (
+                      <Button variant="quiet" onClick={() => handleTailoredDraftChange(tailoredResult.latex)}>
+                        {tailoredDraftSource === "ai" ? "Reset to Groq draft" : "Reset to master copy"}
+                      </Button>
+                    )}
+                    <p className="text-[12px] text-ink-2">Your master resume is never modified.</p>
+                  </div>
                 </div>
 
-                <div className="mt-5">
-                  <h4 className="text-[11px] font-medium uppercase tracking-wide text-ink-3">Changes</h4>
-                  {tailoredResult.changesSummary.length === 0 ? (
-                    <p className="mt-2 text-[12px] text-ink-2">
-                      No line-level changes were detected. This version may reword or reorder without removing content.
-                    </p>
-                  ) : (
-                    <ul className="mt-2 max-h-56 space-y-1 overflow-y-auto pr-1">
-                      {tailoredResult.changesSummary.map((line, index) => (
-                        <ChangeLine key={index} line={line} index={index} />
-                      ))}
-                    </ul>
-                  )}
-                </div>
+                {tailoredDraftSource === "ai" && (
+                  <div className="mt-5">
+                    <h4 className="text-[11px] font-medium uppercase tracking-wide text-ink-3">AI changes</h4>
+                    {tailoredResult.changesSummary.length === 0 ? (
+                      <p className="mt-2 text-[12px] text-ink-2">
+                        Groq did not make any line-level changes. You can still edit the bullets below.
+                      </p>
+                    ) : (
+                      <ul className="mt-2 max-h-56 space-y-1 overflow-y-auto pr-1">
+                        {tailoredResult.changesSummary.map((line, index) => (
+                          <ChangeLine key={index} line={line} index={index} />
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
 
                 <div className="mt-6 grid gap-5 xl:grid-cols-2">
                   <div>
-                    <p className="mb-1.5 text-[12px] font-medium text-ink-2">Bullet points</p>
-                    <BulletBoard latex={tailoredLatex} masterLatex={masterLatex} onChange={setTailoredLatex} />
+                    <p className="mb-1.5 text-[12px] font-medium text-ink-2">Edit each bullet</p>
+                    <BulletBoard latex={tailoredLatex} masterLatex={masterLatex} onChange={handleTailoredDraftChange} />
                   </div>
                   <div>
-                    <p className="mb-1.5 text-[12px] font-medium text-ink-2">Preview</p>
+                    <p className="mb-1.5 text-[12px] font-medium text-ink-2">Live preview</p>
                     <LatexPdfPreview
                       pdf={tailoredPreview.pdf}
                       compileError={tailoredPreview.compileError}
@@ -2130,7 +2181,7 @@ export function Resumes() {
                     id="tailored-latex"
                     spellCheck={false}
                     value={tailoredLatex}
-                    onChange={(event) => setTailoredLatex(event.target.value)}
+                    onChange={(event) => handleTailoredDraftChange(event.target.value)}
                     className={cn(TEXTAREA_CLASSES, "mt-2 min-h-56")}
                   />
                 </details>
@@ -2142,7 +2193,7 @@ export function Resumes() {
                     onClick={() => void handleSaveTailored()}
                     disabled={reviewSaving === "saving" || pdfBusy || exportBusy}
                   >
-                    {reviewSaving === "saving" ? "Saving…" : "Save tailored resume"}
+                    {reviewSaving === "saving" ? "Saving…" : "Save reviewed resume"}
                   </Button>
                   <Button variant="outline" silent onClick={() => void handleDownloadPdf()} disabled={exportDisabled}>
                     <FileDown size={13} />
