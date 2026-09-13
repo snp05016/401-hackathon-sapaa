@@ -72,6 +72,14 @@ export interface MoveApplicationResult {
   event: ApplicationEvent | null;
 }
 
+export interface SyncPairingInfo {
+  enabled: boolean;
+  port: number;
+  addresses: string[];
+  token: string;
+  error: string | null;
+}
+
 export interface GhostboardApi {
   getGmailState(): Promise<GmailState>;
   importGmailCredentials(): Promise<GmailState>;
@@ -95,6 +103,7 @@ export interface GhostboardApi {
   getProfile(): Promise<Profile>;
   saveProfile(fields: ProfileField[]): Promise<Profile>;
   getBridgeInfo(): Promise<{ port: number; token: string } | null>;
+  getSyncInfo(): Promise<SyncPairingInfo>;
   getMasterResume(): Promise<MasterResume>;
   saveMasterResume(latex: string): Promise<MasterResume>;
   listExperienceEntries(): Promise<ExperienceEntry[]>;
@@ -135,6 +144,7 @@ const api: GhostboardApi = {
   getProfile: () => ipcRenderer.invoke(IPC_CHANNELS.getProfile),
   saveProfile: (fields) => ipcRenderer.invoke(IPC_CHANNELS.saveProfile, fields),
   getBridgeInfo: () => ipcRenderer.invoke(IPC_CHANNELS.bridgeInfo),
+  getSyncInfo: () => ipcRenderer.invoke(IPC_CHANNELS.syncInfo),
   getMasterResume: () => ipcRenderer.invoke(IPC_CHANNELS.resumeMasterGet),
   saveMasterResume: (latex) => ipcRenderer.invoke(IPC_CHANNELS.resumeMasterSave, latex),
   listExperienceEntries: () => ipcRenderer.invoke(IPC_CHANNELS.resumeExperienceList),

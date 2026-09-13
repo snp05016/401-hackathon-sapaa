@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
 import { applications, type GhostboardDb } from "@ghostboard/database";
 import { ingestJob } from "@ghostboard/scraping";
+import { getProvider } from "@ghostboard/ai";
 import type {
   CreateJobRequest,
   CreateJobResponse,
@@ -60,6 +61,17 @@ export async function handleCreateJob(db: GhostboardDb, body: CreateJobRequest):
     postedAt: body.postedAt,
     salaryRange: body.salaryRange,
     scrapedAt: body.scrapedAt ?? now,
+    // The bridge's create-job write path does not carry best-effort fields yet;
+    // ingestion fills them, this route defaults them.
+    workArrangement: null,
+    applicationDeadline: null,
+    startDate: null,
+    termDuration: null,
+    responsibilities: [],
+    preferredQualifications: [],
+    education: null,
+    workAuthorization: null,
+    clearance: null,
   };
 
   const applicationId = crypto.randomUUID();
@@ -85,6 +97,20 @@ export async function handleCreateJob(db: GhostboardDb, body: CreateJobRequest):
   return { job, applicationId };
 }
 
+/**
+ * Enrichment is opt-in on having a key configured. Without one, ingestion stays
+ * fully deterministic; the LLM only ever sees the cleaned description, and only
+ * for fields JSON-LD, provider APIs, and the DOM left empty.
+ */
+function enrichmentProvider() {
+  if (!process.env.GROQ_API_KEY && !process.env.GEMINI_API_KEY) return undefined;
+  try {
+    return getProvider();
+  } catch {
+    return undefined;
+  }
+}
+
 /** Read-only intelligence boundary: no application or lifecycle state is written. */
 export async function handleIngestJob(body: IngestJobRequest): Promise<IngestJobResponse> {
   return ingestJob({
@@ -92,7 +118,7 @@ export async function handleIngestJob(body: IngestJobRequest): Promise<IngestJob
     html: body.html,
     visibleText: body.visibleText,
     snapshot: body.snapshot,
-  });
+  }, { llm: enrichmentProvider() });
 }
 
 export async function handleUpsertApplication(

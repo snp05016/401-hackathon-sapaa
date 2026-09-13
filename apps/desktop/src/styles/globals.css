@@ -127,7 +127,8 @@
   .animate-draw-rule,
   .animate-letter-rise,
   .animate-mark-in,
-  .animate-curtain {
+  .animate-curtain,
+  .animate-haunt {
     animation: none !important;
   }
 }

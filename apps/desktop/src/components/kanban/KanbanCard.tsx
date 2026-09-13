@@ -3,9 +3,16 @@ import { CSS } from "@dnd-kit/utilities";
 import { motion, useReducedMotion } from "framer-motion";
 import type { ReactNode } from "react";
 import type { Application, ApplicationStage } from "@ghostboard/shared";
+import { evaluateApplicationStaleness } from "@ghostboard/tracking";
 import { GhostDrift } from "../motion";
 import { DISTANCE, DURATION, EASE, SCALE, SPRING, STAGGER, TRANSITION } from "../../lib/motion";
 import { cn, daysSince, formatDate } from "../../lib/utils";
+import { GhostBadge } from "../ui/GhostBadge";
+
+// Stages where silence plausibly means the employer stopped responding.
+// "found" hasn't been sent yet and "offer"/"rejected"/"ghosted" already got a
+// response (or are excluded from staleness entirely), so ghosting doesn't apply.
+const GHOSTABLE_STAGES = new Set<ApplicationStage>(["applied", "interviewing"]);
 
 const STAGE_EDGE: Record<ApplicationStage, string> = {
   found: "hover:border-ink-3",
@@ -99,6 +106,8 @@ export function KanbanCard({
   };
 
   const dateApplied = formatDate(application.dateApplied || "");
+  const staleness = evaluateApplicationStaleness(application);
+  const isGhosting = staleness.isStale && GHOSTABLE_STAGES.has(stage);
   const isGhosted = stage === "ghosted";
   const haunted = isGhosted && prefersReducedMotion !== true;
   const restingOpacity = isDragging ? 0.35 : haunted ? 0.82 : 1;
@@ -146,10 +155,13 @@ export function KanbanCard({
           )}
         />
       )}
-      <h4 className="text-[13px] font-semibold leading-tight text-ink">{application.company}</h4>
+      <div className="flex items-start justify-between gap-2">
+        <h4 className="text-[13px] font-semibold leading-tight text-ink">{application.company}</h4>
+        {isGhosting && <GhostBadge days={staleness.daysSinceLastActivity} className="mt-0.5" />}
+      </div>
       <p className="mt-0.5 text-[12px] leading-snug text-ink-2">{application.title}</p>
       <div className="mt-3 flex items-baseline justify-between gap-2 border-t border-hairline pt-2 text-[11px] text-ink-3">
-        <span className="tnum">{daysSince(application.lastActivityAt)}d quiet</span>
+        <span className={cn("tnum", isGhosting && "text-oxblood/80")}>{daysSince(application.lastActivityAt)}d quiet</span>
         {dateApplied && <span className="tnum">applied on {dateApplied}</span>}
       </div>
     </motion.article>

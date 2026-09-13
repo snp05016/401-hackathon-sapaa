@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { ProfileField } from "@ghostboard/shared";
+import type { SyncPairingInfo } from "../../electron/preload";
 import { ipc } from "../lib/ipc";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
@@ -17,12 +18,15 @@ export function Profile() {
   const [saveErrorNonce, setSaveErrorNonce] = useState(0);
   const [bridge, setBridge] = useState<{ port: number; token: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [sync, setSync] = useState<SyncPairingInfo | null>(null);
+  const [syncCopied, setSyncCopied] = useState(false);
 
   useEffect(() => {
     ipc()
       .getProfile()
       .then((p) => setFields(p.fields));
     ipc().getBridgeInfo().then(setBridge);
+    ipc().getSyncInfo().then(setSync);
   }, []);
 
   function updateValue(key: string, value: string) {
@@ -109,6 +113,10 @@ export function Profile() {
     }
   }
 
+  async function refreshSyncInfo() {
+    setSync(await ipc().getSyncInfo());
+  }
+
   return (
     <div className="max-w-[860px]">
       <Reveal as="header">
@@ -179,6 +187,35 @@ export function Profile() {
             {copied && <span role="status" className="text-[12px] text-verdigris">Token copied.</span>}
           </div>
         </section>}*/}
+
+        {sync && <section className="mt-12 border-t border-hairline pt-7" aria-labelledby="companion-heading">
+          <h2 id="companion-heading" className="font-display text-[28px] text-ink">iPhone companion</h2>
+          <p className="mt-2 text-[12px] leading-relaxed text-ink-2">
+            Use these details on the iPhone while both devices are on the same Wi-Fi. Mobile sync uses port 4175 by default; port 4173 is only for the browser extension.
+          </p>
+          {!sync.enabled && <p role="status" className="mt-5 text-[12px] leading-relaxed text-ink-2">
+            {sync.error ?? "The iPhone companion channel is disabled."}
+          </p>}
+          {sync.enabled && sync.addresses.length === 0 && <p role="status" className="mt-5 text-[12px] leading-relaxed text-ink-2">
+            No usable LAN address is available. The port and token are still shown below so you can pair an iOS Simulator with a loopback host, or connect this Mac to the same Wi-Fi as the iPhone and refresh.
+          </p>}
+          {sync.enabled && <>
+            {sync.addresses.length > 0 && <>
+              <label className="mt-5 block text-[12px] text-ink-2" htmlFor="sync-host">Host</label>
+              <Input id="sync-host" variant="rule" readOnly value={sync.addresses[0]} onFocus={(event) => event.currentTarget.select()} />
+              {sync.addresses.length > 1 && <p className="mt-2 text-[11px] text-ink-3">Other addresses: {sync.addresses.slice(1).join(", ")}</p>}
+            </>}
+            <label className="mt-5 block text-[12px] text-ink-2" htmlFor="sync-port">Companion port</label>
+            <Input id="sync-port" variant="rule" readOnly value={String(sync.port)} />
+            <label className="mt-5 block text-[12px] text-ink-2" htmlFor="sync-token">Pairing token</label>
+            <Input id="sync-token" variant="rule" readOnly value={sync.token} onFocus={(event) => event.currentTarget.select()} />
+            <div className="mt-4 flex items-center gap-4">
+              <Button variant="outline" onClick={() => { void navigator.clipboard.writeText(sync.token).then(() => setSyncCopied(true)); }}>Copy token</Button>
+              {syncCopied && <span role="status" className="text-[12px] text-verdigris">Token copied.</span>}
+            </div>
+          </>}
+          <Button className="mt-4" variant="outline" onClick={() => { void refreshSyncInfo(); }}>Refresh addresses</Button>
+        </section>}
       </div>
     </div>
   );

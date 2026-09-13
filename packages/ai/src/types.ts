@@ -7,6 +7,13 @@ export interface CompletionRequest {
   messages: ChatMessage[];
   temperature?: number;
   maxTokens?: number;
+  /**
+   * Opt-in. Reasoning models (Groq's gpt-oss family) otherwise spend a third of
+   * the token budget thinking before answering. "low" is right for mechanical
+   * extraction; leave unset for anything needing actual deliberation.
+   * Providers that do not support it ignore it.
+   */
+  reasoningEffort?: "low" | "medium" | "high";
 }
 
 export interface CompletionResponse {

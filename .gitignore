@@ -13,6 +13,10 @@ __pycache__/
 .venv/
 vendor/
 
+# Per-developer Xcode state
+**/xcuserdata/
+*.xcuserstate
+
 # Local Google OAuth downloads and tokens
 gmail-credentials.json
 credentials.json

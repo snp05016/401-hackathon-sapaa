@@ -18,6 +18,7 @@ import type {
 } from "../preload";
 import { readMasterResume, readProfile, writeMasterResume, writeProfile } from "../db/index";
 import { readBridgeFile } from "../bridge/token";
+import { readSyncPairingInfo } from "../sync/info";
 import { IPC_CHANNELS } from "./channels";
 import { updateApplicationDeadline } from "../db/deadlines";
 
@@ -146,6 +147,10 @@ export function registerIpcHandlers(db: GhostboardDb, ensureJobSpyReady: () => P
 
   ipcMain.handle(IPC_CHANNELS.bridgeInfo, () => {
     return readBridgeFile();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.syncInfo, () => {
+    return readSyncPairingInfo();
   });
 }
 
